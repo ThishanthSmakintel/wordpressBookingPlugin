@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<ruleset name="Booking Plugin">
+    <description>WordPress Coding Standards for Booking Plugin</description>
+    
+    <file>.</file>
+    
+    <exclude-pattern>*/node_modules/*</exclude-pattern>
+    <exclude-pattern>*/vendor/*</exclude-pattern>
+    
+    <rule ref="WordPress">
+        <exclude name="WordPress.Files.FileName"/>
+    </rule>
+    
+    <config name="minimum_supported_wp_version" value="5.0"/>
+    <config name="testVersion" value="7.4-"/>
+</ruleset>

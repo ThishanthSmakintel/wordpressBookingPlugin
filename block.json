@@ -1,0 +1,17 @@
+{
+  "$schema": "https://schemas.wp.org/trunk/block.json",
+  "apiVersion": 2,
+  "name": "booking/appointment-form",
+  "version": "1.0.0",
+  "title": "Appointment Booking",
+  "category": "widgets",
+  "icon": "calendar-alt",
+  "description": "Add a booking form for appointments with React calendar",
+  "supports": {
+    "html": false
+  },
+  "textdomain": "booking-plugin",
+  "editorScript": "file:./build/index.js",
+  "editorStyle": "file:./build/index.css",
+  "style": "file:./build/style-index.css"
+}

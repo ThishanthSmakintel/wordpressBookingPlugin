@@ -1,0 +1,22 @@
+# Copyright (C) 2024 Booking Plugin
+# This file is distributed under the same license as the Booking Plugin package.
+msgid ""
+msgstr ""
+"Project-Id-Version: Booking Plugin 1.0.0\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/booking-plugin\n"
+"POT-Creation-Date: 2024-01-01 12:00+0000\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"PO-Revision-Date: 2024-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+
+msgid "Booking Plugin"
+msgstr ""
+
+msgid "Appointment Booking"
+msgstr ""
+
+msgid "Book an Appointment"
+msgstr ""

@@ -1,0 +1,35 @@
+{
+  "name": "booking-plugin",
+  "version": "1.0.0",
+  "description": "WordPress booking plugin with React Gutenberg support",
+  "main": "build/index.js",
+  "scripts": {
+    "build": "wp-scripts build",
+    "start": "wp-scripts start",
+    "dev": "wp-scripts start",
+    "watch": "wp-scripts start --watch",
+    "build:dev": "wp-scripts build --mode=development --watch",
+    "lint:css": "wp-scripts lint-style",
+    "lint:js": "wp-scripts lint-js",
+    "packages-update": "wp-scripts packages-update",
+    "plugin-zip": "wp-scripts plugin-zip",
+    "format": "wp-scripts format"
+  },
+  "devDependencies": {
+    "@wordpress/scripts": "^27.0.0",
+    "@types/react": "^18.0.0",
+    "@types/react-big-calendar": "^1.8.0",
+    "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@wordpress/block-editor": "^12.0.0",
+    "@wordpress/blocks": "^12.0.0",
+    "@wordpress/components": "^25.0.0",
+    "@wordpress/data": "^9.0.0",
+    "@wordpress/element": "^5.0.0",
+    "@wordpress/i18n": "^4.0.0",
+    "moment": "^2.29.4",
+    "react-big-calendar": "^1.8.2",
+    "toastify-js": "^1.12.0"
+  }
+}

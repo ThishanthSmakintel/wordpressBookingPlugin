@@ -1,0 +1,10 @@
+== Changelog ==
+
+= 1.0.0 =
+* Initial release
+* React Gutenberg block for appointment booking
+* Admin dashboard integration
+* Calendar-based date selection
+* Appointment management (book, cancel, reschedule)
+* WordPress dashboard widgets
+* AJAX-powered interface
