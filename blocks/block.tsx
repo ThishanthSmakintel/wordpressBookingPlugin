@@ -2,6 +2,7 @@ import { registerBlockType } from '@wordpress/blocks';
 import { __ } from '@wordpress/i18n';
 import { useBlockProps } from '@wordpress/block-editor';
 import './editor.scss';
+import '../src/frontend.css';
 
 registerBlockType('appointease/booking-form', {
     apiVersion: 2,
@@ -15,21 +16,76 @@ registerBlockType('appointease/booking-form', {
         
         return (
             <div {...blockProps}>
-                <div className="appointease-block-preview">
-                    <div className="ae-preview-header">
-                        <div className="ae-preview-logo">A</div>
-                        <h3>AppointEase Booking Form</h3>
-                    </div>
-                    <div className="ae-preview-content">
-                        <div className="preview-service">
-                            <div className="service-icon"></div>
-                            <div>
-                                <h4>Select Service</h4>
-                                <p>Choose from available services</p>
+                <div className="appointease-booking-wrapper">
+                    <div className="appointease-booking-container" id="appointease-booking-editor">
+                        <div className="appointease-booking">
+                            <div className="appointease-booking-header">
+                                <div className="appointease-logo">
+                                    <span className="logo-icon">A</span>
+                                    <span className="logo-text">AppointEase</span>
+                                </div>
+                                <div className="manage-appointment">
+                                    <input type="text" placeholder="Enter Appointment ID" disabled />
+                                    <button disabled>Manage</button>
+                                </div>
                             </div>
-                        </div>
-                        <div className="preview-note">
-                            <em>Booking interface will be displayed on the frontend</em>
+                            <div className="appointease-booking-content">
+                                <div className="appointease-steps">
+                                    <div className="step active">
+                                        <span className="step-number">1</span>
+                                        <span className="step-label">Service</span>
+                                    </div>
+                                    <div className="step">
+                                        <span className="step-number">2</span>
+                                        <span className="step-label">Employee</span>
+                                    </div>
+                                    <div className="step">
+                                        <span className="step-number">3</span>
+                                        <span className="step-label">Date</span>
+                                    </div>
+                                    <div className="step">
+                                        <span className="step-number">4</span>
+                                        <span className="step-label">Time</span>
+                                    </div>
+                                    <div className="step">
+                                        <span className="step-number">5</span>
+                                        <span className="step-label">Info</span>
+                                    </div>
+                                </div>
+                                <div className="appointease-step-content">
+                                    <h2>Choose Your Service</h2>
+                                    <p className="step-description">Select the service you'd like to book</p>
+                                    <div className="services-grid">
+                                        <div className="service-card">
+                                            <div className="service-icon">💼</div>
+                                            <div className="service-info">
+                                                <h3>Consultation</h3>
+                                                <p>Initial consultation session</p>
+                                                <div className="service-meta">
+                                                    <span className="duration">⏱️ 30 min</span>
+                                                    <span className="price">💰 $75</span>
+                                                </div>
+                                            </div>
+                                            <div className="service-arrow">→</div>
+                                        </div>
+                                        <div className="service-card">
+                                            <div className="service-icon">💼</div>
+                                            <div className="service-info">
+                                                <h3>Premium Service</h3>
+                                                <p>Extended premium service</p>
+                                                <div className="service-meta">
+                                                    <span className="duration">⏱️ 60 min</span>
+                                                    <span className="price">💰 $150</span>
+                                                </div>
+                                            </div>
+                                            <div className="service-arrow">→</div>
+                                        </div>
+                                    </div>
+                                    <div className="editor-note">
+                                        <p><em>This is a preview. The booking system will be fully functional on the frontend.</em></p>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -38,11 +94,6 @@ registerBlockType('appointease/booking-form', {
     },
     
     save() {
-        const blockProps = useBlockProps.save({
-            className: 'appointease-booking-container',
-            id: 'appointease-booking'
-        });
-        
-        return <div {...blockProps}></div>;
+        return null; // Dynamic block - rendered by PHP
     }
 });

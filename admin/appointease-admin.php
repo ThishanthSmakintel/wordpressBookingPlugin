@@ -10,6 +10,9 @@ class AppointEase_Admin {
         add_action('wp_ajax_get_staff', array($this, 'get_staff'));
         add_action('wp_ajax_delete_service', array($this, 'delete_service'));
         add_action('wp_ajax_delete_staff', array($this, 'delete_staff'));
+        add_action('wp_ajax_update_appointment_status', array($this, 'update_appointment_status'));
+        add_action('wp_ajax_delete_appointment', array($this, 'delete_appointment'));
+        add_action('admin_init', array($this, 'init_settings'));
     }
     
     public function enqueue_admin_assets($hook) {
@@ -46,6 +49,24 @@ class AppointEase_Admin {
             'manage_options',
             'appointease-staff',
             array($this, 'staff_page')
+        );
+        
+        add_submenu_page(
+            'appointease',
+            'Appointments',
+            'Appointments',
+            'manage_options',
+            'appointease-appointments',
+            array($this, 'appointments_page')
+        );
+        
+        add_submenu_page(
+            'appointease',
+            'Settings',
+            'Settings',
+            'manage_options',
+            'appointease-settings',
+            array($this, 'settings_page')
         );
     }
     
@@ -111,7 +132,7 @@ class AppointEase_Admin {
                         <a href="admin.php?page=appointease-staff" class="action-btn secondary">
                             Add Team Member
                         </a>
-                        <a href="#" class="action-btn tertiary">
+                        <a href="admin.php?page=appointease-appointments" class="action-btn tertiary">
                             View All Appointments
                         </a>
                     </div>
@@ -158,6 +179,39 @@ class AppointEase_Admin {
                     </div>
                 <?php endif; ?>
             </div>
+            
+            <!-- Service Modal -->
+            <div id="service-modal" class="ae-modal">
+                <div class="ae-modal-content">
+                    <div class="ae-modal-header">
+                        <h3 id="service-modal-title" class="ae-modal-title">Add Service</h3>
+                        <button class="ae-close">&times;</button>
+                    </div>
+                    <form id="service-form">
+                        <input type="hidden" id="service-id" />
+                        <div class="ae-form-group">
+                            <label class="ae-form-label">Service Name *</label>
+                            <input type="text" id="service-name" class="ae-form-input" required />
+                        </div>
+                        <div class="ae-form-group">
+                            <label class="ae-form-label">Description</label>
+                            <textarea id="service-description" class="ae-form-input ae-form-textarea"></textarea>
+                        </div>
+                        <div class="ae-form-group">
+                            <label class="ae-form-label">Duration (minutes) *</label>
+                            <input type="number" id="service-duration" class="ae-form-input" required min="1" />
+                        </div>
+                        <div class="ae-form-group">
+                            <label class="ae-form-label">Price ($) *</label>
+                            <input type="number" id="service-price" class="ae-form-input" required min="0" step="0.01" />
+                        </div>
+                        <div class="ae-form-actions">
+                            <button type="button" class="ae-btn" onclick="jQuery('#service-modal').removeClass('show')">Cancel</button>
+                            <button type="submit" class="ae-btn primary">Save Service</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
         <?php
     }
@@ -196,11 +250,41 @@ class AppointEase_Admin {
                     </div>
                 <?php endif; ?>
             </div>
+            
+            <!-- Staff Modal -->
+            <div id="staff-modal" class="ae-modal">
+                <div class="ae-modal-content">
+                    <div class="ae-modal-header">
+                        <h3 id="staff-modal-title" class="ae-modal-title">Add Staff Member</h3>
+                        <button class="ae-close">&times;</button>
+                    </div>
+                    <form id="staff-form">
+                        <input type="hidden" id="staff-id" />
+                        <div class="ae-form-group">
+                            <label class="ae-form-label">Full Name *</label>
+                            <input type="text" id="staff-name" class="ae-form-input" required />
+                        </div>
+                        <div class="ae-form-group">
+                            <label class="ae-form-label">Email *</label>
+                            <input type="email" id="staff-email" class="ae-form-input" required />
+                        </div>
+                        <div class="ae-form-group">
+                            <label class="ae-form-label">Phone</label>
+                            <input type="tel" id="staff-phone" class="ae-form-input" />
+                        </div>
+                        <div class="ae-form-actions">
+                            <button type="button" class="ae-btn" onclick="jQuery('#staff-modal').removeClass('show')">Cancel</button>
+                            <button type="submit" class="ae-btn primary">Save Staff Member</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
         </div>
         <?php
     }
     
     public function save_service() {
+        check_ajax_referer('appointease_nonce', '_wpnonce');
         global $wpdb;
         
         $id = intval($_POST['id']);
@@ -226,6 +310,7 @@ class AppointEase_Admin {
     }
     
     public function save_staff() {
+        check_ajax_referer('appointease_nonce', '_wpnonce');
         global $wpdb;
         
         $id = intval($_POST['id']);
@@ -250,6 +335,7 @@ class AppointEase_Admin {
     }
     
     public function get_service() {
+        check_ajax_referer('appointease_nonce', '_wpnonce');
         global $wpdb;
         $id = intval($_POST['id']);
         $service = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}appointease_services WHERE id = %d", $id));
@@ -262,6 +348,7 @@ class AppointEase_Admin {
     }
     
     public function get_staff() {
+        check_ajax_referer('appointease_nonce', '_wpnonce');
         global $wpdb;
         $id = intval($_POST['id']);
         $staff = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}appointease_staff WHERE id = %d", $id));
@@ -274,6 +361,7 @@ class AppointEase_Admin {
     }
     
     public function delete_service() {
+        check_ajax_referer('appointease_nonce', '_wpnonce');
         global $wpdb;
         $id = intval($_POST['id']);
         
@@ -291,6 +379,7 @@ class AppointEase_Admin {
     }
     
     public function delete_staff() {
+        check_ajax_referer('appointease_nonce', '_wpnonce');
         global $wpdb;
         $id = intval($_POST['id']);
         
@@ -305,6 +394,174 @@ class AppointEase_Admin {
         } else {
             wp_send_json_error('Failed to delete staff');
         }
+    }
+    
+    public function appointments_page() {
+        global $wpdb;
+        $appointments = $wpdb->get_results(
+            "SELECT a.*, s.name as service_name, st.name as staff_name 
+             FROM {$wpdb->prefix}appointments a 
+             LEFT JOIN {$wpdb->prefix}appointease_services s ON a.service_id = s.id 
+             LEFT JOIN {$wpdb->prefix}appointease_staff st ON a.employee_id = st.id 
+             ORDER BY a.appointment_date DESC"
+        );
+        ?>
+        <div class="appointease-wrap">
+            <div class="ae-page-header">
+                <h1>Appointments</h1>
+                <div class="ae-header-actions">
+                    <input type="text" id="appointment-search" placeholder="Search appointments..." class="ae-search-input" />
+                    <select id="status-filter" class="ae-filter-select">
+                        <option value="">All Status</option>
+                        <option value="confirmed">Confirmed</option>
+                        <option value="cancelled">Cancelled</option>
+                    </select>
+                </div>
+            </div>
+            
+            <div class="ae-table-container">
+                <table class="ae-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Customer</th>
+                            <th>Service</th>
+                            <th>Staff</th>
+                            <th>Date & Time</th>
+                            <th>Status</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if($appointments): ?>
+                            <?php foreach($appointments as $appointment): ?>
+                            <tr>
+                                <td><?php echo $appointment->id; ?></td>
+                                <td>
+                                    <strong><?php echo esc_html($appointment->name); ?></strong><br>
+                                    <small><?php echo esc_html($appointment->email); ?></small>
+                                </td>
+                                <td><?php echo esc_html($appointment->service_name ?: 'N/A'); ?></td>
+                                <td><?php echo esc_html($appointment->staff_name ?: 'N/A'); ?></td>
+                                <td><?php echo date('M j, Y g:i A', strtotime($appointment->appointment_date)); ?></td>
+                                <td>
+                                    <span class="status-badge <?php echo $appointment->status; ?>">
+                                        <?php echo ucfirst($appointment->status); ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <select onchange="updateAppointmentStatus(<?php echo $appointment->id; ?>, this.value)">
+                                        <option value="confirmed" <?php selected($appointment->status, 'confirmed'); ?>>Confirmed</option>
+                                        <option value="cancelled" <?php selected($appointment->status, 'cancelled'); ?>>Cancelled</option>
+                                    </select>
+                                    <button class="ae-btn-small danger" onclick="deleteAppointment(<?php echo $appointment->id; ?>)">Delete</button>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <tr>
+                                <td colspan="7" class="ae-empty-state">
+                                    <div class="ae-empty-state-icon">📅</div>
+                                    <h3>No appointments yet</h3>
+                                    <p>Appointments will appear here once customers start booking</p>
+                                </td>
+                            </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        <?php
+    }
+    
+    public function update_appointment_status() {
+        check_ajax_referer('appointease_nonce', '_wpnonce');
+        global $wpdb;
+        $id = intval($_POST['id']);
+        $status = sanitize_text_field($_POST['status']);
+        
+        $result = $wpdb->update(
+            $wpdb->prefix . 'appointments',
+            array('status' => $status),
+            array('id' => $id)
+        );
+        
+        if($result !== false) {
+            wp_send_json_success();
+        } else {
+            wp_send_json_error('Failed to update status');
+        }
+    }
+    
+    public function delete_appointment() {
+        check_ajax_referer('appointease_nonce', '_wpnonce');
+        global $wpdb;
+        $id = intval($_POST['id']);
+        
+        $result = $wpdb->delete(
+            $wpdb->prefix . 'appointments',
+            array('id' => $id),
+            array('%d')
+        );
+        
+        if($result) {
+            wp_send_json_success();
+        } else {
+            wp_send_json_error('Failed to delete appointment');
+        }
+    }
+    
+    public function init_settings() {
+        register_setting('appointease_settings', 'appointease_options');
+    }
+    
+    public function settings_page() {
+        if (isset($_POST['submit'])) {
+            update_option('appointease_options', $_POST['appointease_options']);
+            echo '<div class="notice notice-success"><p>Settings saved!</p></div>';
+        }
+        
+        $options = get_option('appointease_options', array());
+        $start_time = isset($options['start_time']) ? $options['start_time'] : '09:00';
+        $end_time = isset($options['end_time']) ? $options['end_time'] : '17:00';
+        $slot_duration = isset($options['slot_duration']) ? $options['slot_duration'] : 30;
+        ?>
+        <div class="appointease-wrap">
+            <div class="ae-page-header">
+                <h1>Settings</h1>
+            </div>
+            
+            <form method="post" class="ae-settings-form">
+                <div class="ae-card">
+                    <h3>Business Hours</h3>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Start Time</label>
+                            <input type="time" name="appointease_options[start_time]" value="<?php echo $start_time; ?>" />
+                        </div>
+                        <div class="form-group">
+                            <label>End Time</label>
+                            <input type="time" name="appointease_options[end_time]" value="<?php echo $end_time; ?>" />
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="ae-card">
+                    <h3>Time Slots</h3>
+                    <div class="form-group">
+                        <label>Slot Duration</label>
+                        <select name="appointease_options[slot_duration]">
+                            <option value="15" <?php selected($slot_duration, 15); ?>>15 minutes</option>
+                            <option value="30" <?php selected($slot_duration, 30); ?>>30 minutes</option>
+                            <option value="60" <?php selected($slot_duration, 60); ?>>60 minutes</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <button type="submit" name="submit" class="ae-btn primary">Save Settings</button>
+            </form>
+        </div>
+        <?php
     }
     
     private function ensure_default_data() {

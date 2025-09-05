@@ -26,8 +26,13 @@ class Booking_Plugin {
         add_action('wp_ajax_nopriv_get_appointment', array($this, 'get_appointment'));
         add_action('wp_ajax_cancel_appointment', array($this, 'cancel_appointment'));
         add_action('wp_ajax_reschedule_appointment', array($this, 'reschedule_appointment'));
-        add_action('wp_ajax_amelia_book_appointment', array($this, 'amelia_book_appointment'));
-        add_action('wp_ajax_nopriv_amelia_book_appointment', array($this, 'amelia_book_appointment'));
+        add_action('wp_ajax_nopriv_reschedule_appointment', array($this, 'reschedule_appointment'));
+        add_action('wp_ajax_get_services', array($this, 'get_services'));
+        add_action('wp_ajax_nopriv_get_services', array($this, 'get_services'));
+        add_action('wp_ajax_get_staff', array($this, 'get_staff_list'));
+        add_action('wp_ajax_nopriv_get_staff', array($this, 'get_staff_list'));
+        add_action('wp_ajax_check_availability', array($this, 'check_availability'));
+        add_action('wp_ajax_nopriv_check_availability', array($this, 'check_availability'));
     }
     
     public function init() {
@@ -51,7 +56,41 @@ class Booking_Plugin {
     }
     
     public function render_booking_block($attributes, $content) {
-        return '<div class="appointease-booking-container" id="appointease-booking"></div>';
+        ob_start();
+        ?>
+        <div class="appointease-booking-wrapper">
+            <div class="appointease-booking-container" id="appointease-booking">
+                <div class="appointease-booking">
+                    <div class="appointease-booking-header">
+                        <div class="appointease-logo">
+                            <span class="logo-icon">A</span>
+                            <span class="logo-text">AppointEase</span>
+                        </div>
+                        <div class="manage-appointment">
+                            <input type="text" placeholder="Enter Appointment ID" id="manage-appointment-id" />
+                            <button onclick="handleManageFromInput()">Manage</button>
+                        </div>
+                    </div>
+                    <div class="appointease-booking-content">
+                        <div class="loading-initial">
+                            <div class="spinner"></div>
+                            <p>Loading booking system...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <script>
+        function handleManageFromInput() {
+            const id = document.getElementById('manage-appointment-id').value;
+            if (window.BookingApp && window.BookingApp.handleManageAppointment) {
+                window.BookingApp.setAppointmentId(id);
+                window.BookingApp.handleManageAppointment();
+            }
+        }
+        </script>
+        <?php
+        return ob_get_clean();
     }
     
     public function enqueue_block_editor_assets() {
@@ -80,6 +119,14 @@ class Booking_Plugin {
         wp_enqueue_style(
             'booking-plugin-editor',
             BOOKING_PLUGIN_URL . 'build/index.css',
+            array(),
+            $asset_data['version']
+        );
+        
+        // Enqueue frontend styles for editor preview
+        wp_enqueue_style(
+            'booking-plugin-frontend-editor',
+            BOOKING_PLUGIN_URL . 'build/frontend.css',
             array(),
             $asset_data['version']
         );
@@ -119,6 +166,14 @@ class Booking_Plugin {
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('booking_nonce')
         ));
+        
+        // Add admin scripts
+        if (is_admin()) {
+            wp_localize_script('appointease-admin', 'appointease_ajax', array(
+                'ajax_url' => admin_url('admin-ajax.php'),
+                'nonce' => wp_create_nonce('appointease_nonce')
+            ));
+        }
     }
     
     public function book_appointment() {
@@ -130,6 +185,8 @@ class Booking_Plugin {
         $email = sanitize_email($_POST['email']);
         $phone = sanitize_text_field($_POST['phone']);
         $date = sanitize_text_field($_POST['date']);
+        $service_id = isset($_POST['service_id']) ? intval($_POST['service_id']) : null;
+        $employee_id = isset($_POST['employee_id']) ? intval($_POST['employee_id']) : null;
         
         $result = $wpdb->insert(
             $wpdb->prefix . 'appointments',
@@ -138,12 +195,16 @@ class Booking_Plugin {
                 'email' => $email,
                 'phone' => $phone,
                 'appointment_date' => $date,
-                'status' => 'confirmed'
+                'status' => 'confirmed',
+                'service_id' => $service_id,
+                'employee_id' => $employee_id
             )
         );
         
         if ($result) {
-            wp_send_json_success(array('message' => __('Appointment booked successfully!', 'booking-plugin'), 'id' => $wpdb->insert_id));
+            $appointment_id = $wpdb->insert_id;
+            $this->send_booking_email($name, $email, $appointment_id, $date);
+            wp_send_json_success(array('message' => __('Appointment booked successfully!', 'booking-plugin'), 'id' => $appointment_id));
         } else {
             wp_send_json_error(__('Failed to book appointment', 'booking-plugin'));
         }
@@ -163,6 +224,10 @@ class Booking_Plugin {
         );
         
         if ($result !== false) {
+            $appointment = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}appointments WHERE id = %d", $id));
+            if ($appointment) {
+                $this->send_cancellation_email($appointment->name, $appointment->email, $id);
+            }
             wp_send_json_success(__('Appointment cancelled successfully!', 'booking-plugin'));
         } else {
             wp_send_json_error(__('Failed to cancel appointment', 'booking-plugin'));
@@ -206,39 +271,61 @@ class Booking_Plugin {
         );
         
         if ($result !== false) {
+            $appointment = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}appointments WHERE id = %d", $id));
+            if ($appointment) {
+                $this->send_reschedule_email($appointment->name, $appointment->email, $id, $new_date);
+            }
             wp_send_json_success(__('Appointment rescheduled successfully!', 'booking-plugin'));
         } else {
             wp_send_json_error(__('Failed to reschedule appointment', 'booking-plugin'));
         }
     }
     
-    public function amelia_book_appointment() {
+    public function get_services() {
+        global $wpdb;
+        $services = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}appointease_services ORDER BY name");
+        wp_send_json_success($services);
+    }
+    
+    public function get_staff_list() {
+        global $wpdb;
+        $staff = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}appointease_staff ORDER BY name");
+        wp_send_json_success($staff);
+    }
+    
+    public function check_availability() {
         check_ajax_referer('booking_nonce', 'nonce');
-        
         global $wpdb;
         
-        $booking_data = json_decode(stripslashes($_POST['booking_data']), true);
+        $date = sanitize_text_field($_POST['date']);
+        $time = sanitize_text_field($_POST['time']);
+        $employee_id = intval($_POST['employee_id']);
         
-        $result = $wpdb->insert(
-            $wpdb->prefix . 'appointments',
-            array(
-                'name' => $booking_data['customer']['firstName'] . ' ' . $booking_data['customer']['lastName'],
-                'email' => $booking_data['customer']['email'],
-                'phone' => $booking_data['customer']['phone'],
-                'appointment_date' => $booking_data['date'] . ' ' . $booking_data['time'] . ':00',
-                'status' => 'confirmed',
-                'service_id' => $booking_data['service']['id'],
-                'employee_id' => $booking_data['employee']['id']
-            )
-        );
+        $datetime = $date . ' ' . $time . ':00';
         
-        if ($result) {
-            wp_send_json_success(array(
-                'message' => __('Appointment booked successfully!', 'booking-plugin'),
-                'id' => $wpdb->insert_id
-            ));
-        } else {
-            wp_send_json_error(__('Failed to book appointment', 'booking-plugin'));
-        }
+        $existing = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}appointments WHERE appointment_date = %s AND employee_id = %d AND status = 'confirmed'",
+            $datetime, $employee_id
+        ));
+        
+        wp_send_json_success(array('available' => $existing == 0));
+    }
+    
+    private function send_booking_email($name, $email, $appointment_id, $date) {
+        $subject = 'Appointment Confirmation - ID: ' . $appointment_id;
+        $message = "Dear {$name},\n\nYour appointment has been confirmed.\n\nAppointment ID: {$appointment_id}\nDate: {$date}\n\nUse your appointment ID to manage your booking.\n\nThank you!";
+        wp_mail($email, $subject, $message);
+    }
+    
+    private function send_cancellation_email($name, $email, $appointment_id) {
+        $subject = 'Appointment Cancelled - ID: ' . $appointment_id;
+        $message = "Dear {$name},\n\nYour appointment (ID: {$appointment_id}) has been cancelled.\n\nThank you!";
+        wp_mail($email, $subject, $message);
+    }
+    
+    private function send_reschedule_email($name, $email, $appointment_id, $new_date) {
+        $subject = 'Appointment Rescheduled - ID: ' . $appointment_id;
+        $message = "Dear {$name},\n\nYour appointment (ID: {$appointment_id}) has been rescheduled.\n\nNew Date: {$new_date}\n\nThank you!";
+        wp_mail($email, $subject, $message);
     }
 }

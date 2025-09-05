@@ -278,3 +278,262 @@ document.addEventListener('click', function(e) {
         e.target.remove();
     }
 });
+jQuery(document).ready(function($) {
+    // Show message function
+    function showMessage(message, type = 'success') {
+        const messageEl = $('<div class="ae-message ' + type + '">' + message + '</div>');
+        $('body').append(messageEl);
+        setTimeout(() => messageEl.remove(), 3000);
+    }
+    
+    // Modal functions
+    function openModal(modalId) {
+        $('#' + modalId).addClass('show');
+    }
+    
+    function closeModal(modalId) {
+        $('#' + modalId).removeClass('show');
+    }
+    
+    // Close modal on background click
+    $('.ae-modal').on('click', function(e) {
+        if (e.target === this) {
+            $(this).removeClass('show');
+        }
+    });
+    
+    // Close modal on close button
+    $('.ae-close').on('click', function() {
+        $(this).closest('.ae-modal').removeClass('show');
+    });
+    
+    // Global functions
+    window.openServiceModal = function(id = null) {
+        if (id) {
+            // Edit mode - load service data
+            $.post(appointease_ajax.ajax_url, {
+                action: 'get_service',
+                id: id,
+                _wpnonce: appointease_ajax.nonce
+            }, function(response) {
+                if (response.success) {
+                    const service = response.data;
+                    $('#service-id').val(service.id);
+                    $('#service-name').val(service.name);
+                    $('#service-duration').val(service.duration);
+                    $('#service-price').val(service.price);
+                    $('#service-description').val(service.description);
+                    $('#service-modal-title').text('Edit Service');
+                }
+            });
+        } else {
+            // Add mode - clear form
+            $('#service-form')[0].reset();
+            $('#service-id').val('');
+            $('#service-modal-title').text('Add Service');
+        }
+        openModal('service-modal');
+    };
+    
+    window.openStaffModal = function(id = null) {
+        if (id) {
+            // Edit mode - load staff data
+            $.post(appointease_ajax.ajax_url, {
+                action: 'get_staff',
+                id: id,
+                _wpnonce: appointease_ajax.nonce
+            }, function(response) {
+                if (response.success) {
+                    const staff = response.data;
+                    $('#staff-id').val(staff.id);
+                    $('#staff-name').val(staff.name);
+                    $('#staff-email').val(staff.email);
+                    $('#staff-phone').val(staff.phone);
+                    $('#staff-modal-title').text('Edit Staff Member');
+                }
+            });
+        } else {
+            // Add mode - clear form
+            $('#staff-form')[0].reset();
+            $('#staff-id').val('');
+            $('#staff-modal-title').text('Add Staff Member');
+        }
+        openModal('staff-modal');
+    };
+    
+    window.editService = function(id) {
+        openServiceModal(id);
+    };
+    
+    window.editStaff = function(id) {
+        openStaffModal(id);
+    };
+    
+    window.deleteService = function(id) {
+        if (confirm('Are you sure you want to delete this service?')) {
+            $.post(appointease_ajax.ajax_url, {
+                action: 'delete_service',
+                id: id,
+                _wpnonce: appointease_ajax.nonce
+            }, function(response) {
+                if (response.success) {
+                    showMessage('Service deleted successfully');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showMessage('Failed to delete service', 'error');
+                }
+            });
+        }
+    };
+    
+    window.deleteStaff = function(id) {
+        if (confirm('Are you sure you want to delete this staff member?')) {
+            $.post(appointease_ajax.ajax_url, {
+                action: 'delete_staff',
+                id: id,
+                _wpnonce: appointease_ajax.nonce
+            }, function(response) {
+                if (response.success) {
+                    showMessage('Staff member deleted successfully');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showMessage('Failed to delete staff member', 'error');
+                }
+            });
+        }
+    };
+    
+    window.updateAppointmentStatus = function(id, status) {
+        const row = $('select[onchange*="' + id + '"]').closest('tr');
+        row.addClass('ae-loading');
+        
+        $.post(appointease_ajax.ajax_url, {
+            action: 'update_appointment_status',
+            id: id,
+            status: status,
+            _wpnonce: appointease_ajax.nonce
+        }, function(response) {
+            row.removeClass('ae-loading');
+            if (response.success) {
+                showMessage('Appointment status updated successfully');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showMessage('Failed to update status', 'error');
+            }
+        });
+    };
+    
+    window.deleteAppointment = function(id) {
+        if (confirm('Are you sure you want to delete this appointment?')) {
+            const row = $('button[onclick*="deleteAppointment(' + id + ')"]').closest('tr');
+            row.addClass('ae-loading');
+            
+            $.post(appointease_ajax.ajax_url, {
+                action: 'delete_appointment',
+                id: id,
+                _wpnonce: appointease_ajax.nonce
+            }, function(response) {
+                row.removeClass('ae-loading');
+                if (response.success) {
+                    showMessage('Appointment deleted successfully');
+                    setTimeout(() => location.reload(), 1000);
+                } else {
+                    showMessage('Failed to delete appointment', 'error');
+                }
+            });
+        }
+    };
+    
+    // Form submissions
+    $('#service-form').on('submit', function(e) {
+        e.preventDefault();
+        const form = $(this);
+        const submitBtn = form.find('button[type="submit"]');
+        
+        submitBtn.addClass('ae-loading');
+        
+        $.post(appointease_ajax.ajax_url, {
+            action: 'save_service',
+            id: $('#service-id').val(),
+            name: $('#service-name').val(),
+            duration: $('#service-duration').val(),
+            price: $('#service-price').val(),
+            description: $('#service-description').val(),
+            _wpnonce: appointease_ajax.nonce
+        }, function(response) {
+            submitBtn.removeClass('ae-loading');
+            if (response.success) {
+                showMessage('Service saved successfully');
+                closeModal('service-modal');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showMessage('Failed to save service', 'error');
+            }
+        });
+    });
+    
+    $('#staff-form').on('submit', function(e) {
+        e.preventDefault();
+        const form = $(this);
+        const submitBtn = form.find('button[type="submit"]');
+        
+        submitBtn.addClass('ae-loading');
+        
+        $.post(appointease_ajax.ajax_url, {
+            action: 'save_staff',
+            id: $('#staff-id').val(),
+            name: $('#staff-name').val(),
+            email: $('#staff-email').val(),
+            phone: $('#staff-phone').val(),
+            _wpnonce: appointease_ajax.nonce
+        }, function(response) {
+            submitBtn.removeClass('ae-loading');
+            if (response.success) {
+                showMessage('Staff member saved successfully');
+                closeModal('staff-modal');
+                setTimeout(() => location.reload(), 1000);
+            } else {
+                showMessage('Failed to save staff member', 'error');
+            }
+        });
+    });
+});
+    // Search and filter functionality
+    $('#appointment-search').on('keyup', function() {
+        const searchTerm = $(this).val().toLowerCase();
+        filterAppointments();
+    });
+    
+    $('#status-filter').on('change', function() {
+        filterAppointments();
+    });
+    
+    function filterAppointments() {
+        const searchTerm = $('#appointment-search').val().toLowerCase();
+        const statusFilter = $('#status-filter').val();
+        
+        $('.ae-table tbody tr').each(function() {
+            const row = $(this);
+            const text = row.text().toLowerCase();
+            const status = row.find('.status-badge').text().toLowerCase().trim();
+            
+            let showRow = true;
+            
+            if (searchTerm && !text.includes(searchTerm)) {
+                showRow = false;
+            }
+            
+            if (statusFilter && status !== statusFilter) {
+                showRow = false;
+            }
+            
+            row.toggle(showRow);
+        });
+    }
+    
+    // Auto-refresh appointments every 30 seconds
+    if (window.location.href.includes('appointease-appointments')) {
+        setInterval(function() {
+            location.reload();
+        }, 30000);
+    }

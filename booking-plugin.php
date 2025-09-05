@@ -26,6 +26,7 @@ define('BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 require_once BOOKING_PLUGIN_PATH . 'includes/class-activator.php';
 require_once BOOKING_PLUGIN_PATH . 'includes/class-deactivator.php';
 require_once BOOKING_PLUGIN_PATH . 'includes/class-booking-plugin.php';
+require_once BOOKING_PLUGIN_PATH . 'includes/class-settings.php';
 
 register_activation_hook(__FILE__, array('Booking_Activator', 'activate'));
 register_deactivation_hook(__FILE__, array('Booking_Deactivator', 'deactivate'));
