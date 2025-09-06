@@ -10,6 +10,10 @@
     --text-primary: var(--wp--preset--color--contrast, #000000);
     --text-secondary: var(--wp--preset--color--contrast-3, #666666);
     
+    /* WordPress color support */
+    color: var(--wp--preset--color--foreground, var(--text-primary));
+    background-color: var(--wp--preset--color--background, transparent);
+    
     font-family: inherit;
     font-size: inherit;
     color: var(--text-primary);
@@ -162,17 +166,17 @@
 }
 
 .service-card {
-    background: #ffffff;
+    background: var(--card-bg);
     border: 2px solid var(--card-border);
     border-radius: 12px;
     padding: 20px;
     cursor: pointer;
     transition: all 0.3s ease;
     text-align: center;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     font-family: inherit;
     font-size: inherit;
-    color: inherit;
+    color: var(--text-primary);
     position: relative;
     min-height: 140px;
 }
@@ -180,17 +184,17 @@
 .service-card:hover {
     border-color: var(--button-bg);
     transform: translateY(-5px);
-    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    box-shadow: 0 12px 30px rgba(0,0,0,0.2);
 }
 
 .service-info h3 {
-    color: var(--text-primary);
+    color: #333 !important;
     margin-bottom: 10px;
     font-size: inherit;
 }
 
 .service-info p {
-    color: var(--text-secondary);
+    color: #666 !important;
     margin-bottom: 15px;
     line-height: inherit;
 }
@@ -203,7 +207,7 @@
 
 .duration {
     background: #f8f9fa;
-    color: #495057;
+    color: #495057 !important;
     padding: 5px 12px;
     border-radius: 15px;
     font-size: 14px;
@@ -212,7 +216,7 @@
 
 .price {
     background: #d4edda;
-    color: #155724;
+    color: #155724 !important;
     padding: 5px 12px;
     border-radius: 15px;
     font-size: 14px;
@@ -227,23 +231,23 @@
 }
 
 .employee-card {
-    background: #ffffff;
+    background: var(--card-bg);
     border: 2px solid var(--card-border);
     border-radius: 12px;
     padding: 25px;
     cursor: pointer;
     transition: all 0.3s ease;
     text-align: center;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
     font-family: inherit;
     font-size: inherit;
-    color: inherit;
+    color: var(--text-primary);
 }
 
 .employee-card:hover {
     border-color: var(--button-bg);
     transform: translateY(-5px);
-    box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+    box-shadow: 0 12px 30px rgba(0,0,0,0.2);
 }
 
 .employee-avatar {
@@ -261,7 +265,7 @@
 }
 
 .employee-info h3 {
-    color: inherit;
+    color: #333 !important;
     margin-bottom: 10px;
     font-size: inherit;
 }
@@ -301,7 +305,7 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.12);
     font-family: inherit;
     font-size: inherit;
     color: inherit;
@@ -351,7 +355,7 @@
     font-weight: 600;
     font-size: inherit;
     color: inherit;
-    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    box-shadow: 0 3px 8px rgba(0,0,0,0.12);
     font-family: inherit;
 }
 
@@ -380,12 +384,12 @@
     display: block;
     margin-bottom: 8px;
     font-weight: 600;
-    color: #ffffff !important;
+    color: var(--text-primary) !important;
     font-size: 14px;
 }
 
 .customer-form .form-group label {
-    color: #ffffff !important;
+    color: var(--text-primary) !important;
 }
 
 .form-group input {
@@ -397,7 +401,7 @@
     font-weight: 400;
     transition: border-color 0.3s ease;
     background: var(--card-bg);
-    color: #000000 !important;
+    color: var(--text-primary) !important;
 }
 
 .form-group input:focus {
@@ -415,7 +419,7 @@
 
 .booking-summary h3 {
     margin-bottom: 15px;
-    color: #ffffff;
+    color: var(--text-primary);
     font-size: 18px;
     font-weight: 600;
 }
@@ -425,17 +429,17 @@
     justify-content: space-between;
     padding: 10px 0;
     border-bottom: 1px solid var(--card-border);
-    color: #ffffff;
+    color: var(--text-primary);
     font-size: 15px;
     font-weight: 500;
 }
 
 .summary-item .summary-label {
-    color: #ffffff;
+    color: var(--text-primary);
 }
 
 .summary-item .summary-value {
-    color: #ffffff;
+    color: var(--text-primary);
 }
 
 .summary-item:last-child {
@@ -445,10 +449,10 @@
 .summary-item.total {
     font-weight: 700;
     font-size: 20px;
-    color: #ffffff;
+    color: var(--text-primary);
     margin-top: 15px;
     padding-top: 18px;
-    border-top: 2px solid #1CBC9B;
+    border-top: 2px solid var(--button-bg);
 }
 
 .form-actions {
@@ -1281,10 +1285,38 @@
 
 .success-actions {
     display: flex;
+    flex-direction: row;
     gap: 15px;
     justify-content: center;
-    flex-wrap: wrap;
+    align-items: center;
     animation: slideUp 0.6s ease-out 0.7s both;
+    flex-wrap: wrap;
+}
+
+.action-info {
+    background: #f8f9fa;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+    text-align: center;
+    border-left: 4px solid #1CBC9B;
+}
+
+.action-description {
+    margin: 0;
+    font-size: 14px;
+    color: #666;
+    line-height: 1.4;
+}
+
+.cancel-warning {
+    color: #dc3545;
+    font-weight: 500;
+}
+
+.cancel-warning i {
+    margin-right: 8px;
+    color: #ffc107;
 }
 
 .action-btn {
@@ -1658,6 +1690,18 @@
     background: transparent;
     overflow: visible !important;
     height: auto !important;
+    
+    /* Inherit WordPress theme colors */
+    --wp-color-primary: var(--wp--preset--color--primary, #1CBC9B);
+    --wp-color-secondary: var(--wp--preset--color--secondary, #6c757d);
+    --wp-color-background: var(--wp--preset--color--background, #ffffff);
+    --wp-color-foreground: var(--wp--preset--color--foreground, #000000);
+    
+    /* Apply theme colors to plugin variables */
+    --header-bg: var(--wp-color-primary);
+    --button-bg: var(--wp-color-primary);
+    --card-bg: var(--wp-color-background);
+    --text-primary: var(--wp-color-foreground);
 }
 
 .appointease-booking-container {
@@ -2311,34 +2355,7 @@
     border-top: 1px solid #e5e7eb;
 }
 
-/* Dark Mode Support */
-@media (prefers-color-scheme: dark) {
-    .wp-block-appointease-booking-form {
-        --card-bg: var(--wp--preset--color--contrast, #1f2937);
-        --card-border: var(--wp--preset--color--contrast-2, #374151);
-        --text-primary: var(--wp--preset--color--base, #ffffff);
-        --text-secondary: var(--wp--preset--color--contrast-3, #d1d5db);
-    }
-    
-    .service-card,
-    .employee-card,
-    .calendar-day,
-    .time-slot {
-        background: var(--card-bg);
-        border-color: var(--card-border);
-        color: var(--text-primary);
-    }
-    
-    .form-group input {
-        background: var(--card-bg);
-        border-color: var(--card-border);
-        color: var(--text-primary);
-    }
-    
-    .booking-summary {
-        background: var(--card-bg);
-    }
-}
+
 
 /* Performance Optimizations */
 .appointease-booking * {
@@ -2811,4 +2828,66 @@
         box-shadow: none;
         border: 1px solid #000;
     }
+}
+
+.dashboard-title-section {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.dashboard-email {
+    font-size: 14px;
+    font-weight: 500;
+    color: white;
+    background: #f8f9fa;
+    padding: 6px 12px;
+    border-radius: 6px;
+    border: 1px solid #e9ecef;
+    display: inline-block;
+    width: fit-content;
+}
+
+.status-badge {
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.status-badge.confirmed {
+    background: #d4edda;
+    color: #155724;
+}
+
+.status-badge.cancelled {
+    background: #f8d7da;
+    color: #721c24;
+}
+
+.status-badge.rescheduled {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.status-badge.created {
+    background: #cce5ff;
+    color: #004085;
+}
+
+.dashboard-btn-content {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+}
+
+.dashboard-btn-email {
+    font-size: 11px;
+    opacity: 0.8;
+    font-weight: 400;
 }

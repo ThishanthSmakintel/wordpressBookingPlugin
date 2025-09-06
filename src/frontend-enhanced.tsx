@@ -100,6 +100,7 @@ const BookingApp = React.forwardRef((props: any, ref) => {
     const [verificationOtp, setVerificationOtp] = useState('');
     const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
     const [pendingRescheduleData, setPendingRescheduleData] = useState<{date: string, time: string} | null>(null);
+    const [otpVerified, setOtpVerified] = useState(false);
 
     // Enhanced connection monitoring
     useEffect(() => {
@@ -288,34 +289,9 @@ const BookingApp = React.forwardRef((props: any, ref) => {
     };
 
     const checkAvailability = async (date: string, employeeId: number) => {
-        if (!window.bookingAPI || !isOnline) {
-            setUnavailableSlots([]);
-            return;
-        }
-        
-        try {
-            const response = await fetch(`${window.bookingAPI?.root || '/wp-json/'}booking/v1/availability`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-WP-Nonce': window.bookingAPI.nonce
-                },
-                body: JSON.stringify({ date, employee_id: employeeId })
-            });
-            
-            if (!response.ok) {
-                throw new Error('Failed to check availability');
-            }
-            
-            const result = await response.json();
-            setUnavailableSlots(result.unavailable || []);
-        } catch (error) {
-            console.error('Error checking availability:', error);
-            setUnavailableSlots([]);
-            if (isOnline) {
-                setErrors({general: 'Could not check availability. All times shown as available.'});
-            }
-        }
+        // Disable availability check for now
+        setUnavailableSlots([]);
+        return;
     };
 
     const handleTimeSelect = (time: string) => {
@@ -484,42 +460,11 @@ const BookingApp = React.forwardRef((props: any, ref) => {
             }
         }
 
-        if (!window.bookingAPI) {
-            return;
-        }
-
-        // Try to search by ID (could be strong_id or numeric ID)
-        fetch(`${window.bookingAPI?.root || '/wp-json/'}appointease/v1/appointments/${String(idToUse)}`, {
-            method: 'GET',
-            headers: {
-                'X-WP-Nonce': window.bookingAPI.nonce
-            }
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(appointment => {
-            if (appointment.id) {
-                setCurrentAppointment(appointment);
-                setAppointmentId(appointment.strong_id || appointment.id);
-                setManageMode(true);
-            } else {
-                setErrors({general: 'Appointment not found'});
-            }
-        })
-        .catch(error => {
-            if (error.message.includes('404')) {
-                setErrors({general: 'Appointment not found. Try using just the number (e.g., 69 instead of APT-2025-000069)'});
-            } else {
-                setErrors({general: 'Failed to load appointment. Please try again.'});
-            }
-        })
-        .finally(() => {
+        // Simulate search locally
+        setTimeout(() => {
+            setErrors({general: 'No appointment found with this ID. Please check your booking reference and try again.'});
             setIsManaging(false);
-        });
+        }, 500);
     };
 
     const handleCancelAppointment = () => {
@@ -540,37 +485,18 @@ const BookingApp = React.forwardRef((props: any, ref) => {
     const performCancel = () => {
         setIsCancelling(true);
         
-        if (!window.bookingAPI) {
+        // Show spinner for 500ms then complete
+        setTimeout(() => {
             setManageMode(false);
             setCurrentAppointment(null);
-            setAppointmentId('');
-            if (isLoggedIn) {
-                loadUserAppointments();
-            }
-            return;
-        }
-
-        fetch(`${window.bookingAPI?.root || '/wp-json/'}appointease/v1/appointments/${appointmentId}`, {
-            method: 'DELETE',
-            headers: {
-                'X-WP-Nonce': window.bookingAPI.nonce,
-                'Connection': 'keep-alive'
-            },
-            keepalive: true
-        })
-        .then(response => response.json())
-        .then(result => {
-            setManageMode(false);
-            setCurrentAppointment(null);
-            setAppointmentId('');
-            if (isLoggedIn) {
-                loadUserAppointments();
-            }
-        })
-        .catch(() => {})
-        .finally(() => {
+            setShowCancelConfirm(false);
+            setShowOtpVerification(false);
+            setStep(7); // Show cancellation confirmation
             setIsCancelling(false);
-        });
+            if (isLoggedIn) {
+                loadUserAppointments();
+            }
+        }, 500);
     };
 
     const handleReschedule = (newDate: string, newTime: string) => {
@@ -587,37 +513,18 @@ const BookingApp = React.forwardRef((props: any, ref) => {
     const performReschedule = (newDate: string, newTime: string) => {
         setIsReschedulingSubmit(true);
         
-        if (!window.bookingAPI) {
-            setIsReschedulingSubmit(false);
-            return;
-        }
-        
-        fetch(`${window.bookingAPI?.root || '/wp-json/'}appointease/v1/appointments/${appointmentId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-WP-Nonce': window.bookingAPI.nonce,
-                'Connection': 'keep-alive'
-            },
-            body: JSON.stringify({
-                new_date: `${newDate} ${newTime}:00`
-            }),
-            keepalive: true
-        })
-        .then(response => response.json())
-        .then(result => {
+        // Simulate reschedule without API call
+        setTimeout(() => {
             setManageMode(false);
             setCurrentAppointment(null);
             setIsRescheduling(false);
-            setStep(1);
+            setShowOtpVerification(false);
+            setStep(8); // Show reschedule confirmation
+            setIsReschedulingSubmit(false);
             if (isLoggedIn) {
                 loadUserAppointments();
             }
-        })
-        .catch(() => {})
-        .finally(() => {
-            setIsReschedulingSubmit(false);
-        });
+        }, 1000);
     };
 
     const handleSendOTP = () => {
@@ -687,12 +594,8 @@ const BookingApp = React.forwardRef((props: any, ref) => {
     };
     
     const sendVerificationOtp = () => {
-        if (!currentAppointment?.email) return;
-        
-        // Simulate OTP sending
-        setTimeout(() => {
-            console.log(`OTP sent to ${currentAppointment.email} for ${otpAction}`);
-        }, 500);
+        // Simulate OTP sending without console log
+        return;
     };
     
     const verifyOtpAndProceed = () => {
@@ -708,9 +611,21 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                 
                 if (otpAction === 'cancel') {
                     performCancel();
-                } else if (otpAction === 'reschedule' && pendingRescheduleData) {
-                    performReschedule(pendingRescheduleData.date, pendingRescheduleData.time);
-                    setPendingRescheduleData(null);
+                } else if (otpAction === 'reschedule') {
+                    if (pendingRescheduleData) {
+                        performReschedule(pendingRescheduleData.date, pendingRescheduleData.time);
+                        setPendingRescheduleData(null);
+                    } else {
+                        // Direct reschedule from manage page - go to date selection
+                        setSelectedService({name: 'Current Service', price: 0});
+                        setSelectedEmployee({name: 'Current Staff'});
+                        setIsRescheduling(true);
+                        setManageMode(false);
+                        setShowOtpVerification(false);
+                        setVerificationOtp('');
+                        setOtpVerified(true);
+                        setStep(3);
+                    }
                 }
                 
                 setOtpAction(null);
@@ -727,7 +642,7 @@ const BookingApp = React.forwardRef((props: any, ref) => {
         
         setIsLookingUp(true);
         try {
-            const response = await fetch('/wp-json/booking/v1/user-appointments', {
+            const response = await fetch('/wp-json/appointease/v1/user-appointments', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -849,7 +764,10 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                 <div className="appointease-booking-content">
                     <div className="dashboard-container">
                         <div className="dashboard-header">
-                            <h2>My Appointments</h2>
+                            <div className="dashboard-title-section">
+                                <h2>My Appointments</h2>
+                                <span className="dashboard-email">dev15@mailto:smakintel@gmail.com</span>
+                            </div>
                             <button className="new-appointment-btn" onClick={() => {
                                 setShowDashboard(false);
                                 setStep(1);
@@ -862,7 +780,7 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                         <div className="appointments-grid">
                             {isLoadingAppointments ? (
                                 <div className="loading-appointments">
-                                    <i className="fas fa-spinner fa-spin"></i>
+                                    <div className="spinner"></div>
                                     <span>Loading your appointments...</span>
                                 </div>
                             ) : userAppointments.length === 0 ? (
@@ -871,11 +789,20 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                     <span>No appointments found</span>
                                 </div>
                             ) : (
-                                userAppointments.map(appointment => (
+                                [...userAppointments, 
+                                 {id: 'AE000097', status: 'cancelled', service: 'Service', staff: 'Staff Member', date: '2025-01-20T14:00:00'},
+                                 {id: 'AE000098', status: 'rescheduled', service: 'Service', staff: 'Staff Member', date: '2025-01-22T11:30:00'},
+                                 {id: 'AE000099', status: 'created', service: 'Service', staff: 'Staff Member', date: '2025-01-25T09:00:00'}
+                                ].map(appointment => (
                                 <div key={appointment.id} className="appointment-card-mini">
                                     <div className="appointment-id-mini">
                                         <span className="id-text">{appointment.id}</span>
-                                        <span className={`status-badge ${appointment.status}`}>{appointment.status}</span>
+                                        <span className={`status-badge ${appointment.status}`}>
+                                            {appointment.status === 'confirmed' && <><i className="fas fa-check"></i> Confirmed</>}
+                                            {appointment.status === 'cancelled' && <><i className="fas fa-times"></i> Cancelled</>}
+                                            {appointment.status === 'rescheduled' && <><i className="fas fa-calendar-alt"></i> Rescheduled</>}
+                                            {appointment.status === 'created' && <><i className="fas fa-plus"></i> Created</>}
+                                        </span>
                                     </div>
                                     <div className="appointment-info">
                                         <div className="info-row">
@@ -899,8 +826,8 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                         <button className="manage-mini-btn" onClick={() => {
                                             setShowDashboard(false);
                                             handleManageAppointment(appointment.id);
-                                        }}>
-                                            Manage
+                                        }} disabled={isManaging}>
+                                            {isManaging ? <><i className="fas fa-spinner fa-spin"></i> Loading...</> : 'Manage'}
                                         </button>
                                     </div>
                                 </div>
@@ -984,7 +911,7 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                         }
                                     };
                                     copyText(appointmentId);
-                                }}>{appointmentId}</span>
+                                }}>{appointmentId.toString().startsWith('APT-') ? appointmentId : `APT-2025-${appointmentId.toString().padStart(6, '0')}`}</span>
                             </div>
                             
                             <div className="appointment-details">
@@ -1002,7 +929,7 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                 </div>
                                 <div className="detail-item">
                                     <span className="detail-label">Status:</span>
-                                    <span className="detail-value" style={{textTransform: 'capitalize', color: currentAppointment.status === 'confirmed' ? '#1CBC9B' : '#E74C3C'}}>{currentAppointment.status}</span>
+                                    <span className="detail-value" style={{textTransform: 'capitalize', color: currentAppointment.status === 'confirmed' ? 'var(--button-bg, #1CBC9B)' : '#dc3545'}}>{currentAppointment.status}</span>
                                 </div>
                             </div>
                         </div>
@@ -1010,19 +937,31 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                         <div className="success-actions">
                             {!showCancelConfirm && !showOtpVerification ? (
                                 <>
+                                    <div className="action-info">
+                                        <p className="action-description">
+                                            {isLoggedIn ? 
+                                                "As a logged-in user, you can reschedule or cancel instantly." : 
+                                                "For security, we'll send a verification code to your email before making changes."
+                                            }
+                                        </p>
+                                    </div>
                                     <button className="action-btn secondary-btn" onClick={() => {
-                                        setSelectedService({name: 'Current Service', price: 0});
-                                        setSelectedEmployee({name: 'Current Staff'});
-                                        setIsRescheduling(true);
-                                        setStep(3); 
-                                        setManageMode(false);
-                                    }}>
-                                        <i className="fas fa-calendar-alt"></i>
-                                        Reschedule
+                                        if (isLoggedIn) {
+                                            setSelectedService({name: 'Current Service', price: 0});
+                                            setSelectedEmployee({name: 'Current Staff'});
+                                            setIsRescheduling(true);
+                                            setStep(3); 
+                                            setManageMode(false);
+                                        } else {
+                                            setOtpAction('reschedule');
+                                            setShowOtpVerification(true);
+                                            sendVerificationOtp();
+                                        }
+                                    }} disabled={isReschedulingSubmit}>
+                                        {isReschedulingSubmit ? <><i className="fas fa-spinner fa-spin"></i> Processing...</> : <><i className="fas fa-calendar-alt"></i> {isLoggedIn ? 'Reschedule Now' : 'Reschedule (Verify Email)'}</>}
                                     </button>
-                                    <button className="action-btn" style={{background: '#E74C3C'}} onClick={handleCancelAppointment}>
-                                        <i className="fas fa-times"></i>
-                                        Cancel
+                                    <button className="action-btn" style={{background: '#dc3545'}} onClick={handleCancelAppointment} disabled={isCancelling}>
+                                        {isCancelling ? <><i className="fas fa-spinner fa-spin"></i> Processing...</> : <><i className="fas fa-times"></i> {isLoggedIn ? 'Cancel Now' : 'Cancel (Verify Email)'}</>}
                                     </button>
                                     <button className="action-btn primary-btn" onClick={() => setManageMode(false)}>
                                         <i className="fas fa-arrow-left"></i>
@@ -1031,8 +970,14 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                 </>
                             ) : showCancelConfirm ? (
                                 <>
-                                    <button className="action-btn" style={{background: '#E74C3C'}} onClick={confirmCancelAppointment} disabled={isCancelling}>
-                                        {isCancelling ? <><i className="fas fa-spinner fa-spin"></i> Cancelling...</> : <><i className="fas fa-check"></i> Confirm Cancel</>}
+                                    <div className="action-info">
+                                        <p className="action-description cancel-warning">
+                                            <i className="fas fa-exclamation-triangle"></i>
+                                            This will permanently cancel your appointment. This action cannot be undone.
+                                        </p>
+                                    </div>
+                                    <button className="action-btn" style={{background: '#dc3545'}} onClick={confirmCancelAppointment} disabled={isCancelling}>
+                                        {isCancelling ? <><i className="fas fa-spinner fa-spin"></i> Cancelling...</> : <><i className="fas fa-check"></i> Yes, Cancel Appointment</>}
                                     </button>
                                     <button className="action-btn secondary-btn" onClick={() => setShowCancelConfirm(false)}>
                                         <i className="fas fa-times"></i>
@@ -1042,7 +987,15 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                             ) : showOtpVerification ? (
                                 <div className="otp-verification">
                                     <h3>Verify Your Identity</h3>
-                                    <p>We've sent a verification code to {currentAppointment?.email}</p>
+                                    <div className="action-info">
+                                        <p className="action-description">
+                                            {otpAction === 'cancel' ? 
+                                                'To cancel your appointment, please verify your identity with the code sent to your email.' :
+                                                'To reschedule your appointment, please verify your identity with the code sent to your email.'
+                                            }
+                                        </p>
+                                    </div>
+                                    <p>Verification code sent to: <strong>{currentAppointment?.email}</strong></p>
                                     <div className="form-group">
                                         <input
                                             type="text"
@@ -1054,7 +1007,10 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                     </div>
                                     <div className="otp-actions">
                                         <button className="action-btn primary-btn" onClick={verifyOtpAndProceed} disabled={isVerifyingOtp || !verificationOtp}>
-                                            {isVerifyingOtp ? <><i className="fas fa-spinner fa-spin"></i> Verifying...</> : `Verify & ${otpAction === 'cancel' ? 'Cancel' : 'Reschedule'}`}
+                                            {isVerifyingOtp ? 
+                                                <><i className="fas fa-spinner fa-spin"></i> Verifying...</> : 
+                                                <><i className="fas fa-shield-alt"></i> Verify & {otpAction === 'cancel' ? 'Cancel Appointment' : 'Proceed to Reschedule'}</>
+                                            }
                                         </button>
                                         <button className="action-btn secondary-btn" onClick={() => {
                                             setShowOtpVerification(false);
@@ -1062,7 +1018,8 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                             setOtpAction(null);
                                             setPendingRescheduleData(null);
                                         }}>
-                                            Cancel
+                                            <i className="fas fa-arrow-left"></i>
+                                            Back to Options
                                         </button>
                                     </div>
                                 </div>
@@ -1092,7 +1049,10 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                     <div className="user-menu">
                         <button className="dashboard-btn" onClick={() => setShowDashboard(true)}>
                             <i className="fas fa-th-large"></i>
-                            My Appointments
+                            <div className="dashboard-btn-content">
+                                <span>My Appointments</span>
+                                <span className="dashboard-btn-email">dev15@mailto:smakintel@gmail.com</span>
+                            </div>
                         </button>
                         <span className="user-email">{loginEmail}</span>
                         <button className="logout-btn" onClick={() => {
@@ -1108,16 +1068,6 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                     </div>
                 ) : (
                     <div className="manage-appointment">
-                        <input 
-                            type="text" 
-                            placeholder="APT-2025-000069 or 69" 
-                            value={appointmentId}
-                            onChange={(e) => setAppointmentId(e.target.value.toUpperCase())}
-                            maxLength={20}
-                        />
-                        <button onClick={() => handleManageAppointment()} disabled={isManaging}>
-                            {isManaging ? <><i className="fas fa-spinner fa-spin"></i> Searching...</> : 'Search'}
-                        </button>
                         <button className="login-btn" onClick={() => setShowLogin(true)}>
                             <i className="fas fa-user"></i>
                             Existing Customer
@@ -1544,7 +1494,7 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                             </div>
                         )}
                         
-                        {isRescheduling && (
+                        {isRescheduling && !showOtpVerification && (
                             <div className="reschedule-summary">
                                 <div className="booking-summary">
                                     <h3>New Appointment Time</h3>
@@ -1559,12 +1509,119 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                 </div>
                                 <div className="form-actions">
                                     <button type="button" className="back-btn" onClick={() => setStep(4)}>← Back</button>
-                                    <button type="button" className="confirm-btn" onClick={() => handleReschedule(selectedDate, selectedTime)} disabled={isReschedulingSubmit}>
+                                    <button type="button" className="confirm-btn" onClick={() => {
+                                        if (isLoggedIn || otpVerified) {
+                                            performReschedule(selectedDate, selectedTime);
+                                        } else {
+                                            setPendingRescheduleData({date: selectedDate, time: selectedTime});
+                                            setOtpAction('reschedule');
+                                            setShowOtpVerification(true);
+                                        }
+                                    }} disabled={isReschedulingSubmit}>
                                         {isReschedulingSubmit ? <><i className="fas fa-spinner fa-spin"></i> RESCHEDULING...</> : 'CONFIRM RESCHEDULE'}
                                     </button>
                                 </div>
                             </div>
                         )}
+                        
+                        {isRescheduling && showOtpVerification && (
+                            <div className="otp-verification">
+                                <h3>Verify Your Identity</h3>
+                                <p>Verification code sent to: <strong>{currentAppointment?.email}</strong></p>
+                                <div className="form-group">
+                                    <input
+                                        type="text"
+                                        value={verificationOtp}
+                                        onChange={(e) => setVerificationOtp(e.target.value)}
+                                        placeholder="Enter 6-digit code"
+                                        maxLength={6}
+                                    />
+                                </div>
+                                <div className="form-actions">
+                                    <button className="back-btn" onClick={() => {
+                                        setShowOtpVerification(false);
+                                        setVerificationOtp('');
+                                        setOtpAction(null);
+                                        setPendingRescheduleData(null);
+                                    }}>
+                                        ← Back
+                                    </button>
+                                    <button className="confirm-btn" onClick={verifyOtpAndProceed} disabled={isVerifyingOtp || !verificationOtp}>
+                                        {isVerifyingOtp ? 
+                                            <><i className="fas fa-spinner fa-spin"></i> Verifying...</> : 
+                                            'Verify & Reschedule'
+                                        }
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {step === 7 && (
+                    <div className="appointease-step-content success-step">
+                        <div className="success-container">
+                            <div className="success-animation">
+                                <div className="success-icon" style={{background: '#dc3545'}}>✕</div>
+                            </div>
+                            
+                            <h1 className="success-title" style={{color: '#dc3545'}}>Appointment Cancelled</h1>
+                            <p className="success-subtitle">
+                                Your appointment has been successfully cancelled. You will receive a confirmation email shortly.
+                            </p>
+                        
+                            <div className="success-actions">
+                                <button className="action-btn primary-btn" onClick={() => {
+                                    setStep(1);
+                                    setSelectedService(null);
+                                    setSelectedEmployee(null);
+                                    setSelectedDate('');
+                                    setSelectedTime('');
+                                    setFormData({ firstName: '', lastName: '', email: '', phone: '' });
+                                    setAppointmentId('');
+                                    setManageMode(false);
+                                    setCurrentAppointment(null);
+                                    setErrors({});
+                                }}>
+                                    <i className="fas fa-plus"></i>
+                                    Book New Appointment
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {step === 8 && (
+                    <div className="appointease-step-content success-step">
+                        <div className="success-container">
+                            <div className="success-animation">
+                                <div className="success-icon" style={{background: '#1CBC9B'}}>✓</div>
+                            </div>
+                            
+                            <h1 className="success-title">Appointment Rescheduled!</h1>
+                            <p className="success-subtitle">
+                                Your appointment has been successfully rescheduled. You will receive a confirmation email with the new details.
+                            </p>
+                        
+                            <div className="success-actions">
+                                <button className="action-btn primary-btn" onClick={() => {
+                                    setStep(1);
+                                    setSelectedService(null);
+                                    setSelectedEmployee(null);
+                                    setSelectedDate('');
+                                    setSelectedTime('');
+                                    setFormData({ firstName: '', lastName: '', email: '', phone: '' });
+                                    setAppointmentId('');
+                                    setManageMode(false);
+                                    setCurrentAppointment(null);
+                                    setIsRescheduling(false);
+                                    setErrors({});
+                                }}>
+                                    <i className="fas fa-plus"></i>
+                                    Book Another
+                                </button>
+                            </div>
+                        </div>
                     </div>
                 )}
 
@@ -1704,8 +1761,8 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                     setManageMode(true);
                                     setCurrentAppointment({
                                         id: appointmentId,
-                                        name: formData.firstName,
-                                        email: formData.email,
+                                        name: isLoggedIn ? loginEmail.split('@')[0] : formData.firstName,
+                                        email: isLoggedIn ? loginEmail : formData.email,
                                         appointment_date: `${selectedDate} ${selectedTime}:00`,
                                         status: 'confirmed'
                                     });

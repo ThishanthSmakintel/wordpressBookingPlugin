@@ -42,7 +42,11 @@ class Booking_Plugin {
                     'background' => true,
                     'text' => true,
                     'gradients' => true,
-                    'link' => true
+                    'link' => true,
+                    '__experimentalDefaultControls' => [
+                        'background' => true,
+                        'text' => true
+                    ]
                 ],
                 'typography' => [
                     'fontSize' => true,
@@ -74,6 +78,22 @@ class Booking_Plugin {
     
     public function render_booking_block($attributes, $content) {
         $custom_styles = '';
+        
+        // Handle WordPress color attributes
+        if (!empty($attributes['backgroundColor'])) {
+            $custom_styles .= '--card-bg:var(--wp--preset--color--' . esc_attr($attributes['backgroundColor']) . ');';
+        }
+        if (!empty($attributes['textColor'])) {
+            $custom_styles .= '--text-primary:var(--wp--preset--color--' . esc_attr($attributes['textColor']) . ');';
+        }
+        if (!empty($attributes['style']['color']['background'])) {
+            $custom_styles .= '--card-bg:' . esc_attr($attributes['style']['color']['background']) . ';';
+        }
+        if (!empty($attributes['style']['color']['text'])) {
+            $custom_styles .= '--text-primary:' . esc_attr($attributes['style']['color']['text']) . ';';
+        }
+        
+        // Legacy custom color attributes
         if (!empty($attributes['headerBgColor'])) {
             $custom_styles .= '--header-bg:' . esc_attr($attributes['headerBgColor']) . ';';
         }
@@ -94,7 +114,8 @@ class Booking_Plugin {
         }
         
         $wrapper_attributes = get_block_wrapper_attributes([
-            'style' => $custom_styles
+            'style' => $custom_styles,
+            'class' => 'appointease-booking-wrapper'
         ]);
         
         ob_start();
@@ -187,6 +208,15 @@ class Booking_Plugin {
         );
         
         wp_enqueue_style('remixicon-editor', 'https://cdn.jsdelivr.net/npm/remixicon@4.0.0/fonts/remixicon.css', array(), '4.0.0');
+        
+        // Enqueue color support script
+        wp_enqueue_script(
+            'booking-color-support',
+            BOOKING_PLUGIN_URL . 'src/color-support.js',
+            array('wp-data', 'wp-blocks'),
+            BOOKING_PLUGIN_VERSION,
+            true
+        );
         
         // Set script translations
         wp_set_script_translations('booking-plugin-blocks', 'booking-plugin');
