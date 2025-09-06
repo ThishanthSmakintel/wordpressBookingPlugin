@@ -153,6 +153,10 @@ class AppointEase_Admin {
         $services_count = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}appointease_services");
         $staff_count = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}appointease_staff");
         $appointments = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}appointments ORDER BY appointment_date DESC LIMIT 5");
+        
+        if ($wpdb->last_error) {
+            wp_die('Database error occurred: ' . esc_html($wpdb->last_error));
+        }
         ?>
         <div class="wrap amelia-wrap">
             <div class="amelia-content">
@@ -239,6 +243,10 @@ class AppointEase_Admin {
         global $wpdb;
         $this->ensure_default_data();
         $services = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}appointease_services ORDER BY id DESC");
+        
+        if ($wpdb->last_error) {
+            wp_die('Database error occurred: ' . esc_html($wpdb->last_error));
+        }
         ?>
         <div class="appointease-wrap">
             <div id="services-header" class="ae-page-header">
@@ -320,6 +328,10 @@ class AppointEase_Admin {
         global $wpdb;
         $this->ensure_default_data();
         $staff = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}appointease_staff ORDER BY id DESC");
+        
+        if ($wpdb->last_error) {
+            wp_die('Database error occurred: ' . esc_html($wpdb->last_error));
+        }
         ?>
         <div class="appointease-wrap">
             <div id="staff-header" class="ae-page-header">
@@ -400,17 +412,31 @@ class AppointEase_Admin {
         $price = floatval($_POST['price']);
         $description = sanitize_textarea_field($_POST['description']);
         
+        // Validate input
+        if (empty($name) || $duration <= 0 || $price < 0) {
+            wp_send_json_error('Invalid input data');
+            return;
+        }
+        
         if($id) {
-            $wpdb->update(
+            $result = $wpdb->update(
                 $wpdb->prefix . 'appointease_services',
                 array('name' => $name, 'duration' => $duration, 'price' => $price, 'description' => $description),
-                array('id' => $id)
+                array('id' => $id),
+                array('%s', '%d', '%f', '%s'),
+                array('%d')
             );
         } else {
-            $wpdb->insert(
+            $result = $wpdb->insert(
                 $wpdb->prefix . 'appointease_services',
-                array('name' => $name, 'duration' => $duration, 'price' => $price, 'description' => $description)
+                array('name' => $name, 'duration' => $duration, 'price' => $price, 'description' => $description),
+                array('%s', '%d', '%f', '%s')
             );
+        }
+        
+        if ($result === false) {
+            wp_send_json_error('Database error occurred');
+            return;
         }
         
         wp_send_json_success();
@@ -425,17 +451,31 @@ class AppointEase_Admin {
         $email = sanitize_email($_POST['email']);
         $phone = sanitize_text_field($_POST['phone']);
         
+        // Validate input
+        if (empty($name) || empty($email) || !is_email($email)) {
+            wp_send_json_error('Invalid input data');
+            return;
+        }
+        
         if($id) {
-            $wpdb->update(
+            $result = $wpdb->update(
                 $wpdb->prefix . 'appointease_staff',
                 array('name' => $name, 'email' => $email, 'phone' => $phone),
-                array('id' => $id)
+                array('id' => $id),
+                array('%s', '%s', '%s'),
+                array('%d')
             );
         } else {
-            $wpdb->insert(
+            $result = $wpdb->insert(
                 $wpdb->prefix . 'appointease_staff',
-                array('name' => $name, 'email' => $email, 'phone' => $phone)
+                array('name' => $name, 'email' => $email, 'phone' => $phone),
+                array('%s', '%s', '%s')
             );
+        }
+        
+        if ($result === false) {
+            wp_send_json_error('Database error occurred');
+            return;
         }
         
         wp_send_json_success();
@@ -620,10 +660,18 @@ class AppointEase_Admin {
         $id = intval($_POST['id']);
         $status = sanitize_text_field($_POST['status']);
         
+        // Validate status
+        if (!in_array($status, ['confirmed', 'cancelled', 'pending'])) {
+            wp_send_json_error('Invalid status');
+            return;
+        }
+        
         $result = $wpdb->update(
             $wpdb->prefix . 'appointments',
             array('status' => $status),
-            array('id' => $id)
+            array('id' => $id),
+            array('%s'),
+            array('%d')
         );
         
         if($result !== false) {
@@ -637,6 +685,16 @@ class AppointEase_Admin {
         check_ajax_referer('appointease_nonce', '_wpnonce');
         global $wpdb;
         $id = intval($_POST['id']);
+        
+        // Check if appointment exists first
+        $exists = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}appointments WHERE id = %d", $id
+        ));
+        
+        if (!$exists) {
+            wp_send_json_error('Appointment not found');
+            return;
+        }
         
         $result = $wpdb->delete(
             $wpdb->prefix . 'appointments',
@@ -1641,6 +1699,18 @@ class AppointEase_Admin {
             return;
         }
         
+        // Validate email format
+        if (!is_email($email)) {
+            wp_send_json_error('Invalid email format');
+            return;
+        }
+        
+        // Validate appointment date
+        if (strtotime($appointment_date) === false || strtotime($appointment_date) <= time()) {
+            wp_send_json_error('Invalid date or date must be in the future');
+            return;
+        }
+        
         $result = $wpdb->insert(
             $wpdb->prefix . 'appointments',
             array(
@@ -1673,6 +1743,22 @@ class AppointEase_Admin {
             return;
         }
         
+        // Validate datetime format
+        if (strtotime($new_datetime) === false || strtotime($new_datetime) <= time()) {
+            wp_send_json_error('Invalid date/time or date must be in the future');
+            return;
+        }
+        
+        // Check if appointment exists
+        $exists = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}appointments WHERE id = %d", $id
+        ));
+        
+        if (!$exists) {
+            wp_send_json_error('Appointment not found');
+            return;
+        }
+        
         $result = $wpdb->update(
             $wpdb->prefix . 'appointments',
             array('appointment_date' => $new_datetime),
@@ -1695,11 +1781,13 @@ class AppointEase_Admin {
         if($services_count == 0) {
             $wpdb->insert(
                 $wpdb->prefix . 'appointease_services',
-                array('name' => 'Consultation', 'description' => 'Initial consultation session', 'duration' => 30, 'price' => 75.00)
+                array('name' => 'Consultation', 'description' => 'Initial consultation session', 'duration' => 30, 'price' => 75.00),
+                array('%s', '%s', '%d', '%f')
             );
             $wpdb->insert(
                 $wpdb->prefix . 'appointease_services',
-                array('name' => 'Premium Service', 'description' => 'Extended premium service', 'duration' => 60, 'price' => 150.00)
+                array('name' => 'Premium Service', 'description' => 'Extended premium service', 'duration' => 60, 'price' => 150.00),
+                array('%s', '%s', '%d', '%f')
             );
         }
         
@@ -1707,11 +1795,13 @@ class AppointEase_Admin {
         if($staff_count == 0) {
             $wpdb->insert(
                 $wpdb->prefix . 'appointease_staff',
-                array('name' => 'Sarah Johnson', 'email' => 'sarah@appointease.com', 'phone' => '555-0123')
+                array('name' => 'Sarah Johnson', 'email' => 'sarah@appointease.com', 'phone' => '555-0123'),
+                array('%s', '%s', '%s')
             );
             $wpdb->insert(
                 $wpdb->prefix . 'appointease_staff',
-                array('name' => 'Mike Wilson', 'email' => 'mike@appointease.com', 'phone' => '555-0124')
+                array('name' => 'Mike Wilson', 'email' => 'mike@appointease.com', 'phone' => '555-0124'),
+                array('%s', '%s', '%s')
             );
         }
     }

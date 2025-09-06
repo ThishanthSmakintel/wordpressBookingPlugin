@@ -7,7 +7,7 @@ class Booking_API_Endpoints {
     }
     
     public function register_routes() {
-        // Register appointease/v1 routes
+        // Register appointease/v1 routes - consolidated to avoid conflicts
         register_rest_route('appointease/v1', '/appointments', array(
             'methods' => 'POST',
             'callback' => array($this, 'create_appointment'),
@@ -15,33 +15,33 @@ class Booking_API_Endpoints {
         ));
         
         register_rest_route('appointease/v1', '/appointments/(?P<id>[a-zA-Z0-9\-]+)', array(
-            'methods' => 'GET',
-            'callback' => array($this, 'get_appointment'),
-            'permission_callback' => array($this, 'public_permission'),
-            'args' => array(
-                'id' => array(
-                    'required' => true,
-                    'sanitize_callback' => 'sanitize_text_field'
+            array(
+                'methods' => 'GET',
+                'callback' => array($this, 'get_appointment'),
+                'permission_callback' => array($this, 'public_permission'),
+                'args' => array(
+                    'id' => array(
+                        'required' => true,
+                        'sanitize_callback' => 'sanitize_text_field'
+                    )
                 )
-            )
-        ));
-        
-        register_rest_route('appointease/v1', '/appointments/(?P<id>[a-zA-Z0-9\-]+)', array(
-            'methods' => 'DELETE',
-            'callback' => array($this, 'cancel_appointment'),
-            'permission_callback' => array($this, 'public_permission'),
-            'args' => array(
-                'id' => array(
-                    'required' => true,
-                    'sanitize_callback' => 'sanitize_text_field'
+            ),
+            array(
+                'methods' => 'DELETE',
+                'callback' => array($this, 'cancel_appointment'),
+                'permission_callback' => array($this, 'public_permission'),
+                'args' => array(
+                    'id' => array(
+                        'required' => true,
+                        'sanitize_callback' => 'sanitize_text_field'
+                    )
                 )
+            ),
+            array(
+                'methods' => 'PUT',
+                'callback' => array($this, 'reschedule_appointment'),
+                'permission_callback' => array($this, 'public_permission')
             )
-        ));
-        
-        register_rest_route('appointease/v1', '/appointments/(?P<id>[a-zA-Z0-9\-]+)', array(
-            'methods' => 'PUT',
-            'callback' => array($this, 'reschedule_appointment'),
-            'permission_callback' => array($this, 'public_permission')
         ));
         
         // Keep booking/v1 routes for compatibility
@@ -63,12 +63,14 @@ class Booking_API_Endpoints {
             'permission_callback' => array($this, 'public_permission')
         ));
         
+        // User appointments endpoint (keeping both namespaces for backward compatibility)
         register_rest_route('appointease/v1', '/user-appointments', array(
             'methods' => 'POST',
             'callback' => array($this, 'get_user_appointments'),
             'permission_callback' => array($this, 'public_permission')
         ));
         
+        // Backward compatibility route
         register_rest_route('booking/v1', '/user-appointments', array(
             'methods' => 'POST',
             'callback' => array($this, 'get_user_appointments'),
@@ -88,19 +90,36 @@ class Booking_API_Endpoints {
             'callback' => array($this, 'fix_existing_appointments'),
             'permission_callback' => array($this, 'public_permission')
         ));
+        
+        // Real-time appointments endpoint
+        register_rest_route('appointease/v1', '/appointments/stream', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'stream_appointments'),
+            'permission_callback' => array($this, 'public_permission')
+        ));
     }
     
     public function get_services() {
         global $wpdb;
         $table = $wpdb->prefix . 'appointease_services';
-        $services = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$table} ORDER BY name"));
+        $services = $wpdb->get_results("SELECT * FROM {$table} ORDER BY name");
+        
+        if ($wpdb->last_error) {
+            return new WP_Error('db_error', 'Database error occurred', array('status' => 500));
+        }
+        
         return rest_ensure_response($services);
     }
     
     public function get_staff() {
         global $wpdb;
         $table = $wpdb->prefix . 'appointease_staff';
-        $staff = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$table} ORDER BY name"));
+        $staff = $wpdb->get_results("SELECT * FROM {$table} ORDER BY name");
+        
+        if ($wpdb->last_error) {
+            return new WP_Error('db_error', 'Database error occurred', array('status' => 500));
+        }
+        
         return rest_ensure_response($staff);
     }
     
@@ -115,12 +134,21 @@ class Booking_API_Endpoints {
         $date = sanitize_text_field($params['date']);
         $employee_id = intval($params['employee_id']);
         
+        // Validate date format
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            return new WP_Error('invalid_date', 'Invalid date format', array('status' => 400));
+        }
+        
         // Check existing appointments for this staff member on this date
         $appointments_table = $wpdb->prefix . 'appointments';
         $booked_times = $wpdb->get_col($wpdb->prepare(
             "SELECT TIME_FORMAT(appointment_date, '%%H:%%i') as time_slot FROM {$appointments_table} WHERE employee_id = %d AND DATE(appointment_date) = %s AND status = 'confirmed'",
             $employee_id, $date
         ));
+        
+        if ($wpdb->last_error) {
+            return new WP_Error('db_error', 'Database error occurred', array('status' => 500));
+        }
         
         return rest_ensure_response(array('unavailable' => $booked_times));
     }
@@ -144,6 +172,17 @@ class Booking_API_Endpoints {
             return new WP_Error('invalid_data', 'Name, email and date are required', array('status' => 400));
         }
         
+        // Validate email format
+        if (!is_email($email)) {
+            return new WP_Error('invalid_email', 'Invalid email format', array('status' => 400));
+        }
+        
+        // Validate date format and ensure it's in the future
+        $appointment_time = strtotime($date);
+        if ($appointment_time === false || $appointment_time <= time()) {
+            return new WP_Error('invalid_date', 'Invalid date or date must be in the future', array('status' => 400));
+        }
+        
         $table = $wpdb->prefix . 'appointments';
         
         // Insert without strong_id first
@@ -164,13 +203,17 @@ class Booking_API_Endpoints {
             $strong_id = sprintf('APT-%d-%06d', date('Y'), $appointment_id);
             
             // Update the record with strong_id
-            $wpdb->update(
+            $update_result = $wpdb->update(
                 $table,
                 array('strong_id' => $strong_id),
                 array('id' => $appointment_id),
                 array('%s'),
                 array('%d')
             );
+            
+            if ($update_result === false) {
+                return new WP_Error('update_failed', 'Failed to generate appointment ID', array('status' => 500));
+            }
             
             return rest_ensure_response(array(
                 'id' => $appointment_id, 
@@ -182,82 +225,14 @@ class Booking_API_Endpoints {
         return new WP_Error('booking_failed', 'Failed to create appointment', array('status' => 500));
     }
     
-    private function generate_strong_id() {
-        global $wpdb;
-        $table = $wpdb->prefix . 'appointments';
-        
-        do {
-            $year = date('Y');
-            $chars = '0123456789';
-            $result = '';
-            for ($i = 0; $i < 6; $i++) {
-                $result .= $chars[random_int(0, strlen($chars) - 1)];
-            }
-            $strong_id = "APT-{$year}-{$result}";
-            
-            // Check if this ID already exists
-            $exists = $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM {$table} WHERE strong_id = %s", $strong_id
-            ));
-        } while ($exists > 0);
-        
-        return $strong_id;
-    }
+
     
     public function get_appointment($request) {
         global $wpdb;
         $id = $request['id'];
         $table = $wpdb->prefix . 'appointments';
         
-        // Debug: Log the search ID
-        error_log("Searching for appointment with ID: " . $id);
-        
-        $appointment = null;
-        
-        // Try to find by strong_id first
-        if (strpos($id, 'APT-') === 0) {
-            $appointment = $wpdb->get_row($wpdb->prepare(
-                "SELECT * FROM {$table} WHERE strong_id = %s", $id
-            ));
-            
-            // Debug: Log the query result
-            error_log("Strong ID search result: " . ($appointment ? 'Found' : 'Not found'));
-            
-            // If not found by strong_id, try to find by numeric part
-            if (!$appointment) {
-                // Extract numeric part from APT-YYYY-XXXXXX format
-                if (preg_match('/APT-\d{4}-(\d+)/', $id, $matches)) {
-                    $numeric_id = intval($matches[1]);
-                    $appointment = $wpdb->get_row($wpdb->prepare(
-                        "SELECT * FROM {$table} WHERE id = %d", $numeric_id
-                    ));
-                    error_log("Numeric ID search for {$numeric_id}: " . ($appointment ? 'Found' : 'Not found'));
-                }
-            }
-            
-            // If still not found, try a broader search
-            if (!$appointment) {
-                $all_appointments = $wpdb->get_results($wpdb->prepare(
-                    "SELECT id, strong_id, name, email FROM {$table} ORDER BY id DESC LIMIT 10"
-                ));
-                error_log("Recent appointments: " . print_r($all_appointments, true));
-                
-                // Try to find by partial match
-                foreach ($all_appointments as $apt) {
-                    if ($apt->strong_id === $id || $apt->id == $id) {
-                        $appointment = $wpdb->get_row($wpdb->prepare(
-                            "SELECT * FROM {$table} WHERE id = %d", $apt->id
-                        ));
-                        break;
-                    }
-                }
-            }
-        } else {
-            // Direct numeric ID search
-            $appointment = $wpdb->get_row($wpdb->prepare(
-                "SELECT * FROM {$table} WHERE id = %d", intval($id)
-            ));
-        }
+        $appointment = $this->find_appointment_by_id($id);
         
         if ($appointment) {
             return rest_ensure_response($appointment);
@@ -274,29 +249,31 @@ class Booking_API_Endpoints {
             return new WP_Error('missing_id', 'Appointment ID is required', array('status' => 400));
         }
         
+        // Check if appointment exists first
+        $appointment = $this->find_appointment_by_id($id);
+        if (!$appointment) {
+            return new WP_Error('not_found', 'Appointment not found', array('status' => 404));
+        }
+        
         $table = $wpdb->prefix . 'appointments';
+        $where_clause = $this->get_where_clause_for_id($id);
         
-        if (strpos($id, 'APT-') === 0) {
-            $result = $wpdb->update($table, 
-                array('status' => 'cancelled'),
-                array('strong_id' => $id),
-                array('%s'),
-                array('%s')
-            );
-        } else {
-            $result = $wpdb->update($table, 
-                array('status' => 'cancelled'),
-                array('id' => intval($id)),
-                array('%s'),
-                array('%d')
-            );
+        $result = $wpdb->update($table, 
+            array('status' => 'cancelled'),
+            $where_clause['where'],
+            array('%s'),
+            $where_clause['format']
+        );
+        
+        if ($result === false) {
+            return new WP_Error('update_failed', 'Database error occurred', array('status' => 500));
         }
         
-        if ($result) {
-            return rest_ensure_response(array('success' => true));
+        if ($result === 0) {
+            return new WP_Error('no_changes', 'No appointment was updated', array('status' => 404));
         }
         
-        return new WP_Error('update_failed', 'Failed to cancel appointment', array('status' => 500));
+        return rest_ensure_response(array('success' => true));
     }
     
     public function reschedule_appointment($request) {
@@ -310,33 +287,37 @@ class Booking_API_Endpoints {
         
         $new_date = sanitize_text_field($params['new_date']);
         
-        if (empty($new_date) || strtotime($new_date) === false) {
-            return new WP_Error('invalid_date', 'Invalid date format', array('status' => 400));
+        // Validate date format and ensure it's in the future
+        $appointment_time = strtotime($new_date);
+        if ($appointment_time === false || $appointment_time <= time()) {
+            return new WP_Error('invalid_date', 'Invalid date or date must be in the future', array('status' => 400));
+        }
+        
+        // Check if appointment exists first
+        $appointment = $this->find_appointment_by_id($id);
+        if (!$appointment) {
+            return new WP_Error('not_found', 'Appointment not found', array('status' => 404));
         }
         
         $table = $wpdb->prefix . 'appointments';
+        $where_clause = $this->get_where_clause_for_id($id);
         
-        if (strpos($id, 'APT-') === 0) {
-            $result = $wpdb->update($table, 
-                array('appointment_date' => $new_date),
-                array('strong_id' => $id),
-                array('%s'),
-                array('%s')
-            );
-        } else {
-            $result = $wpdb->update($table, 
-                array('appointment_date' => $new_date),
-                array('id' => intval($id)),
-                array('%s'),
-                array('%d')
-            );
+        $result = $wpdb->update($table, 
+            array('appointment_date' => $new_date),
+            $where_clause['where'],
+            array('%s'),
+            $where_clause['format']
+        );
+        
+        if ($result === false) {
+            return new WP_Error('update_failed', 'Database error occurred', array('status' => 500));
         }
         
-        if ($result) {
-            return rest_ensure_response(array('success' => true));
+        if ($result === 0) {
+            return new WP_Error('no_changes', 'No appointment was updated', array('status' => 404));
         }
         
-        return new WP_Error('update_failed', 'Failed to reschedule appointment', array('status' => 500));
+        return rest_ensure_response(array('success' => true));
     }
     
     public function get_user_appointments($request) {
@@ -371,47 +352,161 @@ class Booking_API_Endpoints {
         return true; // Allow public access for appointment management
     }
     
-    public function debug_appointments($request) {
+    private function find_appointment_by_id($id) {
         global $wpdb;
         $table = $wpdb->prefix . 'appointments';
         
-        $appointments = $wpdb->get_results($wpdb->prepare(
-            "SELECT id, strong_id, name, email, appointment_date, status FROM {$table} ORDER BY id DESC LIMIT 20"
-        ));
+        if (strpos($id, 'APT-') === 0) {
+            // Try to find by strong_id first
+            $appointment = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM {$table} WHERE strong_id = %s", $id
+            ));
+            
+            // If not found by strong_id, try to find by numeric part
+            if (!$appointment && preg_match('/APT-\d{4}-(\d+)/', $id, $matches)) {
+                $numeric_id = intval($matches[1]);
+                $appointment = $wpdb->get_row($wpdb->prepare(
+                    "SELECT * FROM {$table} WHERE id = %d", $numeric_id
+                ));
+            }
+        } else {
+            // Direct numeric ID search
+            $appointment = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM {$table} WHERE id = %d", intval($id)
+            ));
+        }
+        
+        return $appointment;
+    }
+    
+    private function get_where_clause_for_id($id) {
+        if (strpos($id, 'APT-') === 0) {
+            return array(
+                'where' => array('strong_id' => $id),
+                'format' => array('%s')
+            );
+        } else {
+            return array(
+                'where' => array('id' => intval($id)),
+                'format' => array('%d')
+            );
+        }
+    }
+    
+    public function debug_appointments($request) {
+        // Restrict debug endpoint to admin users only
+        if (!current_user_can('manage_options')) {
+            return new WP_Error('forbidden', 'Access denied', array('status' => 403));
+        }
+        
+        global $wpdb;
+        $table = $wpdb->prefix . 'appointments';
+        
+        $appointments = $wpdb->get_results(
+            "SELECT id, strong_id, name, appointment_date, status FROM {$table} ORDER BY id DESC LIMIT 20"
+        );
+        
+        if ($wpdb->last_error) {
+            return new WP_Error('db_error', 'Database error occurred', array('status' => 500));
+        }
+        
+        $total_count = $wpdb->get_var("SELECT COUNT(*) FROM {$table}");
+        $null_strong_ids = $wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE strong_id IS NULL");
+        
+        if ($wpdb->last_error) {
+            return new WP_Error('db_error', 'Database error occurred', array('status' => 500));
+        }
         
         return rest_ensure_response(array(
             'table_name' => $table,
             'appointments' => $appointments,
-            'total_count' => $wpdb->get_var("SELECT COUNT(*) FROM {$table}"),
-            'null_strong_ids' => $wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE strong_id IS NULL")
+            'total_count' => $total_count,
+            'null_strong_ids' => $null_strong_ids
         ));
     }
     
     public function fix_existing_appointments($request) {
+        // Restrict to admin users only
+        if (!current_user_can('manage_options')) {
+            return new WP_Error('forbidden', 'Access denied', array('status' => 403));
+        }
+        
         global $wpdb;
         $table = $wpdb->prefix . 'appointments';
         
-        // Get all appointments without strong_id
-        $appointments = $wpdb->get_results($wpdb->prepare(
-            "SELECT id FROM {$table} WHERE strong_id IS NULL OR strong_id = ''"
-        ));
-        
+        // Process in batches to avoid memory issues
+        $batch_size = 100;
+        $offset = 0;
         $fixed_count = 0;
-        foreach ($appointments as $appointment) {
-            $strong_id = sprintf('APT-%d-%06d', date('Y'), $appointment->id);
-            $result = $wpdb->update(
-                $table,
-                array('strong_id' => $strong_id),
-                array('id' => $appointment->id),
-                array('%s'),
-                array('%d')
-            );
-            if ($result) $fixed_count++;
-        }
+        
+        do {
+            $appointments = $wpdb->get_results($wpdb->prepare(
+                "SELECT id FROM {$table} WHERE strong_id IS NULL OR strong_id = '' LIMIT %d OFFSET %d",
+                $batch_size, $offset
+            ));
+            
+            if ($wpdb->last_error) {
+                return new WP_Error('db_error', 'Database error occurred', array('status' => 500));
+            }
+            
+            foreach ($appointments as $appointment) {
+                $strong_id = sprintf('APT-%d-%06d', date('Y'), $appointment->id);
+                $result = $wpdb->update(
+                    $table,
+                    array('strong_id' => $strong_id),
+                    array('id' => $appointment->id),
+                    array('%s'),
+                    array('%d')
+                );
+                if ($result) $fixed_count++;
+            }
+            
+            $offset += $batch_size;
+        } while (count($appointments) === $batch_size);
         
         return rest_ensure_response(array(
             'message' => "Fixed {$fixed_count} appointments",
             'fixed_count' => $fixed_count
+        ));
+    }
+    
+    public function stream_appointments($request) {
+        $email = sanitize_email($request->get_param('email'));
+        
+        if (empty($email)) {
+            return new WP_Error('missing_email', 'Email parameter is required', array('status' => 400));
+        }
+        
+        global $wpdb;
+        $table = $wpdb->prefix . 'appointments';
+        
+        $appointments = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$table} WHERE email = %s ORDER BY appointment_date DESC",
+            $email
+        ));
+        
+        if ($wpdb->last_error) {
+            return new WP_Error('db_error', 'Database error occurred', array('status' => 500));
+        }
+        
+        $formatted_appointments = array();
+        foreach ($appointments as $apt) {
+            $formatted_appointments[] = array(
+                'id' => $apt->strong_id ?: 'AE' . str_pad($apt->id, 6, '0', STR_PAD_LEFT),
+                'service' => 'Service',
+                'staff' => 'Staff Member', 
+                'date' => $apt->appointment_date,
+                'status' => $apt->status,
+                'name' => $apt->name,
+                'email' => $apt->email,
+                'last_updated' => current_time('timestamp')
+            );
+        }
+        
+        return rest_ensure_response(array(
+            'appointments' => $formatted_appointments,
+            'timestamp' => current_time('timestamp'),
+            'count' => count($formatted_appointments)
         ));
     }
 }
