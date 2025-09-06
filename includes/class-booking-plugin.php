@@ -115,10 +115,7 @@ class Booking_Plugin {
                         </div>
                     </div>
                     <div class="appointease-booking-content">
-                        <div class="loading-initial">
-                            <div class="spinner"></div>
-                            <p>Loading booking system...</p>
-                        </div>
+                        <!-- React app will load here -->
                     </div>
                 </div>
             </div>

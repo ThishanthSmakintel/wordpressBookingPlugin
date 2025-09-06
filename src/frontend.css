@@ -567,6 +567,27 @@
     color: #666;
 }
 
+.demo-notice {
+    background: #fff3cd;
+    border: 1px solid #ffeaa7;
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #856404;
+}
+
+.demo-notice i {
+    font-size: 18px;
+}
+
+.demo-notice p {
+    margin: 0;
+    font-size: 14px;
+}
+
 .spinner {
     width: 40px;
     height: 40px;

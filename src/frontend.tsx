@@ -58,51 +58,41 @@ const BookingApp = React.forwardRef((props, ref) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     React.useEffect(() => {
-        if (!window.bookingAPI) {
-            // Use dummy data for editor preview
-            setServices([
-                { id: 1, name: 'Consultation', description: 'Initial consultation session', duration: 30, price: 75.00 },
-                { id: 2, name: 'Premium Service', description: 'Extended premium service', duration: 60, price: 150.00 }
-            ]);
-            setEmployees([
-                { id: 1, name: 'Sarah Johnson', email: 'sarah@appointease.com', avatar: 'SJ', rating: 4.8, reviews: 50 },
-                { id: 2, name: 'Mike Wilson', email: 'mike@appointease.com', avatar: 'MW', rating: 4.9, reviews: 45 }
-            ]);
-            return;
-        }
+        // Always show dummy data immediately
+        setServices([
+            { id: 1, name: 'Consultation', description: 'Initial consultation session', duration: 30, price: 75.00 },
+            { id: 2, name: 'Premium Service', description: 'Extended premium service', duration: 60, price: 150.00 }
+        ]);
+        setEmployees([
+            { id: 1, name: 'Sarah Johnson', email: 'sarah@appointease.com', avatar: 'SJ', rating: 4.8, reviews: 50 },
+            { id: 2, name: 'Mike Wilson', email: 'mike@appointease.com', avatar: 'MW', rating: 4.9, reviews: 45 }
+        ]);
         
-        // Load services
-        fetch(window.bookingAPI.root + 'services')
-        .then(response => response.json())
-        .then(services => {
-            setServices(services);
-        })
-        .catch(() => {
-            // Fallback to dummy data
-            setServices([
-                { id: 1, name: 'Consultation', description: 'Initial consultation session', duration: 30, price: 75.00 },
-                { id: 2, name: 'Premium Service', description: 'Extended premium service', duration: 60, price: 150.00 }
-            ]);
-        });
+        // Try to load real data if API available
+        if (window.bookingAPI) {
+            fetch(window.bookingAPI.root + 'services')
+            .then(response => response.json())
+            .then(services => {
+                if (services && services.length > 0) {
+                    setServices(services);
+                }
+            })
+            .catch(() => {});
 
-        // Load staff
-        fetch(window.bookingAPI.root + 'staff')
-        .then(response => response.json())
-        .then(staff => {
-            setEmployees(staff.map((member: any) => ({
-                ...member,
-                avatar: member.name.split(' ').map((n: string) => n[0]).join(''),
-                rating: 4.8,
-                reviews: 50
-            })));
-        })
-        .catch(() => {
-            // Fallback to dummy data
-            setEmployees([
-                { id: 1, name: 'Sarah Johnson', email: 'sarah@appointease.com', avatar: 'SJ', rating: 4.8, reviews: 50 },
-                { id: 2, name: 'Mike Wilson', email: 'mike@appointease.com', avatar: 'MW', rating: 4.9, reviews: 45 }
-            ]);
-        });
+            fetch(window.bookingAPI.root + 'staff')
+            .then(response => response.json())
+            .then(staff => {
+                if (staff && staff.length > 0) {
+                    setEmployees(staff.map((member: any) => ({
+                        ...member,
+                        avatar: member.name.split(' ').map((n: string) => n[0]).join(''),
+                        rating: 4.8,
+                        reviews: 50
+                    })));
+                }
+            })
+            .catch(() => {});
+        }
     }, []);
 
     const timeSlots = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'];
@@ -422,29 +412,28 @@ const BookingApp = React.forwardRef((props, ref) => {
                     <div className="appointease-step-content">
                         <h2>Choose Your Service</h2>
                         <p className="step-description">Select the service you'd like to book</p>
-                        {services.length === 0 ? (
-                            <div className="loading-state">
-                                <div className="spinner"></div>
-                                <p>Loading services...</p>
-                            </div>
-                        ) : (
-                            <div className="services-grid">
-                                {services.map(service => (
-                                    <div key={service.id} className="service-card" onClick={() => handleServiceSelect(service)}>
-                                        <div className="service-icon"><i className="ri-briefcase-line"></i></div>
-                                        <div className="service-info">
-                                            <h3>{service.name}</h3>
-                                            <p>{service.description}</p>
-                                            <div className="service-meta">
-                                                <span className="duration"><i className="ri-time-line"></i> {service.duration} min</span>
-                                                <span className="price"><i className="ri-money-dollar-circle-line"></i> ${service.price}</span>
-                                            </div>
-                                        </div>
-                                        <div className="service-arrow"><i className="ri-arrow-right-line"></i></div>
-                                    </div>
-                                ))}
+                        {!window.bookingAPI && (
+                            <div className="demo-notice">
+                                <i className="ri-information-line"></i>
+                                <p>Demo Mode - Configure services in WordPress Admin → Bookings</p>
                             </div>
                         )}
+                        <div className="services-grid">
+                            {services.map(service => (
+                                <div key={service.id} className="service-card" onClick={() => handleServiceSelect(service)}>
+                                    <div className="service-icon"><i className="ri-briefcase-line"></i></div>
+                                    <div className="service-info">
+                                        <h3>{service.name}</h3>
+                                        <p>{service.description}</p>
+                                        <div className="service-meta">
+                                            <span className="duration"><i className="ri-time-line"></i> {service.duration} min</span>
+                                            <span className="price"><i className="ri-money-dollar-circle-line"></i> ${service.price}</span>
+                                        </div>
+                                    </div>
+                                    <div className="service-arrow"><i className="ri-arrow-right-line"></i></div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 )}
 
@@ -452,28 +441,27 @@ const BookingApp = React.forwardRef((props, ref) => {
                     <div className="appointease-step-content">
                         <h2>Choose Your Specialist</h2>
                         <p className="step-description">Select who you'd like to work with</p>
-                        {employees.length === 0 ? (
-                            <div className="loading-state">
-                                <div className="spinner"></div>
-                                <p>Loading specialists...</p>
-                            </div>
-                        ) : (
-                            <div className="employees-grid">
-                                {employees.map(employee => (
-                                    <div key={employee.id} className="employee-card" onClick={() => handleEmployeeSelect(employee)}>
-                                        <div className="employee-avatar">{employee.avatar}</div>
-                                        <div className="employee-info">
-                                            <h3>{employee.name}</h3>
-                                            <div className="employee-rating">
-                                                <span className="rating"><i className="ri-star-fill"></i> {employee.rating}</span>
-                                                <span className="reviews">({employee.reviews} reviews)</span>
-                                            </div>
-                                        </div>
-                                        <div className="employee-arrow"><i className="ri-arrow-right-line"></i></div>
-                                    </div>
-                                ))}
+                        {!window.bookingAPI && (
+                            <div className="demo-notice">
+                                <i className="ri-information-line"></i>
+                                <p>Demo Mode - Configure staff in WordPress Admin → Bookings</p>
                             </div>
                         )}
+                        <div className="employees-grid">
+                            {employees.map(employee => (
+                                <div key={employee.id} className="employee-card" onClick={() => handleEmployeeSelect(employee)}>
+                                    <div className="employee-avatar">{employee.avatar}</div>
+                                    <div className="employee-info">
+                                        <h3>{employee.name}</h3>
+                                        <div className="employee-rating">
+                                            <span className="rating"><i className="ri-star-fill"></i> {employee.rating}</span>
+                                            <span className="reviews">({employee.reviews} reviews)</span>
+                                        </div>
+                                    </div>
+                                    <div className="employee-arrow"><i className="ri-arrow-right-line"></i></div>
+                                </div>
+                            ))}
+                        </div>
                         <button className="back-btn" onClick={() => setStep(1)}>← Back</button>
                     </div>
                 )}
@@ -700,10 +688,9 @@ window.BookingApp = null;
 
 function initBookingApp(containerId) {
     const bookingContainer = document.getElementById(containerId);
-    if (bookingContainer && !bookingContainer.querySelector('.appointease-booking')) {
-        // Hide initial loading
-        const loadingEl = bookingContainer.querySelector('.loading-initial, .editor-loading');
-        if (loadingEl) loadingEl.style.display = 'none';
+    if (bookingContainer) {
+        // Clear any existing content
+        bookingContainer.innerHTML = '';
         
         const root = createRoot(bookingContainer);
         const appRef = React.createRef();
@@ -722,17 +709,25 @@ function initBookingApp(containerId) {
     }
 }
 
-// Initialize for frontend
-document.addEventListener('DOMContentLoaded', () => {
-    initBookingApp('appointease-booking');
-});
-
-// Initialize for editor (called by block)
+// Initialize immediately and on DOM ready
 if (typeof window !== 'undefined') {
     window.initBookingApp = initBookingApp;
     
-    // Auto-initialize editor if container exists
+    // Try immediate initialization
     setTimeout(() => {
+        initBookingApp('appointease-booking');
         initBookingApp('appointease-booking-editor');
-    }, 100);
+    }, 10);
+    
+    // Also try on DOM ready
+    document.addEventListener('DOMContentLoaded', () => {
+        initBookingApp('appointease-booking');
+        initBookingApp('appointease-booking-editor');
+    });
+    
+    // And on window load as fallback
+    window.addEventListener('load', () => {
+        initBookingApp('appointease-booking');
+        initBookingApp('appointease-booking-editor');
+    });
 }

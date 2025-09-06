@@ -19,6 +19,11 @@ class AppointEase_Admin {
         if (strpos($hook, 'appointease') !== false) {
             wp_enqueue_style('appointease-admin', BOOKING_PLUGIN_URL . 'admin/appointease-admin.css', array(), '1.0.0');
             wp_enqueue_script('appointease-admin', BOOKING_PLUGIN_URL . 'admin/appointease-admin.js', array('jquery'), '1.0.0', true);
+            
+            wp_localize_script('appointease-admin', 'appointeaseAdmin', array(
+                'nonce' => wp_create_nonce('appointease_nonce'),
+                'ajaxurl' => admin_url('admin-ajax.php')
+            ));
         }
     }
     
@@ -88,52 +93,68 @@ class AppointEase_Admin {
                     </div>
                     <div class="amelia-header-right">
                         <div class="amelia-header-buttons">
-                            <button class="am-button am-button--primary" onclick="openServiceModal()">
-                                <span class="am-icon-plus"></span>
+                            <button id="add-service-btn" class="am-button am-button--primary" onclick="openServiceModal()">
+                                <i class="dashicons dashicons-plus"></i>
                                 Add Service
                             </button>
-                            <button class="am-button am-button--secondary" onclick="openStaffModal()">
-                                <span class="am-icon-users"></span>
+                            <button id="add-staff-btn" class="am-button am-button--secondary" onclick="openStaffModal()">
+                                <i class="dashicons dashicons-groups"></i>
                                 Add Employee
                             </button>
                         </div>
                     </div>
                 </div>
             <div class="amelia-dashboard">
-                <div class="amelia-stats">
+                <div id="stats-section" class="amelia-stats">
                     <div class="stat-card bookings">
+                        <div class="stat-icon">
+                            <i class="dashicons dashicons-calendar-alt"></i>
+                        </div>
                         <div class="stat-info">
                             <h3><?php echo $appointments_count; ?></h3>
                             <p>Total Appointments</p>
-                            <span class="trend">+12% this month</span>
+                            <span class="trend positive">+12% this month</span>
                         </div>
                     </div>
                     <div class="stat-card services">
+                        <div class="stat-icon">
+                            <i class="dashicons dashicons-admin-tools"></i>
+                        </div>
                         <div class="stat-info">
                             <h3><?php echo $services_count; ?></h3>
                             <p>Active Services</p>
-                            <span class="trend">Ready to book</span>
+                            <span class="trend neutral">Ready to book</span>
                         </div>
                     </div>
                     <div class="stat-card team">
+                        <div class="stat-icon">
+                            <i class="dashicons dashicons-groups"></i>
+                        </div>
                         <div class="stat-info">
                             <h3><?php echo $staff_count; ?></h3>
                             <p>Team Members</p>
-                            <span class="trend">Available today</span>
+                            <span class="trend positive">Available today</span>
                         </div>
                     </div>
                 </div>
-                <div class="quick-actions">
+                <div id="quick-actions" class="quick-actions">
                     <h3>Quick Actions</h3>
                     <div class="action-buttons">
                         <a href="admin.php?page=appointease-services" class="action-btn primary">
-                            Add New Service
+                            <i class="dashicons dashicons-admin-tools"></i>
+                            <span>Add New Service</span>
                         </a>
                         <a href="admin.php?page=appointease-staff" class="action-btn secondary">
-                            Add Team Member
+                            <i class="dashicons dashicons-groups"></i>
+                            <span>Add Team Member</span>
                         </a>
                         <a href="admin.php?page=appointease-appointments" class="action-btn tertiary">
-                            View All Appointments
+                            <i class="dashicons dashicons-calendar-alt"></i>
+                            <span>View All Appointments</span>
+                        </a>
+                        <a href="admin.php?page=appointease-settings" class="action-btn quaternary">
+                            <i class="dashicons dashicons-admin-settings"></i>
+                            <span>Configure Settings</span>
                         </a>
                     </div>
                 </div>
@@ -148,9 +169,16 @@ class AppointEase_Admin {
         $services = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}appointease_services ORDER BY id DESC");
         ?>
         <div class="appointease-wrap">
-            <div class="ae-page-header">
-                <h1>Services</h1>
-                <button class="ae-btn primary" onclick="openServiceModal()">+ ADD SERVICE</button>
+            <div id="services-header" class="ae-page-header">
+                <div class="page-title">
+                    <h1><i class="dashicons dashicons-admin-tools"></i> Services</h1>
+                    <p class="page-subtitle">Manage your booking services and pricing</p>
+                </div>
+                <div class="page-actions">
+                    <button id="add-service-modal" class="ae-btn primary" onclick="openServiceModal()">
+                        <i class="dashicons dashicons-plus"></i> ADD SERVICE
+                    </button>
+                </div>
             </div>
             
             <div class="ae-cards">
@@ -222,9 +250,16 @@ class AppointEase_Admin {
         $staff = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}appointease_staff ORDER BY id DESC");
         ?>
         <div class="appointease-wrap">
-            <div class="ae-page-header">
-                <h1>Staff</h1>
-                <button class="ae-btn primary" onclick="openStaffModal()">+ ADD STAFF</button>
+            <div id="staff-header" class="ae-page-header">
+                <div class="page-title">
+                    <h1><i class="dashicons dashicons-groups"></i> Staff</h1>
+                    <p class="page-subtitle">Manage your team members and availability</p>
+                </div>
+                <div class="page-actions">
+                    <button id="add-staff-modal" class="ae-btn primary" onclick="openStaffModal()">
+                        <i class="dashicons dashicons-plus"></i> ADD STAFF
+                    </button>
+                </div>
             </div>
             
             <div class="ae-cards">
@@ -522,13 +557,15 @@ class AppointEase_Admin {
         }
         
         $options = get_option('appointease_options', array());
-        $start_time = isset($options['start_time']) ? $options['start_time'] : '09:00';
-        $end_time = isset($options['end_time']) ? $options['end_time'] : '17:00';
-        $slot_duration = isset($options['slot_duration']) ? $options['slot_duration'] : 30;
         ?>
         <div class="appointease-wrap">
-            <div class="ae-page-header">
-                <h1>Settings</h1>
+            <div id="settings-header" class="ae-page-header">
+                <div class="page-title">
+                    <h1><i class="dashicons dashicons-admin-settings"></i> Settings</h1>
+                    <p class="page-subtitle">Configure your booking system preferences</p>
+                </div>
+                <div class="page-actions">
+                </div>
             </div>
             
             <form method="post" class="ae-settings-form">
@@ -537,12 +574,25 @@ class AppointEase_Admin {
                     <div class="form-row">
                         <div class="form-group">
                             <label>Start Time</label>
-                            <input type="time" name="appointease_options[start_time]" value="<?php echo $start_time; ?>" />
+                            <input type="time" name="appointease_options[start_time]" value="<?php echo isset($options['start_time']) ? $options['start_time'] : '09:00'; ?>" />
                         </div>
                         <div class="form-group">
                             <label>End Time</label>
-                            <input type="time" name="appointease_options[end_time]" value="<?php echo $end_time; ?>" />
+                            <input type="time" name="appointease_options[end_time]" value="<?php echo isset($options['end_time']) ? $options['end_time'] : '17:00'; ?>" />
                         </div>
+                    </div>
+                </div>
+                
+                <div class="ae-card">
+                    <h3>Working Days</h3>
+                    <div class="form-group">
+                        <label><input type="checkbox" name="appointease_options[working_days][]" value="1" <?php checked(in_array('1', isset($options['working_days']) ? $options['working_days'] : ['1','2','3','4','5'])); ?>> Monday</label>
+                        <label><input type="checkbox" name="appointease_options[working_days][]" value="2" <?php checked(in_array('2', isset($options['working_days']) ? $options['working_days'] : ['1','2','3','4','5'])); ?>> Tuesday</label>
+                        <label><input type="checkbox" name="appointease_options[working_days][]" value="3" <?php checked(in_array('3', isset($options['working_days']) ? $options['working_days'] : ['1','2','3','4','5'])); ?>> Wednesday</label>
+                        <label><input type="checkbox" name="appointease_options[working_days][]" value="4" <?php checked(in_array('4', isset($options['working_days']) ? $options['working_days'] : ['1','2','3','4','5'])); ?>> Thursday</label>
+                        <label><input type="checkbox" name="appointease_options[working_days][]" value="5" <?php checked(in_array('5', isset($options['working_days']) ? $options['working_days'] : ['1','2','3','4','5'])); ?>> Friday</label>
+                        <label><input type="checkbox" name="appointease_options[working_days][]" value="6" <?php checked(in_array('6', isset($options['working_days']) ? $options['working_days'] : [])); ?>> Saturday</label>
+                        <label><input type="checkbox" name="appointease_options[working_days][]" value="0" <?php checked(in_array('0', isset($options['working_days']) ? $options['working_days'] : [])); ?>> Sunday</label>
                     </div>
                 </div>
                 
@@ -551,10 +601,52 @@ class AppointEase_Admin {
                     <div class="form-group">
                         <label>Slot Duration</label>
                         <select name="appointease_options[slot_duration]">
-                            <option value="15" <?php selected($slot_duration, 15); ?>>15 minutes</option>
-                            <option value="30" <?php selected($slot_duration, 30); ?>>30 minutes</option>
-                            <option value="60" <?php selected($slot_duration, 60); ?>>60 minutes</option>
+                            <option value="15" <?php selected(isset($options['slot_duration']) ? $options['slot_duration'] : 30, 15); ?>>15 minutes</option>
+                            <option value="30" <?php selected(isset($options['slot_duration']) ? $options['slot_duration'] : 30, 30); ?>>30 minutes</option>
+                            <option value="60" <?php selected(isset($options['slot_duration']) ? $options['slot_duration'] : 30, 60); ?>>60 minutes</option>
                         </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Advance Booking (days)</label>
+                        <input type="number" name="appointease_options[advance_booking]" value="<?php echo isset($options['advance_booking']) ? $options['advance_booking'] : 30; ?>" min="1" max="365" />
+                    </div>
+                </div>
+                
+                <div class="ae-card">
+                    <h3>Email Notifications</h3>
+                    <div class="form-group">
+                        <label><input type="checkbox" name="appointease_options[email_customer]" value="1" <?php checked(isset($options['email_customer']) ? $options['email_customer'] : 1); ?>> Send confirmation emails to customers</label>
+                    </div>
+                    <div class="form-group">
+                        <label><input type="checkbox" name="appointease_options[email_admin]" value="1" <?php checked(isset($options['email_admin']) ? $options['email_admin'] : 1); ?>> Send notification emails to admin</label>
+                    </div>
+                    <div class="form-group">
+                        <label>Admin Email</label>
+                        <input type="email" name="appointease_options[admin_email]" value="<?php echo isset($options['admin_email']) ? $options['admin_email'] : get_option('admin_email'); ?>" />
+                    </div>
+                </div>
+                
+                <div class="ae-card">
+                    <h3>Booking Restrictions</h3>
+                    <div class="form-group">
+                        <label>Minimum advance notice (hours)</label>
+                        <input type="number" name="appointease_options[min_advance]" value="<?php echo isset($options['min_advance']) ? $options['min_advance'] : 2; ?>" min="0" max="168" />
+                    </div>
+                    <div class="form-group">
+                        <label>Maximum bookings per day</label>
+                        <input type="number" name="appointease_options[max_bookings]" value="<?php echo isset($options['max_bookings']) ? $options['max_bookings'] : 10; ?>" min="1" max="100" />
+                    </div>
+                </div>
+                
+                <div class="ae-card">
+                    <h3>Appearance</h3>
+                    <div class="form-group">
+                        <label>Primary Color</label>
+                        <input type="color" name="appointease_options[primary_color]" value="<?php echo isset($options['primary_color']) ? $options['primary_color'] : '#1CBC9B'; ?>" />
+                    </div>
+                    <div class="form-group">
+                        <label>Button Text</label>
+                        <input type="text" name="appointease_options[button_text]" value="<?php echo isset($options['button_text']) ? $options['button_text'] : 'Book Appointment'; ?>" />
                     </div>
                 </div>
                 
