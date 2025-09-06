@@ -48,6 +48,12 @@ class Booking_API_Endpoints {
             'callback' => array($this, 'reschedule_appointment'),
             'permission_callback' => '__return_true'
         ));
+        
+        register_rest_route('booking/v1', '/user-appointments', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'get_user_appointments'),
+            'permission_callback' => '__return_true'
+        ));
     }
     
     public function get_services() {
@@ -182,5 +188,19 @@ class Booking_API_Endpoints {
         }
         
         return new WP_Error('update_failed', 'Failed to reschedule appointment', array('status' => 500));
+    }
+    
+    public function get_user_appointments($request) {
+        global $wpdb;
+        $params = $request->get_json_params();
+        $email = $params['email'];
+        $table = $wpdb->prefix . 'appointments';
+        
+        $appointments = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM $table WHERE email = %s ORDER BY appointment_date DESC",
+            $email
+        ));
+        
+        return rest_ensure_response($appointments);
     }
 }

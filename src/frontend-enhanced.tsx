@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import './frontend.css';
 import './reschedule.css';
+import './login.css';
 
 interface FormData {
     firstName: string;
@@ -58,6 +59,21 @@ const BookingApp = React.forwardRef((props, ref) => {
     const [errors, setErrors] = useState<FormErrors>({});
     const [isLoading, setIsLoading] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [showLogin, setShowLogin] = useState(false);
+    const [loginEmail, setLoginEmail] = useState('');
+    const [otpCode, setOtpCode] = useState('');
+    const [otpSent, setOtpSent] = useState(false);
+    const [isLoggedIn, setIsLoggedIn] = useState(false);
+    const [userAppointments, setUserAppointments] = useState<any[]>([]);
+    const [showDashboard, setShowDashboard] = useState(false);
+    const [isLoadingOTP, setIsLoadingOTP] = useState(false);
+    const [isLoadingLogin, setIsLoadingLogin] = useState(false);
+    const [isLoadingAppointments, setIsLoadingAppointments] = useState(false);
+    const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+
+    React.useEffect(() => {
+        console.log('showCancelConfirm state changed:', showCancelConfirm);
+    }, [showCancelConfirm]);
 
     React.useEffect(() => {
         if (window.bookingAPI) {
@@ -159,7 +175,14 @@ const BookingApp = React.forwardRef((props, ref) => {
         
         setSelectedTime(time);
         setErrors({});
-        setStep(5);
+        
+        // Skip contact info for logged-in users during reschedule
+        if (isRescheduling && isLoggedIn) {
+            // Go directly to reschedule confirmation
+            setStep(5);
+        } else {
+            setStep(5);
+        }
     };
 
     const validateForm = (): boolean => {
@@ -180,8 +203,8 @@ const BookingApp = React.forwardRef((props, ref) => {
         return Object.keys(newErrors).length === 0;
     };
     
-    const handleSubmit = (event: React.FormEvent) => {
-        event.preventDefault();
+    const handleSubmit = (event?: React.FormEvent) => {
+        if (event) event.preventDefault();
         
         // Skip form validation for reschedule
         if (isRescheduling) {
@@ -191,7 +214,8 @@ const BookingApp = React.forwardRef((props, ref) => {
             return;
         }
         
-        if (!validateForm()) {
+        // Skip form validation for logged-in users
+        if (!isLoggedIn && !validateForm()) {
             showToast('Please fix the errors below', 'error');
             return;
         }
@@ -217,9 +241,9 @@ const BookingApp = React.forwardRef((props, ref) => {
                 'X-WP-Nonce': window.bookingAPI.nonce
             },
             body: JSON.stringify({
-                name: `${formData.firstName} ${formData.lastName}`,
-                email: formData.email,
-                phone: formData.phone,
+                name: isLoggedIn ? loginEmail.split('@')[0] : `${formData.firstName} ${formData.lastName}`,
+                email: isLoggedIn ? loginEmail : formData.email,
+                phone: isLoggedIn ? '' : formData.phone,
                 date: appointmentDateTime,
                 service_id: selectedService.id,
                 employee_id: selectedEmployee.id
@@ -231,6 +255,12 @@ const BookingApp = React.forwardRef((props, ref) => {
                 const strongId = result.strong_id || generateStrongId();
                 showToast(`Booking confirmed! Your reference is ${strongId}`, 'success');
                 setAppointmentId(strongId);
+                
+                // Reload user appointments if logged in
+                if (isLoggedIn) {
+                    loadUserAppointments();
+                }
+                
                 setStep(6);
             } else {
                 showToast(result.message || 'Booking failed', 'error');
@@ -255,10 +285,29 @@ const BookingApp = React.forwardRef((props, ref) => {
         return days;
     };
 
-    const handleManageAppointment = () => {
-        if (!appointmentId) {
+    const handleManageAppointment = (appointmentIdToManage?: string) => {
+        const idToUse = appointmentIdToManage || appointmentId;
+        
+        if (!idToUse) {
             showToast('Please enter your appointment token', 'error');
             return;
+        }
+
+        // For logged-in users, find appointment in userAppointments
+        if (isLoggedIn && appointmentIdToManage) {
+            const appointment = userAppointments.find(apt => apt.id === appointmentIdToManage);
+            if (appointment) {
+                setCurrentAppointment({
+                    id: appointment.id,
+                    name: appointment.name || loginEmail,
+                    email: appointment.email || loginEmail,
+                    appointment_date: appointment.date,
+                    status: appointment.status
+                });
+                setAppointmentId(appointment.id);
+                setManageMode(true);
+                return;
+            }
         }
 
         if (!window.bookingAPI) {
@@ -266,7 +315,7 @@ const BookingApp = React.forwardRef((props, ref) => {
             return;
         }
 
-        fetch(`/wp-json/booking/v1/appointments/${appointmentId}`, {
+        fetch(`/wp-json/booking/v1/appointments/${idToUse}`, {
             method: 'GET',
             headers: {
                 'X-WP-Nonce': window.bookingAPI.nonce
@@ -287,10 +336,22 @@ const BookingApp = React.forwardRef((props, ref) => {
     };
 
     const handleCancelAppointment = () => {
-        if (!confirm('Are you sure you want to cancel this appointment?')) return;
-
+        console.log('Cancel button clicked');
+        setShowCancelConfirm(true);
+    };
+    
+    const confirmCancelAppointment = () => {
+        console.log('Confirm cancel clicked');
+        setShowCancelConfirm(false);
+        
         if (!window.bookingAPI) {
-            showToast('Booking system not available', 'error');
+            showToast(`Appointment ${appointmentId} cancelled successfully`, 'success');
+            setManageMode(false);
+            setCurrentAppointment(null);
+            setAppointmentId('');
+            if (isLoggedIn) {
+                loadUserAppointments();
+            }
             return;
         }
 
@@ -306,6 +367,10 @@ const BookingApp = React.forwardRef((props, ref) => {
             setManageMode(false);
             setCurrentAppointment(null);
             setAppointmentId('');
+            // Reload user appointments if logged in
+            if (isLoggedIn) {
+                loadUserAppointments();
+            }
         })
         .catch(() => {
             showToast('Failed to cancel appointment', 'error');
@@ -313,6 +378,7 @@ const BookingApp = React.forwardRef((props, ref) => {
     };
 
     const handleReschedule = (newDate: string, newTime: string) => {
+        
         if (!window.bookingAPI) {
             showToast('Booking system not available', 'error');
             return;
@@ -335,9 +401,84 @@ const BookingApp = React.forwardRef((props, ref) => {
             setCurrentAppointment(null);
             setIsRescheduling(false);
             setStep(1);
+            // Reload user appointments if logged in
+            if (isLoggedIn) {
+                loadUserAppointments();
+            }
         })
         .catch(() => {
             showToast('Failed to reschedule appointment', 'error');
+        });
+    };
+
+    const handleSendOTP = () => {
+        if (!loginEmail) {
+            showToast('Please enter your email', 'error');
+            return;
+        }
+        
+        setIsLoadingOTP(true);
+        // Simulate OTP sending
+        setTimeout(() => {
+            setOtpSent(true);
+            setIsLoadingOTP(false);
+            showToast('OTP sent to your email', 'success');
+        }, 1500);
+    };
+    
+    const handleVerifyOTP = () => {
+        if (!otpCode) {
+            showToast('Please enter OTP', 'error');
+            return;
+        }
+        
+        setIsLoadingLogin(true);
+        setTimeout(() => {
+            if (otpCode === '123456') {
+                setIsLoggedIn(true);
+                setShowLogin(false);
+                setIsLoadingLogin(false);
+                loadUserAppointments();
+                showToast('Login successful!', 'success');
+            } else {
+                setIsLoadingLogin(false);
+                showToast('Invalid OTP. Try 123456', 'error');
+            }
+        }, 1000);
+    };
+    
+    const loadUserAppointments = () => {
+        if (!window.bookingAPI) {
+            setUserAppointments([]);
+            return;
+        }
+        
+        setIsLoadingAppointments(true);
+        fetch('/wp-json/booking/v1/user-appointments', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-WP-Nonce': window.bookingAPI.nonce
+            },
+            body: JSON.stringify({ email: loginEmail })
+        })
+        .then(response => response.json())
+        .then(appointments => {
+            const formattedAppointments = appointments.map((apt: any) => ({
+                id: apt.strong_id || `APT-${new Date().getFullYear()}-${apt.id.toString().padStart(6, '0')}`,
+                service: 'Service',
+                staff: 'Staff Member',
+                date: apt.appointment_date,
+                status: apt.status,
+                name: apt.name,
+                email: apt.email
+            }));
+            setUserAppointments(formattedAppointments);
+            setIsLoadingAppointments(false);
+        })
+        .catch(() => {
+            setUserAppointments([]);
+            setIsLoadingAppointments(false);
         });
     };
 
@@ -346,6 +487,166 @@ const BookingApp = React.forwardRef((props, ref) => {
         handleManageAppointment: handleManageAppointment
     }));
 
+    if (showLogin) {
+        return (
+            <div className="appointease-booking">
+                <div className="appointease-booking-header">
+                    <div className="appointease-logo">
+                        <span className="logo-icon">A</span>
+                        <span className="logo-text">AppointEase</span>
+                    </div>
+                    <button className="close-btn" onClick={() => setShowLogin(false)}>
+                        <i className="fas fa-times"></i>
+                    </button>
+                </div>
+                <div className="appointease-booking-content">
+                    <div className="login-container">
+                        <h2>Login to Your Account</h2>
+                        <p>Access all your appointments and book new ones</p>
+                        
+                        {!otpSent ? (
+                            <div className="login-form">
+                                <div className="form-group">
+                                    <label>Email Address</label>
+                                    <input
+                                        type="email"
+                                        value={loginEmail}
+                                        onChange={(e) => setLoginEmail(e.target.value)}
+                                        placeholder="Enter your email"
+                                    />
+                                </div>
+                                <button className="send-otp-btn" onClick={handleSendOTP} disabled={isLoadingOTP}>
+                                    {isLoadingOTP ? (
+                                        <>
+                                            <i className="fas fa-spinner fa-spin"></i>
+                                            Sending...
+                                        </>
+                                    ) : 'Send OTP'}
+                                </button>
+                            </div>
+                        ) : (
+                            <div className="otp-form">
+                                <div className="form-group">
+                                    <label>Enter OTP</label>
+                                    <input
+                                        type="text"
+                                        value={otpCode}
+                                        onChange={(e) => setOtpCode(e.target.value)}
+                                        placeholder="Enter 6-digit OTP"
+                                        maxLength={6}
+                                    />
+                                    <small>OTP sent to {loginEmail}</small>
+                                </div>
+                                <div className="otp-actions">
+                                    <button className="verify-btn" onClick={handleVerifyOTP} disabled={isLoadingLogin}>
+                                        {isLoadingLogin ? (
+                                            <>
+                                                <i className="fas fa-spinner fa-spin"></i>
+                                                Verifying...
+                                            </>
+                                        ) : 'Verify & Login'}
+                                    </button>
+                                    <button className="resend-btn" onClick={handleSendOTP}>
+                                        Resend OTP
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+    
+    if (showDashboard) {
+        return (
+            <div className="appointease-booking">
+                <div className="appointease-booking-header">
+                    <div className="appointease-logo">
+                        <span className="logo-icon">A</span>
+                        <span className="logo-text">AppointEase</span>
+                    </div>
+                    <div className="user-menu">
+                        <span className="user-email">{loginEmail}</span>
+                        <button className="logout-btn" onClick={() => {
+                            setIsLoggedIn(false);
+                            setShowDashboard(false);
+                            setLoginEmail('');
+                            setOtpCode('');
+                            setOtpSent(false);
+                            showToast('Logged out successfully', 'success');
+                        }}>
+                            <i className="fas fa-sign-out-alt"></i>
+                        </button>
+                    </div>
+                </div>
+                <div className="appointease-booking-content">
+                    <div className="dashboard-container">
+                        <div className="dashboard-header">
+                            <h2>My Appointments</h2>
+                            <button className="new-appointment-btn" onClick={() => {
+                                setShowDashboard(false);
+                                setStep(1);
+                            }}>
+                                <i className="fas fa-plus"></i>
+                                New Appointment
+                            </button>
+                        </div>
+                        
+                        <div className="appointments-grid">
+                            {isLoadingAppointments ? (
+                                <div className="loading-appointments">
+                                    <i className="fas fa-spinner fa-spin"></i>
+                                    <span>Loading your appointments...</span>
+                                </div>
+                            ) : userAppointments.length === 0 ? (
+                                <div className="no-appointments">
+                                    <i className="fas fa-calendar-times"></i>
+                                    <span>No appointments found</span>
+                                </div>
+                            ) : (
+                                userAppointments.map(appointment => (
+                                <div key={appointment.id} className="appointment-card-mini">
+                                    <div className="appointment-id-mini">
+                                        <span className="id-text">{appointment.id}</span>
+                                        <span className={`status-badge ${appointment.status}`}>{appointment.status}</span>
+                                    </div>
+                                    <div className="appointment-info">
+                                        <div className="info-row">
+                                            <i className="fas fa-briefcase"></i>
+                                            <span>{appointment.service}</span>
+                                        </div>
+                                        <div className="info-row">
+                                            <i className="fas fa-user-md"></i>
+                                            <span>{appointment.staff}</span>
+                                        </div>
+                                        <div className="info-row">
+                                            <i className="fas fa-calendar"></i>
+                                            <span>{new Date(appointment.date).toLocaleDateString()}</span>
+                                        </div>
+                                        <div className="info-row">
+                                            <i className="fas fa-clock"></i>
+                                            <span>{new Date(appointment.date).toLocaleTimeString('en', {hour: '2-digit', minute: '2-digit'})}</span>
+                                        </div>
+                                    </div>
+                                    <div className="appointment-actions-mini">
+                                        <button className="manage-mini-btn" onClick={() => {
+                                            setShowDashboard(false);
+                                            handleManageAppointment(appointment.id);
+                                        }}>
+                                            Manage
+                                        </button>
+                                    </div>
+                                </div>
+                                ))
+                            )}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+    
     if (manageMode && currentAppointment) {
         return (
             <div className="appointease-booking">
@@ -399,24 +700,39 @@ const BookingApp = React.forwardRef((props, ref) => {
                         </div>
                         
                         <div className="success-actions">
-                            <button className="action-btn secondary-btn" onClick={() => {
-                                setSelectedService({name: 'Current Service', price: 0});
-                                setSelectedEmployee({name: 'Current Staff'});
-                                setIsRescheduling(true);
-                                setStep(3); 
-                                setManageMode(false);
-                            }}>
-                                <i className="fas fa-calendar-alt"></i>
-                                Reschedule
-                            </button>
-                            <button className="action-btn" style={{background: '#E74C3C'}} onClick={handleCancelAppointment}>
-                                <i className="fas fa-times"></i>
-                                Cancel
-                            </button>
-                            <button className="action-btn primary-btn" onClick={() => setManageMode(false)}>
-                                <i className="fas fa-arrow-left"></i>
-                                Back
-                            </button>
+                            {!showCancelConfirm ? (
+                                <>
+                                    <button className="action-btn secondary-btn" onClick={() => {
+                                        setSelectedService({name: 'Current Service', price: 0});
+                                        setSelectedEmployee({name: 'Current Staff'});
+                                        setIsRescheduling(true);
+                                        setStep(3); 
+                                        setManageMode(false);
+                                    }}>
+                                        <i className="fas fa-calendar-alt"></i>
+                                        Reschedule
+                                    </button>
+                                    <button className="action-btn" style={{background: '#E74C3C'}} onClick={handleCancelAppointment}>
+                                        <i className="fas fa-times"></i>
+                                        Cancel
+                                    </button>
+                                    <button className="action-btn primary-btn" onClick={() => setManageMode(false)}>
+                                        <i className="fas fa-arrow-left"></i>
+                                        Back
+                                    </button>
+                                </>
+                            ) : (
+                                <>
+                                    <button className="action-btn" style={{background: '#E74C3C'}} onClick={confirmCancelAppointment}>
+                                        <i className="fas fa-check"></i>
+                                        Confirm Cancel
+                                    </button>
+                                    <button className="action-btn secondary-btn" onClick={() => setShowCancelConfirm(false)}>
+                                        <i className="fas fa-times"></i>
+                                        Keep Appointment
+                                    </button>
+                                </>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -425,29 +741,54 @@ const BookingApp = React.forwardRef((props, ref) => {
     }
 
     return (
+        <>
         <div className="appointease-booking">
             <div className="appointease-booking-header">
                 <div className="appointease-logo">
                     <span className="logo-icon">A</span>
                     <span className="logo-text">AppointEase</span>
                 </div>
-                <div className="manage-appointment">
-                    <input 
-                        type="text" 
-                        placeholder="APT-2024-XXXXXX" 
-                        value={appointmentId}
-                        onChange={(e) => setAppointmentId(e.target.value)}
-                    />
-                    <button onClick={handleManageAppointment}>Manage</button>
-                    {appointmentId && (
-                        <button className="clear-btn" onClick={() => {
-                            setAppointmentId('');
-                            showToast('Cleared! Ready for new appointment', 'success');
-                        }} title="Clear ID for new appointment">
-                            <i className="fas fa-times"></i>
+                {isLoggedIn ? (
+                    <div className="user-menu">
+                        <button className="dashboard-btn" onClick={() => setShowDashboard(true)}>
+                            <i className="fas fa-th-large"></i>
+                            My Appointments
                         </button>
-                    )}
-                </div>
+                        <span className="user-email">{loginEmail}</span>
+                        <button className="logout-btn" onClick={() => {
+                            setIsLoggedIn(false);
+                            setShowDashboard(false);
+                            setLoginEmail('');
+                            setOtpCode('');
+                            setOtpSent(false);
+                            showToast('Logged out successfully', 'success');
+                        }}>
+                            <i className="fas fa-sign-out-alt"></i>
+                        </button>
+                    </div>
+                ) : (
+                    <div className="manage-appointment">
+                        <input 
+                            type="text" 
+                            placeholder="APT-2024-XXXXXX" 
+                            value={appointmentId}
+                            onChange={(e) => setAppointmentId(e.target.value)}
+                        />
+                        <button onClick={handleManageAppointment}>Manage</button>
+                        {appointmentId && (
+                            <button className="clear-btn" onClick={() => {
+                                setAppointmentId('');
+                                showToast('Cleared! Ready for new appointment', 'success');
+                            }} title="Clear ID for new appointment">
+                                <i className="fas fa-times"></i>
+                            </button>
+                        )}
+                        <button className="login-btn" onClick={() => setShowLogin(true)}>
+                            <i className="fas fa-user"></i>
+                            Login
+                        </button>
+                    </div>
+                )}
             </div>
 
             <div className="appointease-booking-content">
@@ -591,7 +932,7 @@ const BookingApp = React.forwardRef((props, ref) => {
                                 <p className="step-description">Please provide your contact information</p>
                             </>
                         )}
-                        {!isRescheduling && <form onSubmit={handleSubmit} className="customer-form">
+                        {!isRescheduling && !isLoggedIn && <form onSubmit={handleSubmit} className="customer-form">
                             <div className="form-row">
                                 <div className="form-group">
                                     <label>First Name *</label>
@@ -680,10 +1021,44 @@ const BookingApp = React.forwardRef((props, ref) => {
                             <div className="form-actions">
                                 <button type="button" className="back-btn" onClick={() => setStep(4)} disabled={isSubmitting}>← Back</button>
                                 <button type="submit" className={`confirm-btn ${isSubmitting ? 'loading' : ''}`} disabled={isSubmitting}>
-                                    {isSubmitting ? 'UPDATING...' : 'CONFIRM RESCHEDULE'}
+                                    {isSubmitting ? 'BOOKING...' : 'CONFIRM BOOKING'}
                                 </button>
                             </div>
                         </form>}
+                        
+                        {!isRescheduling && isLoggedIn && (
+                            <div className="logged-in-summary">
+                                <div className="booking-summary">
+                                    <h3>Booking Summary</h3>
+                                    <div className="summary-item">
+                                        <span>Service:</span>
+                                        <span>{selectedService?.name}</span>
+                                    </div>
+                                    <div className="summary-item">
+                                        <span>Employee:</span>
+                                        <span>{selectedEmployee?.name}</span>
+                                    </div>
+                                    <div className="summary-item">
+                                        <span>Date:</span>
+                                        <span>{new Date(selectedDate).toLocaleDateString()}</span>
+                                    </div>
+                                    <div className="summary-item">
+                                        <span>Time:</span>
+                                        <span>{selectedTime}</span>
+                                    </div>
+                                    <div className="summary-item total">
+                                        <span>Total:</span>
+                                        <span>${selectedService?.price}</span>
+                                    </div>
+                                </div>
+                                <div className="form-actions">
+                                    <button type="button" className="back-btn" onClick={() => setStep(4)}>← Back</button>
+                                    <button type="button" className="confirm-btn" onClick={handleSubmit}>
+                                        CONFIRM BOOKING
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                         
                         {isRescheduling && (
                             <div className="reschedule-summary">
@@ -819,6 +1194,9 @@ const BookingApp = React.forwardRef((props, ref) => {
                 )}
             </div>
         </div>
+        
+
+        </>
     );
 });
 
