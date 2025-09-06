@@ -22,8 +22,8 @@ interface FormErrors {
 
 declare global {
     interface Window {
-        booking_ajax: {
-            ajax_url: string;
+        bookingAPI: {
+            root: string;
             nonce: string;
         };
         Toastify: any;
@@ -58,35 +58,50 @@ const BookingApp = React.forwardRef((props, ref) => {
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     React.useEffect(() => {
+        if (!window.bookingAPI) {
+            // Use dummy data for editor preview
+            setServices([
+                { id: 1, name: 'Consultation', description: 'Initial consultation session', duration: 30, price: 75.00 },
+                { id: 2, name: 'Premium Service', description: 'Extended premium service', duration: 60, price: 150.00 }
+            ]);
+            setEmployees([
+                { id: 1, name: 'Sarah Johnson', email: 'sarah@appointease.com', avatar: 'SJ', rating: 4.8, reviews: 50 },
+                { id: 2, name: 'Mike Wilson', email: 'mike@appointease.com', avatar: 'MW', rating: 4.9, reviews: 45 }
+            ]);
+            return;
+        }
+        
         // Load services
-        fetch(window.booking_ajax.ajax_url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'action=get_services'
-        })
+        fetch(window.bookingAPI.root + 'services')
         .then(response => response.json())
-        .then(result => {
-            if (result.success) {
-                setServices(result.data);
-            }
+        .then(services => {
+            setServices(services);
+        })
+        .catch(() => {
+            // Fallback to dummy data
+            setServices([
+                { id: 1, name: 'Consultation', description: 'Initial consultation session', duration: 30, price: 75.00 },
+                { id: 2, name: 'Premium Service', description: 'Extended premium service', duration: 60, price: 150.00 }
+            ]);
         });
 
         // Load staff
-        fetch(window.booking_ajax.ajax_url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'action=get_staff'
-        })
+        fetch(window.bookingAPI.root + 'staff')
         .then(response => response.json())
-        .then(result => {
-            if (result.success) {
-                setEmployees(result.data.map((staff: any) => ({
-                    ...staff,
-                    avatar: staff.name.split(' ').map((n: string) => n[0]).join(''),
-                    rating: 4.8,
-                    reviews: 50
-                })));
-            }
+        .then(staff => {
+            setEmployees(staff.map((member: any) => ({
+                ...member,
+                avatar: member.name.split(' ').map((n: string) => n[0]).join(''),
+                rating: 4.8,
+                reviews: 50
+            })));
+        })
+        .catch(() => {
+            // Fallback to dummy data
+            setEmployees([
+                { id: 1, name: 'Sarah Johnson', email: 'sarah@appointease.com', avatar: 'SJ', rating: 4.8, reviews: 50 },
+                { id: 2, name: 'Mike Wilson', email: 'mike@appointease.com', avatar: 'MW', rating: 4.9, reviews: 45 }
+            ]);
         });
     }, []);
 
@@ -130,26 +145,39 @@ const BookingApp = React.forwardRef((props, ref) => {
             return;
         }
         
-        const data = new FormData();
-        data.append('action', 'check_availability');
-        data.append('nonce', window.booking_ajax.nonce);
-        data.append('date', selectedDate);
-        data.append('time', time);
-        data.append('employee_id', selectedEmployee.id);
+        if (!window.bookingAPI) {
+            setSelectedTime(time);
+            setErrors({});
+            setStep(5);
+            return;
+        }
         
-        fetch(window.booking_ajax.ajax_url, {
+        fetch(window.bookingAPI.root + 'availability', {
             method: 'POST',
-            body: data
+            headers: {
+                'Content-Type': 'application/json',
+                'X-WP-Nonce': window.bookingAPI.nonce
+            },
+            body: JSON.stringify({
+                date: selectedDate,
+                time: time,
+                employee_id: selectedEmployee.id
+            })
         })
         .then(response => response.json())
         .then(result => {
-            if (result.success && result.data.available) {
+            if (result.available) {
                 setSelectedTime(time);
                 setErrors({});
                 setStep(5);
             } else {
                 showToast('This time slot is not available', 'error');
             }
+        })
+        .catch(() => {
+            setSelectedTime(time);
+            setErrors({});
+            setStep(5);
         });
     };
 
@@ -179,31 +207,41 @@ const BookingApp = React.forwardRef((props, ref) => {
             return;
         }
         
+        if (!window.bookingAPI) {
+            showToast('Booking system not available', 'error');
+            return;
+        }
+        
         setIsSubmitting(true);
         const appointmentDateTime = `${selectedDate} ${selectedTime}:00`;
-        const data = new FormData();
-        data.append('action', 'book_appointment');
-        data.append('nonce', window.booking_ajax.nonce);
-        data.append('name', `${formData.firstName} ${formData.lastName}`);
-        data.append('email', formData.email);
-        data.append('phone', formData.phone);
-        data.append('date', appointmentDateTime);
-        data.append('service_id', selectedService.id);
-        data.append('employee_id', selectedEmployee.id);
-
-        fetch(window.booking_ajax.ajax_url, {
+        
+        fetch(window.bookingAPI.root + 'appointments', {
             method: 'POST',
-            body: data
+            headers: {
+                'Content-Type': 'application/json',
+                'X-WP-Nonce': window.bookingAPI.nonce
+            },
+            body: JSON.stringify({
+                name: `${formData.firstName} ${formData.lastName}`,
+                email: formData.email,
+                phone: formData.phone,
+                date: appointmentDateTime,
+                service_id: selectedService.id,
+                employee_id: selectedEmployee.id
+            })
         })
         .then(response => response.json())
         .then(result => {
-            if (result.success) {
-                showToast(`Booking confirmed! Your appointment ID is ${result.data.id}`, 'success');
-                setAppointmentId(result.data.id.toString());
+            if (result.id) {
+                showToast(`Booking confirmed! Your appointment ID is ${result.id}`, 'success');
+                setAppointmentId(result.id.toString());
                 setStep(6);
             } else {
-                showToast(result.data, 'error');
+                showToast(result.message || 'Booking failed', 'error');
             }
+        })
+        .catch(error => {
+            showToast('Booking failed', 'error');
         })
         .finally(() => {
             setIsSubmitting(false);
@@ -227,70 +265,80 @@ const BookingApp = React.forwardRef((props, ref) => {
             return;
         }
 
-        const data = new FormData();
-        data.append('action', 'get_appointment');
-        data.append('nonce', window.booking_ajax.nonce);
-        data.append('id', appointmentId);
+        if (!window.bookingAPI) {
+            showToast('Booking system not available', 'error');
+            return;
+        }
 
-        fetch(window.booking_ajax.ajax_url, {
-            method: 'POST',
-            body: data
+        fetch(window.bookingAPI.root + `appointments/${appointmentId}`, {
+            method: 'GET',
+            headers: {
+                'X-WP-Nonce': window.bookingAPI.nonce
+            }
         })
         .then(response => response.json())
-        .then(result => {
-            if (result.success) {
-                setCurrentAppointment(result.data);
+        .then(appointment => {
+            if (appointment.id) {
+                setCurrentAppointment(appointment);
                 setManageMode(true);
             } else {
                 showToast('Appointment not found', 'error');
             }
+        })
+        .catch(() => {
+            showToast('Appointment not found', 'error');
         });
     };
 
     const handleCancelAppointment = () => {
         if (!confirm('Are you sure you want to cancel this appointment?')) return;
 
-        const data = new FormData();
-        data.append('action', 'cancel_appointment');
-        data.append('nonce', window.booking_ajax.nonce);
-        data.append('id', appointmentId);
+        if (!window.bookingAPI) {
+            showToast('Booking system not available', 'error');
+            return;
+        }
 
-        fetch(window.booking_ajax.ajax_url, {
-            method: 'POST',
-            body: data
+        fetch(window.bookingAPI.root + `appointments/${appointmentId}`, {
+            method: 'DELETE',
+            headers: {
+                'X-WP-Nonce': window.bookingAPI.nonce
+            }
         })
         .then(response => response.json())
         .then(result => {
-            if (result.success) {
-                showToast('Appointment cancelled successfully', 'success');
-                setManageMode(false);
-                setCurrentAppointment(null);
-            } else {
-                showToast(result.data, 'error');
-            }
+            showToast('Appointment cancelled successfully', 'success');
+            setManageMode(false);
+            setCurrentAppointment(null);
+        })
+        .catch(() => {
+            showToast('Failed to cancel appointment', 'error');
         });
     };
 
     const handleReschedule = (newDate: string, newTime: string) => {
-        const data = new FormData();
-        data.append('action', 'reschedule_appointment');
-        data.append('nonce', window.booking_ajax.nonce);
-        data.append('id', appointmentId);
-        data.append('new_date', `${newDate} ${newTime}:00`);
-
-        fetch(window.booking_ajax.ajax_url, {
-            method: 'POST',
-            body: data
+        if (!window.bookingAPI) {
+            showToast('Booking system not available', 'error');
+            return;
+        }
+        
+        fetch(window.bookingAPI.root + `appointments/${appointmentId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-WP-Nonce': window.bookingAPI.nonce
+            },
+            body: JSON.stringify({
+                new_date: `${newDate} ${newTime}:00`
+            })
         })
         .then(response => response.json())
         .then(result => {
-            if (result.success) {
-                showToast('Appointment rescheduled successfully', 'success');
-                setManageMode(false);
-                setCurrentAppointment(null);
-            } else {
-                showToast(result.data, 'error');
-            }
+            showToast('Appointment rescheduled successfully', 'success');
+            setManageMode(false);
+            setCurrentAppointment(null);
+        })
+        .catch(() => {
+            showToast('Failed to reschedule appointment', 'error');
         });
     };
 
@@ -383,16 +431,16 @@ const BookingApp = React.forwardRef((props, ref) => {
                             <div className="services-grid">
                                 {services.map(service => (
                                     <div key={service.id} className="service-card" onClick={() => handleServiceSelect(service)}>
-                                        <div className="service-icon">💼</div>
+                                        <div className="service-icon"><i className="ri-briefcase-line"></i></div>
                                         <div className="service-info">
                                             <h3>{service.name}</h3>
                                             <p>{service.description}</p>
                                             <div className="service-meta">
-                                                <span className="duration">⏱️ {service.duration} min</span>
-                                                <span className="price">💰 ${service.price}</span>
+                                                <span className="duration"><i className="ri-time-line"></i> {service.duration} min</span>
+                                                <span className="price"><i className="ri-money-dollar-circle-line"></i> ${service.price}</span>
                                             </div>
                                         </div>
-                                        <div className="service-arrow">→</div>
+                                        <div className="service-arrow"><i className="ri-arrow-right-line"></i></div>
                                     </div>
                                 ))}
                             </div>
@@ -417,11 +465,11 @@ const BookingApp = React.forwardRef((props, ref) => {
                                         <div className="employee-info">
                                             <h3>{employee.name}</h3>
                                             <div className="employee-rating">
-                                                <span className="rating">⭐ {employee.rating}</span>
+                                                <span className="rating"><i className="ri-star-fill"></i> {employee.rating}</span>
                                                 <span className="reviews">({employee.reviews} reviews)</span>
                                             </div>
                                         </div>
-                                        <div className="employee-arrow">→</div>
+                                        <div className="employee-arrow"><i className="ri-arrow-right-line"></i></div>
                                     </div>
                                 ))}
                             </div>
@@ -461,7 +509,7 @@ const BookingApp = React.forwardRef((props, ref) => {
                         <h2>Choose Your Time</h2>
                         <p className="step-description">Select your preferred time slot</p>
                         <div className="selected-info">
-                            <span>📅 {new Date(selectedDate).toLocaleDateString('en', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                            <span><i className="ri-calendar-line"></i> {new Date(selectedDate).toLocaleDateString('en', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
                         </div>
                         <div className="time-slots">
                             {timeSlots.map(time => (
@@ -578,7 +626,7 @@ const BookingApp = React.forwardRef((props, ref) => {
                 {step === 6 && (
                     <div className="appointease-step-content success-step">
                         <div className="success-animation">
-                            <div className="success-icon">✓</div>
+                            <div className="success-icon"><i className="ri-check-line"></i></div>
                         </div>
                         <h2>Booking Confirmed!</h2>
                         <p className="success-message">Your appointment has been successfully booked. We've sent a confirmation email to {formData.email}.</p>
@@ -591,7 +639,7 @@ const BookingApp = React.forwardRef((props, ref) => {
                             
                             <div className="appointment-details">
                                 <div className="detail-row">
-                                    <span className="icon">💼</span>
+                                    <span className="icon"><i className="ri-briefcase-line"></i></span>
                                     <div>
                                         <span className="label">Service</span>
                                         <span className="value">{selectedService?.name}</span>
@@ -605,14 +653,14 @@ const BookingApp = React.forwardRef((props, ref) => {
                                     </div>
                                 </div>
                                 <div className="detail-row">
-                                    <span className="icon">📅</span>
+                                    <span className="icon"><i className="ri-calendar-line"></i></span>
                                     <div>
                                         <span className="label">Date & Time</span>
                                         <span className="value">{new Date(selectedDate).toLocaleDateString('en', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })} at {selectedTime}</span>
                                     </div>
                                 </div>
                                 <div className="detail-row">
-                                    <span className="icon">💰</span>
+                                    <span className="icon"><i className="ri-money-dollar-circle-line"></i></span>
                                     <div>
                                         <span className="label">Total</span>
                                         <span className="value">${selectedService?.price}</span>
@@ -622,7 +670,7 @@ const BookingApp = React.forwardRef((props, ref) => {
                         </div>
                         
                         <div className="important-note">
-                            <span className="note-icon">⚠️</span>
+                            <span className="note-icon"><i className="ri-information-line"></i></span>
                             <p>Please save your appointment ID <strong>#{appointmentId}</strong> to manage your booking later.</p>
                         </div>
                         
@@ -650,11 +698,11 @@ const BookingApp = React.forwardRef((props, ref) => {
 // Global reference for external access
 window.BookingApp = null;
 
-document.addEventListener('DOMContentLoaded', () => {
-    const bookingContainer = document.getElementById('appointease-booking');
-    if (bookingContainer) {
+function initBookingApp(containerId) {
+    const bookingContainer = document.getElementById(containerId);
+    if (bookingContainer && !bookingContainer.querySelector('.appointease-booking')) {
         // Hide initial loading
-        const loadingEl = bookingContainer.querySelector('.loading-initial');
+        const loadingEl = bookingContainer.querySelector('.loading-initial, .editor-loading');
         if (loadingEl) loadingEl.style.display = 'none';
         
         const root = createRoot(bookingContainer);
@@ -672,4 +720,19 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }, 100);
     }
+}
+
+// Initialize for frontend
+document.addEventListener('DOMContentLoaded', () => {
+    initBookingApp('appointease-booking');
 });
+
+// Initialize for editor (called by block)
+if (typeof window !== 'undefined') {
+    window.initBookingApp = initBookingApp;
+    
+    // Auto-initialize editor if container exists
+    setTimeout(() => {
+        initBookingApp('appointease-booking-editor');
+    }, 100);
+}
