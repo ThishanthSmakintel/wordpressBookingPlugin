@@ -325,19 +325,25 @@ class Booking_Plugin {
         add_action('wp_ajax_book_appointment', array($this, 'ajax_book_appointment'));
         add_action('wp_ajax_nopriv_book_appointment', array($this, 'ajax_book_appointment'));
         add_action('wp_ajax_cancel_appointment', array($this, 'ajax_cancel_appointment'));
-        add_action('wp_ajax_nopriv_cancel_appointment', array($this, 'ajax_cancel_appointment'));
         add_action('wp_ajax_reschedule_appointment', array($this, 'ajax_reschedule_appointment'));
-        add_action('wp_ajax_nopriv_reschedule_appointment', array($this, 'ajax_reschedule_appointment'));
     }
     
     public function ajax_book_appointment() {
         check_ajax_referer('wp_rest', 'nonce');
+        
+        if (!isset($_POST['name'], $_POST['email'], $_POST['phone'], $_POST['date'])) {
+            wp_send_json_error('Missing required fields');
+        }
         
         global $wpdb;
         $name = sanitize_text_field($_POST['name']);
         $email = sanitize_email($_POST['email']);
         $phone = sanitize_text_field($_POST['phone']);
         $date = sanitize_text_field($_POST['date']);
+        
+        if (empty($name) || empty($email) || empty($date)) {
+            wp_send_json_error('Name, email and date are required');
+        }
         
         $result = $wpdb->insert(
             $wpdb->prefix . 'appointments',
@@ -347,7 +353,8 @@ class Booking_Plugin {
                 'phone' => $phone,
                 'appointment_date' => $date,
                 'status' => 'confirmed'
-            )
+            ),
+            array('%s', '%s', '%s', '%s', '%s')
         );
         
         if ($result) {
@@ -362,13 +369,19 @@ class Booking_Plugin {
     public function ajax_cancel_appointment() {
         check_ajax_referer('wp_rest', 'nonce');
         
+        if (!current_user_can('manage_options') && !isset($_POST['id'])) {
+            wp_send_json_error('Unauthorized or missing ID');
+        }
+        
         global $wpdb;
         $id = intval($_POST['id']);
         
         $result = $wpdb->update(
             $wpdb->prefix . 'appointments',
             array('status' => 'cancelled'),
-            array('id' => $id)
+            array('id' => $id),
+            array('%s'),
+            array('%d')
         );
         
         if ($result !== false) {
@@ -385,14 +398,24 @@ class Booking_Plugin {
     public function ajax_reschedule_appointment() {
         check_ajax_referer('wp_rest', 'nonce');
         
+        if (!current_user_can('manage_options') && (!isset($_POST['id']) || !isset($_POST['new_date']))) {
+            wp_send_json_error('Unauthorized or missing parameters');
+        }
+        
         global $wpdb;
         $id = intval($_POST['id']);
         $new_date = sanitize_text_field($_POST['new_date']);
         
+        if (empty($new_date) || strtotime($new_date) === false) {
+            wp_send_json_error('Invalid date format');
+        }
+        
         $result = $wpdb->update(
             $wpdb->prefix . 'appointments',
             array('appointment_date' => $new_date),
-            array('id' => $id)
+            array('id' => $id),
+            array('%s'),
+            array('%d')
         );
         
         if ($result !== false) {
@@ -410,43 +433,43 @@ class Booking_Plugin {
         register_rest_route('appointease/v1', '/services', array(
             'methods' => 'GET',
             'callback' => array($this, 'get_services'),
-            'permission_callback' => '__return_true'
+            'permission_callback' => array($this, 'public_permission')
         ));
         
         register_rest_route('appointease/v1', '/staff', array(
             'methods' => 'GET',
             'callback' => array($this, 'get_staff_list'),
-            'permission_callback' => '__return_true'
+            'permission_callback' => array($this, 'public_permission')
         ));
         
         register_rest_route('appointease/v1', '/appointments', array(
             'methods' => 'POST',
             'callback' => array($this, 'book_appointment'),
-            'permission_callback' => '__return_true'
+            'permission_callback' => array($this, 'public_permission')
         ));
         
         register_rest_route('appointease/v1', '/appointments/(?P<id>\d+)', array(
             'methods' => 'GET',
             'callback' => array($this, 'get_appointment'),
-            'permission_callback' => '__return_true'
+            'permission_callback' => array($this, 'appointment_permission')
         ));
         
         register_rest_route('appointease/v1', '/appointments/(?P<id>\d+)', array(
             'methods' => 'DELETE',
             'callback' => array($this, 'cancel_appointment'),
-            'permission_callback' => '__return_true'
+            'permission_callback' => array($this, 'appointment_permission')
         ));
         
         register_rest_route('appointease/v1', '/appointments/(?P<id>\d+)', array(
             'methods' => 'PUT',
             'callback' => array($this, 'reschedule_appointment'),
-            'permission_callback' => '__return_true'
+            'permission_callback' => array($this, 'appointment_permission')
         ));
         
         register_rest_route('appointease/v1', '/availability', array(
             'methods' => 'POST',
             'callback' => array($this, 'check_availability'),
-            'permission_callback' => '__return_true'
+            'permission_callback' => array($this, 'public_permission')
         ));
     }
     
@@ -466,12 +489,25 @@ class Booking_Plugin {
         global $wpdb;
         
         $params = $request->get_json_params();
+        
+        if (!isset($params['name'], $params['email'], $params['date'])) {
+            return new WP_Error('missing_fields', 'Required fields missing', array('status' => 400));
+        }
+        
         $name = sanitize_text_field($params['name']);
         $email = sanitize_email($params['email']);
         $phone = sanitize_text_field($params['phone']);
         $date = sanitize_text_field($params['date']);
         $service_id = isset($params['service_id']) ? intval($params['service_id']) : null;
         $employee_id = isset($params['employee_id']) ? intval($params['employee_id']) : null;
+        
+        if (empty($name) || empty($email) || empty($date)) {
+            return new WP_Error('invalid_data', 'Name, email and date are required', array('status' => 400));
+        }
+        
+        if (strtotime($date) === false) {
+            return new WP_Error('invalid_date', 'Invalid date format', array('status' => 400));
+        }
         
         // Check for holidays
         $booking_date = date('Y-m-d', strtotime($date));
@@ -494,7 +530,8 @@ class Booking_Plugin {
                 'status' => 'confirmed',
                 'service_id' => $service_id,
                 'employee_id' => $employee_id
-            )
+            ),
+            array('%s', '%s', '%s', '%s', '%s', '%d', '%d')
         );
         
         if ($result) {
@@ -527,12 +564,14 @@ class Booking_Plugin {
     
     public function cancel_appointment($request) {
         global $wpdb;
-        $id = $request['id'];
+        $id = intval($request['id']);
         
         $result = $wpdb->update(
             $wpdb->prefix . 'appointments',
             array('status' => 'cancelled'),
-            array('id' => $id)
+            array('id' => $id),
+            array('%s'),
+            array('%d')
         );
         
         if ($result !== false) {
@@ -548,14 +587,25 @@ class Booking_Plugin {
     
     public function reschedule_appointment($request) {
         global $wpdb;
-        $id = $request['id'];
+        $id = intval($request['id']);
         $params = $request->get_json_params();
+        
+        if (!isset($params['new_date'])) {
+            return new WP_Error('missing_date', 'New date is required', array('status' => 400));
+        }
+        
         $new_date = sanitize_text_field($params['new_date']);
+        
+        if (empty($new_date) || strtotime($new_date) === false) {
+            return new WP_Error('invalid_date', 'Invalid date format', array('status' => 400));
+        }
         
         $result = $wpdb->update(
             $wpdb->prefix . 'appointments',
             array('appointment_date' => $new_date),
-            array('id' => $id)
+            array('id' => $id),
+            array('%s'),
+            array('%d')
         );
         
         if ($result !== false) {
@@ -572,6 +622,11 @@ class Booking_Plugin {
     public function check_availability($request) {
         global $wpdb;
         $params = $request->get_json_params();
+        
+        if (!isset($params['date'], $params['time'], $params['employee_id'])) {
+            return new WP_Error('missing_params', 'Required parameters missing', array('status' => 400));
+        }
+        
         $date = sanitize_text_field($params['date']);
         $time = sanitize_text_field($params['time']);
         $employee_id = intval($params['employee_id']);
@@ -594,5 +649,13 @@ class Booking_Plugin {
         ));
         
         return rest_ensure_response(array('available' => $existing == 0));
+    }
+    
+    public function public_permission($request) {
+        return true;
+    }
+    
+    public function appointment_permission($request) {
+        return current_user_can('manage_options') || wp_verify_nonce($request->get_header('X-WP-Nonce'), 'wp_rest');
     }
 }

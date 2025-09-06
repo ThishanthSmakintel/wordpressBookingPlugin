@@ -32,10 +32,13 @@ class Booking_Activator {
             PRIMARY KEY (id)
         ) $charset_collate;";
         
-        // Add strong_id column if it doesn't exist
-        $column_exists = $wpdb->get_results("SHOW COLUMNS FROM $appointments_table LIKE 'strong_id'");
-        if (empty($column_exists)) {
-            $wpdb->query("ALTER TABLE $appointments_table ADD COLUMN strong_id varchar(20) UNIQUE");
+        // Ensure strong_id column exists with proper constraints
+        $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$appointments_table'");
+        if ($table_exists) {
+            $column_exists = $wpdb->get_results("SHOW COLUMNS FROM $appointments_table LIKE 'strong_id'");
+            if (empty($column_exists)) {
+                $wpdb->query("ALTER TABLE $appointments_table ADD COLUMN strong_id varchar(20) UNIQUE");
+            }
         }
         
         // Services table
@@ -148,6 +151,12 @@ class Booking_Activator {
         dbDelta($sql7);
         dbDelta($sql8);
         dbDelta($sql9);
+        
+        // Ensure strong_id column exists after table creation
+        $column_exists = $wpdb->get_results("SHOW COLUMNS FROM $appointments_table LIKE 'strong_id'");
+        if (empty($column_exists)) {
+            $wpdb->query("ALTER TABLE $appointments_table ADD COLUMN strong_id varchar(20) UNIQUE");
+        }
         
         self::insert_default_data();
     }

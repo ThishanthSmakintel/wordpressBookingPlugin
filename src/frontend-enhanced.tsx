@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import './frontend.css';
 import './reschedule.css';
@@ -32,16 +32,25 @@ declare global {
     }
 }
 
-const showToast = (message: string, type: 'success' | 'error' = 'success') => {
-    window.Toastify({
-        text: message,
-        duration: 3000,
-        gravity: 'top',
-        position: 'right',
-        backgroundColor: type === 'success' ? '#1CBC9B' : '#E74C3C',
-        stopOnFocus: true
-    }).showToast();
+// Enhanced notification system
+const showNotification = (message: string, type: 'success' | 'error' | 'warning' | 'info' = 'success', title?: string) => {
+    // Simple console log for now
+    console.log(`${type.toUpperCase()}: ${message}`);
 };
+
+const createNotificationContainer = () => {
+    const container = document.createElement('div');
+    container.className = 'notification-container';
+    document.body.appendChild(container);
+    return container;
+};
+
+const removeNotification = (notification: HTMLElement) => {
+    notification.classList.remove('show');
+    setTimeout(() => notification.remove(), 300);
+};
+
+const showToast = () => {}; // Disabled
 
 const BookingApp = React.forwardRef((props: any, ref) => {
     const [step, setStep] = useState(1);
@@ -70,49 +79,171 @@ const BookingApp = React.forwardRef((props: any, ref) => {
     const [isLoadingLogin, setIsLoadingLogin] = useState(false);
     const [isLoadingAppointments, setIsLoadingAppointments] = useState(false);
     const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+    const [isOnline, setIsOnline] = useState(navigator.onLine);
+    const [servicesLoading, setServicesLoading] = useState(true);
+    const [employeesLoading, setEmployeesLoading] = useState(true);
+    const [unavailableSlots, setUnavailableSlots] = useState<string[]>([]);
+    const [retryCount, setRetryCount] = useState(0);
+    const liveRegionRef = useRef<HTMLDivElement>(null);
+    const [formDataPersisted, setFormDataPersisted] = useState<FormData>({ firstName: '', lastName: '', email: '', phone: '' });
+    const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    const [businessHours] = useState({ start: '09:00', end: '17:00', closedDays: [0, 6] });
+    const [showEmailLookup, setShowEmailLookup] = useState(false);
+    const [lookupEmail, setLookupEmail] = useState('');
+    const [foundAppointments, setFoundAppointments] = useState<any[]>([]);
+    const [isLookingUp, setIsLookingUp] = useState(false);
+    const [isManaging, setIsManaging] = useState(false);
+    const [isCancelling, setIsCancelling] = useState(false);
+    const [isReschedulingSubmit, setIsReschedulingSubmit] = useState(false);
+    const [showOtpVerification, setShowOtpVerification] = useState(false);
+    const [otpAction, setOtpAction] = useState<'cancel' | 'reschedule' | null>(null);
+    const [verificationOtp, setVerificationOtp] = useState('');
+    const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
+    const [pendingRescheduleData, setPendingRescheduleData] = useState<{date: string, time: string} | null>(null);
 
-    React.useEffect(() => {
-        console.log('showCancelConfirm state changed:', showCancelConfirm);
-    }, [showCancelConfirm]);
-
-    React.useEffect(() => {
-        if (window.bookingAPI) {
-            fetch('/wp-json/booking/v1/services')
-            .then(response => response.json())
-            .then(services => {
-                setServices(services || []);
-            })
-            .catch(() => {});
-
-            fetch('/wp-json/booking/v1/staff')
-            .then(response => response.json())
-            .then(staff => {
-                setEmployees((staff || []).map((member: any) => ({
+    // Enhanced connection monitoring
+    useEffect(() => {
+        const handleOnline = () => {
+            setIsOnline(true);
+            if (retryCount > 0) {
+                loadInitialData();
+            }
+        };
+        
+        const handleOffline = () => {
+            setIsOnline(false);
+        };
+        
+        window.addEventListener('online', handleOnline);
+        window.addEventListener('offline', handleOffline);
+        
+        return () => {
+            window.removeEventListener('online', handleOnline);
+            window.removeEventListener('offline', handleOffline);
+        };
+    }, [retryCount]);
+    
+    // Live region announcements for screen readers
+    const announceToScreenReader = useCallback((message: string) => {
+        if (liveRegionRef.current) {
+            liveRegionRef.current.textContent = message;
+            setTimeout(() => {
+                if (liveRegionRef.current) {
+                    liveRegionRef.current.textContent = '';
+                }
+            }, 1000);
+        }
+    }, []);
+    
+    // Enhanced data loading with error handling
+    const loadInitialData = useCallback(async () => {
+        if (!window.bookingAPI && !isOnline) {
+            setServicesLoading(false);
+            setEmployeesLoading(false);
+            return;
+        }
+        
+        try {
+            setServicesLoading(true);
+            const servicesResponse = await fetch(`${window.bookingAPI?.root || '/wp-json/'}booking/v1/services`);
+            if (servicesResponse.ok) {
+                const servicesData = await servicesResponse.json();
+                setServices(servicesData || []);
+            } else {
+                throw new Error('Failed to load services');
+            }
+        } catch (error) {
+            console.error('Error loading services:', error);
+            setServices([]);
+            if (retryCount < 3) {
+                setTimeout(() => {
+                    setRetryCount(prev => prev + 1);
+                    loadInitialData();
+                }, 2000);
+            }
+        } finally {
+            setServicesLoading(false);
+        }
+        
+        try {
+            setEmployeesLoading(true);
+            const staffResponse = await fetch(`${window.bookingAPI?.root || '/wp-json/'}booking/v1/staff`);
+            if (staffResponse.ok) {
+                const staffData = await staffResponse.json();
+                setEmployees((staffData || []).map((member: any) => ({
                     ...member,
                     avatar: member.name.split(' ').map((n: string) => n[0]).join(''),
                     rating: 4.8,
                     reviews: 50
                 })));
-            })
-            .catch(() => {});
+            } else {
+                throw new Error('Failed to load staff');
+            }
+        } catch (error) {
+            console.error('Error loading staff:', error);
+            setEmployees([]);
+        } finally {
+            setEmployeesLoading(false);
         }
-    }, []);
+    }, [isOnline, retryCount]);
+    
+    useEffect(() => {
+        loadInitialData();
+    }, [loadInitialData]);
 
     const timeSlots = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'];
 
     const generateStrongId = () => {
-        const year = new Date().getFullYear();
         const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
         let result = '';
         for (let i = 0; i < 6; i++) {
             result += chars.charAt(Math.floor(Math.random() * chars.length));
         }
+        const year = new Date().getFullYear();
         return `APT-${year}-${result}`;
+    };
+    
+    // Form data persistence
+    useEffect(() => {
+        const saved = localStorage.getItem('appointease-form-data');
+        if (saved) {
+            try {
+                const parsed = JSON.parse(saved);
+                setFormDataPersisted(parsed);
+                setFormData(parsed);
+            } catch (e) {}
+        }
+    }, []);
+    
+    useEffect(() => {
+        if (formData.firstName || formData.lastName || formData.email || formData.phone) {
+            localStorage.setItem('appointease-form-data', JSON.stringify(formData));
+        }
+    }, [formData]);
+    
+    // Step validation
+    const canProceedToStep = (targetStep: number): boolean => {
+        switch (targetStep) {
+            case 2: return !!selectedService;
+            case 3: return !!selectedService && !!selectedEmployee;
+            case 4: return !!selectedService && !!selectedEmployee && !!selectedDate;
+            case 5: return !!selectedService && !!selectedEmployee && !!selectedDate && !!selectedTime;
+            default: return true;
+        }
+    };
+    
+    const proceedToStep = (targetStep: number) => {
+        if (canProceedToStep(targetStep)) {
+            setStep(targetStep);
+        } else {
+            // Step validation failed
+        }
     };
 
     const handleServiceSelect = (service: any) => {
         setSelectedService(service);
         setErrors({});
+        // Service selected
         setStep(2);
     };
 
@@ -120,6 +251,7 @@ const BookingApp = React.forwardRef((props: any, ref) => {
         setSelectedEmployee(employee);
         setErrors({});
         setUnavailableSlots([]);
+        // Employee selected
         setStep(3);
     };
 
@@ -129,33 +261,40 @@ const BookingApp = React.forwardRef((props: any, ref) => {
         today.setHours(0, 0, 0, 0);
         
         if (selectedDateObj < today) {
-            showToast('Cannot select past dates', 'error');
+            setErrors({general: 'Cannot select past dates'});
             return;
         }
         
-        if (selectedDateObj.getDay() === 0 || selectedDateObj.getDay() === 6) {
-            showToast('Weekends are not available', 'error');
+        // Use business hours instead of hardcoded weekends
+        if (businessHours.closedDays.includes(selectedDateObj.getDay())) {
+            setErrors({general: 'This day is not available for appointments'});
             return;
         }
         
         setSelectedDate(date);
         setErrors({});
+        const formattedDate = selectedDateObj.toLocaleDateString('en', { 
+            weekday: 'long', 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+        });
+        // Date selected
+        
         if (selectedEmployee) {
             checkAvailability(date, selectedEmployee.id);
         }
         setStep(4);
     };
 
-    const [unavailableSlots, setUnavailableSlots] = useState<string[]>([]);
-
     const checkAvailability = async (date: string, employeeId: number) => {
-        if (!window.bookingAPI) {
+        if (!window.bookingAPI || !isOnline) {
             setUnavailableSlots([]);
             return;
         }
         
         try {
-            const response = await fetch('/wp-json/booking/v1/availability', {
+            const response = await fetch(`${window.bookingAPI?.root || '/wp-json/'}booking/v1/availability`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -163,43 +302,60 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                 },
                 body: JSON.stringify({ date, employee_id: employeeId })
             });
+            
+            if (!response.ok) {
+                throw new Error('Failed to check availability');
+            }
+            
             const result = await response.json();
             setUnavailableSlots(result.unavailable || []);
-        } catch {
+        } catch (error) {
+            console.error('Error checking availability:', error);
             setUnavailableSlots([]);
+            if (isOnline) {
+                setErrors({general: 'Could not check availability. All times shown as available.'});
+            }
         }
     };
 
     const handleTimeSelect = (time: string) => {
-        if (unavailableSlots.includes(time)) return;
+        if (unavailableSlots.includes(time)) {
+            setErrors({general: 'This time slot is not available'});
+            return;
+        }
         
         setSelectedTime(time);
         setErrors({});
+        // Time selected
         
-        // Skip contact info for logged-in users during reschedule
-        if (isRescheduling && isLoggedIn) {
-            // Go directly to reschedule confirmation
-            setStep(5);
-        } else {
-            setStep(5);
-        }
+        setStep(5);
     };
 
     const validateForm = (): boolean => {
         const newErrors: FormErrors = {};
         
-        if (!formData.firstName.trim()) newErrors.firstName = 'First name is required';
-        if (!formData.lastName.trim()) newErrors.lastName = 'Last name is required';
+        if (!formData.firstName.trim()) {
+            newErrors.firstName = 'Name is required';
+        } else if (formData.firstName.trim().length < 2) {
+            newErrors.firstName = 'Name must be at least 2 characters';
+        }
+        
         if (!formData.email.trim()) {
             newErrors.email = 'Email is required';
         } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-            newErrors.email = 'Please enter a valid email';
+            newErrors.email = 'Please enter a valid email address';
         }
+        
         if (formData.phone && !/^[\d\s\-\+\(\)]+$/.test(formData.phone)) {
             newErrors.phone = 'Please enter a valid phone number';
+        } else if (formData.phone && formData.phone.replace(/\D/g, '').length < 10) {
+            newErrors.phone = 'Phone number must be at least 10 digits';
         }
         
         setErrors(newErrors);
+        
+        // Form validation complete
+        
         return Object.keys(newErrors).length === 0;
     };
     
@@ -216,7 +372,11 @@ const BookingApp = React.forwardRef((props: any, ref) => {
         
         // Skip form validation for logged-in users
         if (!isLoggedIn && !validateForm()) {
-            showToast('Please fix the errors below', 'error');
+            return;
+        }
+        
+        if (!isOnline) {
+            setErrors({general: 'You are offline. Please check your connection and try again.'});
             return;
         }
         
@@ -226,7 +386,6 @@ const BookingApp = React.forwardRef((props: any, ref) => {
         
         if (!window.bookingAPI) {
             setTimeout(() => {
-                showToast(`Booking confirmed! Your reference is ${strongId}`, 'success');
                 setAppointmentId(strongId);
                 setStep(6);
                 setIsSubmitting(false);
@@ -234,7 +393,7 @@ const BookingApp = React.forwardRef((props: any, ref) => {
             return;
         }
         
-        fetch('/wp-json/booking/v1/appointments', {
+        fetch(`${window.bookingAPI?.root || '/wp-json/'}appointease/v1/appointments`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -242,7 +401,7 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                 'Connection': 'keep-alive'
             },
             body: JSON.stringify({
-                name: isLoggedIn ? loginEmail.split('@')[0] : `${formData.firstName} ${formData.lastName}`,
+                name: isLoggedIn ? loginEmail.split('@')[0] : formData.firstName,
                 email: isLoggedIn ? loginEmail : formData.email,
                 phone: isLoggedIn ? '' : formData.phone,
                 date: appointmentDateTime,
@@ -251,12 +410,21 @@ const BookingApp = React.forwardRef((props: any, ref) => {
             }),
             keepalive: true
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
         .then(result => {
-            if (result.id) {
-                const strongId = result.strong_id || generateStrongId();
-                showToast(`Booking confirmed! Your reference is ${strongId}`, 'success');
-                setAppointmentId(strongId);
+            if (result.strong_id) {
+                setErrors({});
+                setAppointmentId(result.strong_id);
+            } else if (result.id) {
+                setErrors({});
+                // Fallback: create strong_id format if not provided
+                const fallbackId = `APT-${new Date().getFullYear()}-${result.id.toString().padStart(6, '0')}`;
+                setAppointmentId(fallbackId);
                 
                 // Reload user appointments if logged in
                 if (isLoggedIn) {
@@ -265,11 +433,14 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                 
                 setStep(6);
             } else {
-                showToast(result.message || 'Booking failed', 'error');
+                const errorMessage = result.message || 'Booking failed. Please try again.';
+                setErrors({general: errorMessage});
             }
         })
         .catch(error => {
-            showToast('Booking failed', 'error');
+            console.error('Booking error:', error);
+            const errorMessage = isOnline ? 'Booking failed. Please try again.' : 'Booking failed. Please check your connection.';
+            setErrors({general: errorMessage});
         })
         .finally(() => {
             setIsSubmitting(false);
@@ -290,10 +461,11 @@ const BookingApp = React.forwardRef((props: any, ref) => {
     const handleManageAppointment = (appointmentIdToManage?: string) => {
         const idToUse = appointmentIdToManage || appointmentId;
         
-        if (!idToUse) {
-            showToast('Please enter your appointment token', 'error');
+        if (!idToUse || typeof idToUse !== 'string') {
             return;
         }
+        
+        setIsManaging(true);
 
         // For logged-in users, find appointment in userAppointments
         if (isLoggedIn && appointmentIdToManage) {
@@ -306,48 +478,69 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                     appointment_date: appointment.date,
                     status: appointment.status
                 });
-                setAppointmentId(appointment.id);
+                setAppointmentId(String(appointment.id));
                 setManageMode(true);
                 return;
             }
         }
 
         if (!window.bookingAPI) {
-            showToast('Booking system not available', 'error');
             return;
         }
 
-        fetch(`/wp-json/booking/v1/appointments/${idToUse}`, {
+        // Try to search by ID (could be strong_id or numeric ID)
+        fetch(`${window.bookingAPI?.root || '/wp-json/'}appointease/v1/appointments/${String(idToUse)}`, {
             method: 'GET',
             headers: {
                 'X-WP-Nonce': window.bookingAPI.nonce
             }
         })
-        .then(response => response.json())
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            return response.json();
+        })
         .then(appointment => {
             if (appointment.id) {
                 setCurrentAppointment(appointment);
+                setAppointmentId(appointment.strong_id || appointment.id);
                 setManageMode(true);
             } else {
-                showToast('Appointment not found', 'error');
+                setErrors({general: 'Appointment not found'});
             }
         })
-        .catch(() => {
-            showToast('Appointment not found', 'error');
+        .catch(error => {
+            if (error.message.includes('404')) {
+                setErrors({general: 'Appointment not found. Try using just the number (e.g., 69 instead of APT-2025-000069)'});
+            } else {
+                setErrors({general: 'Failed to load appointment. Please try again.'});
+            }
+        })
+        .finally(() => {
+            setIsManaging(false);
         });
     };
 
     const handleCancelAppointment = () => {
-        console.log('Cancel button clicked');
-        setShowCancelConfirm(true);
+        if (isLoggedIn) {
+            setShowCancelConfirm(true);
+        } else {
+            setOtpAction('cancel');
+            setShowOtpVerification(true);
+            sendVerificationOtp();
+        }
     };
     
     const confirmCancelAppointment = () => {
-        console.log('Confirm cancel clicked');
         setShowCancelConfirm(false);
+        performCancel();
+    };
+    
+    const performCancel = () => {
+        setIsCancelling(true);
         
         if (!window.bookingAPI) {
-            showToast(`Appointment ${appointmentId} cancelled successfully`, 'success');
             setManageMode(false);
             setCurrentAppointment(null);
             setAppointmentId('');
@@ -357,7 +550,7 @@ const BookingApp = React.forwardRef((props: any, ref) => {
             return;
         }
 
-        fetch(`/wp-json/booking/v1/appointments/${appointmentId}`, {
+        fetch(`${window.bookingAPI?.root || '/wp-json/'}appointease/v1/appointments/${appointmentId}`, {
             method: 'DELETE',
             headers: {
                 'X-WP-Nonce': window.bookingAPI.nonce,
@@ -367,28 +560,39 @@ const BookingApp = React.forwardRef((props: any, ref) => {
         })
         .then(response => response.json())
         .then(result => {
-            showToast(`Appointment ${appointmentId} cancelled successfully`, 'success');
             setManageMode(false);
             setCurrentAppointment(null);
             setAppointmentId('');
-            // Reload user appointments if logged in
             if (isLoggedIn) {
                 loadUserAppointments();
             }
         })
-        .catch(() => {
-            showToast('Failed to cancel appointment', 'error');
+        .catch(() => {})
+        .finally(() => {
+            setIsCancelling(false);
         });
     };
 
     const handleReschedule = (newDate: string, newTime: string) => {
+        if (isLoggedIn) {
+            performReschedule(newDate, newTime);
+        } else {
+            setPendingRescheduleData({date: newDate, time: newTime});
+            setOtpAction('reschedule');
+            setShowOtpVerification(true);
+            sendVerificationOtp();
+        }
+    };
+    
+    const performReschedule = (newDate: string, newTime: string) => {
+        setIsReschedulingSubmit(true);
         
         if (!window.bookingAPI) {
-            showToast('Booking system not available', 'error');
+            setIsReschedulingSubmit(false);
             return;
         }
         
-        fetch(`/wp-json/booking/v1/appointments/${appointmentId}`, {
+        fetch(`${window.bookingAPI?.root || '/wp-json/'}appointease/v1/appointments/${appointmentId}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
@@ -402,24 +606,22 @@ const BookingApp = React.forwardRef((props: any, ref) => {
         })
         .then(response => response.json())
         .then(result => {
-            showToast('Appointment rescheduled successfully', 'success');
             setManageMode(false);
             setCurrentAppointment(null);
             setIsRescheduling(false);
             setStep(1);
-            // Reload user appointments if logged in
             if (isLoggedIn) {
                 loadUserAppointments();
             }
         })
-        .catch(() => {
-            showToast('Failed to reschedule appointment', 'error');
+        .catch(() => {})
+        .finally(() => {
+            setIsReschedulingSubmit(false);
         });
     };
 
     const handleSendOTP = () => {
         if (!loginEmail) {
-            showToast('Please enter your email', 'error');
             return;
         }
         
@@ -428,13 +630,11 @@ const BookingApp = React.forwardRef((props: any, ref) => {
         setTimeout(() => {
             setOtpSent(true);
             setIsLoadingOTP(false);
-            showToast('OTP sent to your email', 'success');
         }, 1500);
     };
     
     const handleVerifyOTP = () => {
         if (!otpCode) {
-            showToast('Please enter OTP', 'error');
             return;
         }
         
@@ -445,10 +645,8 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                 setShowLogin(false);
                 setIsLoadingLogin(false);
                 loadUserAppointments();
-                showToast('Login successful!', 'success');
             } else {
                 setIsLoadingLogin(false);
-                showToast('Invalid OTP. Try 123456', 'error');
             }
         }, 1000);
     };
@@ -460,7 +658,7 @@ const BookingApp = React.forwardRef((props: any, ref) => {
         }
         
         setIsLoadingAppointments(true);
-        fetch('/wp-json/booking/v1/user-appointments', {
+        fetch(`${window.bookingAPI?.root || '/wp-json/'}appointease/v1/user-appointments`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -471,7 +669,7 @@ const BookingApp = React.forwardRef((props: any, ref) => {
         .then(response => response.json())
         .then(appointments => {
             const formattedAppointments = appointments.map((apt: any) => ({
-                id: apt.strong_id || `APT-${new Date().getFullYear()}-${apt.id.toString().padStart(6, '0')}`,
+                id: apt.strong_id || `AE${apt.id.toString().padStart(6, '0')}`,
                 service: 'Service',
                 staff: 'Staff Member',
                 date: apt.appointment_date,
@@ -486,6 +684,70 @@ const BookingApp = React.forwardRef((props: any, ref) => {
             setUserAppointments([]);
             setIsLoadingAppointments(false);
         });
+    };
+    
+    const sendVerificationOtp = () => {
+        if (!currentAppointment?.email) return;
+        
+        // Simulate OTP sending
+        setTimeout(() => {
+            console.log(`OTP sent to ${currentAppointment.email} for ${otpAction}`);
+        }, 500);
+    };
+    
+    const verifyOtpAndProceed = () => {
+        if (!verificationOtp) return;
+        
+        setIsVerifyingOtp(true);
+        
+        // Simulate OTP verification
+        setTimeout(() => {
+            if (verificationOtp === '123456') {
+                setShowOtpVerification(false);
+                setVerificationOtp('');
+                
+                if (otpAction === 'cancel') {
+                    performCancel();
+                } else if (otpAction === 'reschedule' && pendingRescheduleData) {
+                    performReschedule(pendingRescheduleData.date, pendingRescheduleData.time);
+                    setPendingRescheduleData(null);
+                }
+                
+                setOtpAction(null);
+            } else {
+                setErrors({general: 'Invalid OTP. Please try again.'});
+            }
+            setIsVerifyingOtp(false);
+        }, 1000);
+    };
+    
+    // Email lookup for appointments
+    const handleEmailLookup = async () => {
+        if (!lookupEmail || !isOnline) return;
+        
+        setIsLookingUp(true);
+        try {
+            const response = await fetch('/wp-json/booking/v1/user-appointments', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-WP-Nonce': window.bookingAPI?.nonce || ''
+                },
+                body: JSON.stringify({ email: lookupEmail })
+            });
+            
+            if (response.ok) {
+                const appointments = await response.json();
+                setFoundAppointments(appointments || []);
+                if (appointments.length === 0) {
+                    setErrors({general: 'No appointments found for this email'});
+                }
+            }
+        } catch (error) {
+            setErrors({general: 'Failed to lookup appointments'});
+        } finally {
+            setIsLookingUp(false);
+        }
     };
 
     React.useImperativeHandle(ref, () => ({
@@ -578,7 +840,7 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                             setLoginEmail('');
                             setOtpCode('');
                             setOtpSent(false);
-                            showToast('Logged out successfully', 'success');
+                            // Logged out
                         }}>
                             <i className="fas fa-sign-out-alt"></i>
                         </button>
@@ -667,18 +929,61 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                             <div className="appointment-id">
                                 <span className="id-label">Booking Reference</span>
                                 <span className="id-number" title="Click to copy" onClick={() => {
-                                    navigator.clipboard.writeText(appointmentId).then(() => {
-                                        const idElement = document.querySelector('.id-number');
-                                        if (idElement) {
-                                            const original = idElement.textContent;
-                                            idElement.textContent = 'Copied!';
-                                            idElement.style.background = 'rgba(40, 167, 69, 0.3)';
-                                            setTimeout(() => {
-                                                idElement.textContent = original;
-                                                idElement.style.background = 'rgba(255,255,255,0.15)';
-                                            }, 2000);
+                                    const copyText = (text: string) => {
+                                        if (navigator.clipboard && navigator.clipboard.writeText) {
+                                            navigator.clipboard.writeText(text).then(() => {
+                                                const idElement = document.querySelector('.id-number');
+                                                if (idElement) {
+                                                    const original = idElement.textContent;
+                                                    idElement.textContent = 'Copied!';
+                                                    idElement.style.background = 'rgba(40, 167, 69, 0.3)';
+                                                    setTimeout(() => {
+                                                        idElement.textContent = original;
+                                                        idElement.style.background = 'rgba(255,255,255,0.15)';
+                                                    }, 2000);
+                                                }
+                                            }).catch(() => {
+                                                // Fallback
+                                                const textArea = document.createElement('textarea');
+                                                textArea.value = text;
+                                                document.body.appendChild(textArea);
+                                                textArea.select();
+                                                document.execCommand('copy');
+                                                document.body.removeChild(textArea);
+                                                
+                                                const idElement = document.querySelector('.id-number');
+                                                if (idElement) {
+                                                    const original = idElement.textContent;
+                                                    idElement.textContent = 'Copied!';
+                                                    idElement.style.background = 'rgba(40, 167, 69, 0.3)';
+                                                    setTimeout(() => {
+                                                        idElement.textContent = original;
+                                                        idElement.style.background = 'rgba(255,255,255,0.15)';
+                                                    }, 2000);
+                                                }
+                                            });
+                                        } else {
+                                            // Fallback for browsers without clipboard API
+                                            const textArea = document.createElement('textarea');
+                                            textArea.value = text;
+                                            document.body.appendChild(textArea);
+                                            textArea.select();
+                                            document.execCommand('copy');
+                                            document.body.removeChild(textArea);
+                                            
+                                            const idElement = document.querySelector('.id-number');
+                                            if (idElement) {
+                                                const original = idElement.textContent;
+                                                idElement.textContent = 'Copied!';
+                                                idElement.style.background = 'rgba(40, 167, 69, 0.3)';
+                                                setTimeout(() => {
+                                                    idElement.textContent = original;
+                                                    idElement.style.background = 'rgba(255,255,255,0.15)';
+                                                }, 2000);
+                                            }
                                         }
-                                    });
+                                    };
+                                    copyText(appointmentId);
                                 }}>{appointmentId}</span>
                             </div>
                             
@@ -703,7 +1008,7 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                         </div>
                         
                         <div className="success-actions">
-                            {!showCancelConfirm ? (
+                            {!showCancelConfirm && !showOtpVerification ? (
                                 <>
                                     <button className="action-btn secondary-btn" onClick={() => {
                                         setSelectedService({name: 'Current Service', price: 0});
@@ -724,18 +1029,44 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                         Back
                                     </button>
                                 </>
-                            ) : (
+                            ) : showCancelConfirm ? (
                                 <>
-                                    <button className="action-btn" style={{background: '#E74C3C'}} onClick={confirmCancelAppointment}>
-                                        <i className="fas fa-check"></i>
-                                        Confirm Cancel
+                                    <button className="action-btn" style={{background: '#E74C3C'}} onClick={confirmCancelAppointment} disabled={isCancelling}>
+                                        {isCancelling ? <><i className="fas fa-spinner fa-spin"></i> Cancelling...</> : <><i className="fas fa-check"></i> Confirm Cancel</>}
                                     </button>
                                     <button className="action-btn secondary-btn" onClick={() => setShowCancelConfirm(false)}>
                                         <i className="fas fa-times"></i>
                                         Keep Appointment
                                     </button>
                                 </>
-                            )}
+                            ) : showOtpVerification ? (
+                                <div className="otp-verification">
+                                    <h3>Verify Your Identity</h3>
+                                    <p>We've sent a verification code to {currentAppointment?.email}</p>
+                                    <div className="form-group">
+                                        <input
+                                            type="text"
+                                            value={verificationOtp}
+                                            onChange={(e) => setVerificationOtp(e.target.value)}
+                                            placeholder="Enter 6-digit code"
+                                            maxLength={6}
+                                        />
+                                    </div>
+                                    <div className="otp-actions">
+                                        <button className="action-btn primary-btn" onClick={verifyOtpAndProceed} disabled={isVerifyingOtp || !verificationOtp}>
+                                            {isVerifyingOtp ? <><i className="fas fa-spinner fa-spin"></i> Verifying...</> : `Verify & ${otpAction === 'cancel' ? 'Cancel' : 'Reschedule'}`}
+                                        </button>
+                                        <button className="action-btn secondary-btn" onClick={() => {
+                                            setShowOtpVerification(false);
+                                            setVerificationOtp('');
+                                            setOtpAction(null);
+                                            setPendingRescheduleData(null);
+                                        }}>
+                                            Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            ) : null}
                         </div>
                     </div>
                 </div>
@@ -745,7 +1076,14 @@ const BookingApp = React.forwardRef((props: any, ref) => {
 
     return (
         <>
-        <div className="appointease-booking">
+        <div className="appointease-booking" role="main" aria-label="Appointment booking system" style={{overflow: 'visible', height: 'auto'}}>
+            <div ref={liveRegionRef} className="live-region" aria-live="polite" aria-atomic="true"></div>
+            {!isOnline && (
+                <div className="connection-status show" role="alert">
+                    <i className="fas fa-wifi"></i>
+                    You are offline
+                </div>
+            )}
             <div className="appointease-booking-header">
                 <div className="appointease-logo">
                     <span className="logo-icon">A</span>
@@ -763,7 +1101,7 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                             setLoginEmail('');
                             setOtpCode('');
                             setOtpSent(false);
-                            showToast('Logged out successfully', 'success');
+                            // Logged out
                         }}>
                             <i className="fas fa-sign-out-alt"></i>
                         </button>
@@ -772,22 +1110,17 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                     <div className="manage-appointment">
                         <input 
                             type="text" 
-                            placeholder="APT-2024-XXXXXX" 
+                            placeholder="APT-2025-000069 or 69" 
                             value={appointmentId}
-                            onChange={(e) => setAppointmentId(e.target.value)}
+                            onChange={(e) => setAppointmentId(e.target.value.toUpperCase())}
+                            maxLength={20}
                         />
-                        <button onClick={handleManageAppointment}>Manage</button>
-                        {appointmentId && (
-                            <button className="clear-btn" onClick={() => {
-                                setAppointmentId('');
-                                showToast('Cleared! Ready for new appointment', 'success');
-                            }} title="Clear ID for new appointment">
-                                <i className="fas fa-times"></i>
-                            </button>
-                        )}
+                        <button onClick={() => handleManageAppointment()} disabled={isManaging}>
+                            {isManaging ? <><i className="fas fa-spinner fa-spin"></i> Searching...</> : 'Search'}
+                        </button>
                         <button className="login-btn" onClick={() => setShowLogin(true)}>
                             <i className="fas fa-user"></i>
-                            Login
+                            Existing Customer
                         </button>
                     </div>
                 )}
@@ -819,101 +1152,215 @@ const BookingApp = React.forwardRef((props: any, ref) => {
 
                 {step === 1 && (
                     <div className="appointease-step-content">
+                        <div className="progress-bar">
+                            <div className="progress-fill" style={{width: '20%'}}></div>
+                        </div>
                         <h2>Choose Your Service</h2>
                         <p className="step-description">Select the service you'd like to book</p>
+                        
+                        {!isOnline && (
+                            <div className="offline-banner">
+                                <i className="fas fa-wifi"></i>
+                                You are offline. Limited functionality available.
+                            </div>
+                        )}
 
-                        <div className="services-grid" style={{gridTemplateColumns: `repeat(${props.columns || 2}, 1fr)`}}>
-                            {services.map(service => (
-                                <div key={service.id} className="service-card" onClick={() => handleServiceSelect(service)}>
-                                    <div className="service-icon"><i className="ri-briefcase-line"></i></div>
-                                    <div className="service-info">
-                                        <h3>{service.name}</h3>
-                                        <p>{service.description}</p>
-                                        <div className="service-meta">
-                                            <span className="duration"><i className="ri-time-line"></i> {service.duration} min</span>
-                                            <span className="price"><i className="ri-money-dollar-circle-line"></i> ${service.price}</span>
-                                        </div>
+                        <div className="services-grid" style={{gridTemplateColumns: `repeat(${props.columns || 2}, 1fr)`}} role="grid" aria-label="Available services">
+                            {servicesLoading ? (
+                                // Loading skeleton
+                                Array.from({length: 4}).map((_, index) => (
+                                    <div key={index} className="service-card skeleton skeleton-card" aria-hidden="true">
+                                        <div className="skeleton-text short"></div>
+                                        <div className="skeleton-text medium"></div>
+                                        <div className="skeleton-text long"></div>
                                     </div>
-                                    <div className="service-arrow"><i className="ri-arrow-right-line"></i></div>
+                                ))
+                            ) : services.length === 0 ? (
+                                // Empty state
+                                <div className="empty-state" role="status">
+                                    <i className="fas fa-briefcase" aria-hidden="true"></i>
+                                    <h3>No Services Available</h3>
+                                    <p>Please try again later or contact support.</p>
+                                    <button className="retry-btn" onClick={() => loadInitialData()}>
+                                        <i className="fas fa-redo"></i> Retry
+                                    </button>
                                 </div>
-                            ))}
+                            ) : (
+                                services.map(service => (
+                                    <div 
+                                        key={service.id} 
+                                        className="service-card" 
+                                        onClick={() => handleServiceSelect(service)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleServiceSelect(service)}
+                                        tabIndex={0}
+                                        role="button"
+                                        aria-label={`Select ${service.name} service, ${service.duration} minutes, $${service.price}`}
+                                    >
+                                        <div className="service-icon" aria-hidden="true"><i className="ri-briefcase-line"></i></div>
+                                        <div className="service-info">
+                                            <h3>{service.name}</h3>
+                                            <p>{service.description}</p>
+                                            <div className="service-meta">
+                                                <span className="duration"><i className="ri-time-line" aria-hidden="true"></i> {service.duration} min</span>
+                                                <span className="price"><i className="ri-money-dollar-circle-line" aria-hidden="true"></i> ${service.price}</span>
+                                            </div>
+                                        </div>
+                                        <div className="service-arrow" aria-hidden="true"><i className="ri-arrow-right-line"></i></div>
+                                    </div>
+                                ))
+                            )}
                         </div>
                     </div>
                 )}
 
                 {step === 2 && (
                     <div className="appointease-step-content">
+                        <div className="progress-bar">
+                            <div className="progress-fill" style={{width: '40%'}}></div>
+                        </div>
                         <h2>Choose Your Specialist</h2>
                         <p className="step-description">Select who you'd like to work with</p>
 
-                        <div className="employees-grid">
-                            {employees.map(employee => (
-                                <div key={employee.id} className="employee-card" onClick={() => handleEmployeeSelect(employee)}>
-                                    <div className="employee-avatar">{employee.avatar}</div>
-                                    <div className="employee-info">
-                                        <h3>{employee.name}</h3>
-                                        <div className="employee-rating">
-                                            <span className="rating"><i className="ri-star-fill"></i> {employee.rating}</span>
-                                            <span className="reviews">({employee.reviews} reviews)</span>
-                                        </div>
+                        <div className="employees-grid" role="grid" aria-label="Available specialists">
+                            {employeesLoading ? (
+                                Array.from({length: 3}).map((_, index) => (
+                                    <div key={index} className="employee-card skeleton skeleton-card" aria-hidden="true">
+                                        <div className="skeleton-text short"></div>
+                                        <div className="skeleton-text medium"></div>
                                     </div>
-                                    <div className="employee-arrow"><i className="ri-arrow-right-line"></i></div>
+                                ))
+                            ) : employees.length === 0 ? (
+                                <div className="empty-state" role="status">
+                                    <i className="fas fa-user-md" aria-hidden="true"></i>
+                                    <h3>No Specialists Available</h3>
+                                    <p>Please try again later or contact support.</p>
+                                    <button className="retry-btn" onClick={() => loadInitialData()}>
+                                        <i className="fas fa-redo"></i> Retry
+                                    </button>
                                 </div>
-                            ))}
+                            ) : (
+                                employees.map(employee => (
+                                    <div 
+                                        key={employee.id} 
+                                        className="employee-card" 
+                                        onClick={() => handleEmployeeSelect(employee)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleEmployeeSelect(employee)}
+                                        tabIndex={0}
+                                        role="button"
+                                        aria-label={`Select ${employee.name}, rated ${employee.rating} stars with ${employee.reviews} reviews`}
+                                    >
+                                        <div className="employee-avatar" aria-hidden="true">{employee.avatar}</div>
+                                        <div className="employee-info">
+                                            <h3>{employee.name}</h3>
+                                            <div className="employee-rating">
+                                                <span className="rating"><i className="ri-star-fill" aria-hidden="true"></i> {employee.rating}</span>
+                                                <span className="reviews">({employee.reviews} reviews)</span>
+                                            </div>
+                                        </div>
+                                        <div className="employee-arrow" aria-hidden="true"><i className="ri-arrow-right-line"></i></div>
+                                    </div>
+                                ))
+                            )}
                         </div>
-                        <button className="back-btn" onClick={() => setStep(1)}>← Back</button>
+                        <div className="form-actions">
+                            <button className="back-btn" onClick={() => setStep(1)} aria-label="Go back to service selection">
+                                <i className="fas fa-arrow-left" aria-hidden="true"></i> Back
+                            </button>
+                        </div>
                     </div>
                 )}
 
                 {step === 3 && (
                     <div className="appointease-step-content">
+                        <div className="progress-bar">
+                            <div className="progress-fill" style={{width: '60%'}}></div>
+                        </div>
                         <h2>Pick Your Date</h2>
                         <p className="step-description">Choose when you'd like your appointment</p>
-                        <div className="calendar-grid">
+                        <div className="calendar-grid" role="grid" aria-label="Calendar for date selection">
                             {generateCalendar().map((date, index) => {
                                 const isWeekend = date.getDay() === 0 || date.getDay() === 6;
                                 const isPast = date < new Date(new Date().setHours(0,0,0,0));
+                                const isDisabled = isWeekend || isPast;
+                                const dateString = date.toISOString().split('T')[0];
+                                const formattedDate = date.toLocaleDateString('en', { 
+                                    weekday: 'long', 
+                                    year: 'numeric', 
+                                    month: 'long', 
+                                    day: 'numeric' 
+                                });
+                                
                                 return (
                                     <div 
                                         key={index} 
-                                        className={`calendar-day ${isWeekend || isPast ? 'disabled' : ''}`}
-                                        onClick={() => !isWeekend && !isPast && handleDateSelect(date.toISOString().split('T')[0])}
+                                        className={`calendar-day ${isDisabled ? 'disabled' : ''}`}
+                                        onClick={() => !isDisabled && handleDateSelect(dateString)}
+                                        onKeyDown={(e) => e.key === 'Enter' && !isDisabled && handleDateSelect(dateString)}
+                                        tabIndex={isDisabled ? -1 : 0}
+                                        role="button"
+                                        aria-label={isDisabled ? `${formattedDate} - unavailable` : `Select ${formattedDate}`}
+                                        aria-disabled={isDisabled}
                                     >
                                         <span className="day-name">{date.toLocaleDateString('en', { weekday: 'short' })}</span>
                                         <span className="day-number">{date.getDate()}</span>
                                         <span className="day-month">{date.toLocaleDateString('en', { month: 'short' })}</span>
                                         {isWeekend && <span className="unavailable">Closed</span>}
+                                        {isPast && !isWeekend && <span className="unavailable">Past</span>}
                                     </div>
                                 );
                             })}
                         </div>
-                        <button className="back-btn" onClick={() => setStep(2)}>← Back</button>
+                        <div className="form-actions">
+                            <button className="back-btn" onClick={() => setStep(2)} aria-label="Go back to specialist selection">
+                                <i className="fas fa-arrow-left" aria-hidden="true"></i> Back
+                            </button>
+                        </div>
                     </div>
                 )}
 
                 {step === 4 && (
                     <div className="appointease-step-content">
+                        <div className="progress-bar">
+                            <div className="progress-fill" style={{width: '80%'}}></div>
+                        </div>
                         <h2>Choose Your Time</h2>
                         <p className="step-description">Select your preferred time slot</p>
-                        <div className="selected-info">
-                            <span><i className="ri-calendar-line"></i> {new Date(selectedDate).toLocaleDateString('en', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                        <div className="selected-info" role="status">
+                            <span><i className="ri-calendar-line" aria-hidden="true"></i> {new Date(selectedDate).toLocaleDateString('en', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
                         </div>
-                        <div className="time-slots">
+                        <div className="timezone-info" role="status">
+                            <i className="fas fa-clock" aria-hidden="true"></i>
+                            All times shown in {timezone}
+                        </div>
+                        <div className="time-slots" role="grid" aria-label="Available time slots">
                             {timeSlots.map(time => {
                                 const isUnavailable = unavailableSlots.includes(time);
+                                const serviceDuration = selectedService?.duration || 30;
                                 return (
                                     <div 
                                         key={time} 
                                         className={`time-slot ${isUnavailable ? 'unavailable' : ''}`}
                                         onClick={() => handleTimeSelect(time)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleTimeSelect(time)}
+                                        tabIndex={isUnavailable ? -1 : 0}
+                                        role="button"
+                                        aria-label={`${time} for ${serviceDuration} minutes - ${isUnavailable ? 'unavailable' : 'available'}`}
+                                        aria-disabled={isUnavailable}
                                     >
-                                        <span className="time">{time}</span>
+                                        <div className="time-info">
+                                            <span className="time">{time}</span>
+                                            <span className="duration">{serviceDuration} min</span>
+                                        </div>
                                         <span className="status">{isUnavailable ? 'Unavailable' : 'Available'}</span>
                                     </div>
                                 );
                             })}
                         </div>
-                        <button className="back-btn" onClick={() => setStep(3)}>← Back</button>
+                        <div className="form-actions">
+                            <button className="back-btn" onClick={() => setStep(3)} aria-label="Go back to date selection">
+                                <i className="fas fa-arrow-left" aria-hidden="true"></i> Back
+                            </button>
+                        </div>
                     </div>
                 )}
 
@@ -934,65 +1381,85 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                 <p className="step-description">Please provide your contact information</p>
                             </>
                         )}
-                        {!isRescheduling && !isLoggedIn && <form onSubmit={handleSubmit} className="customer-form">
+                        {!isRescheduling && !isLoggedIn && <form onSubmit={handleSubmit} className="customer-form" noValidate>
+
                             <div className="form-row">
                                 <div className="form-group">
-                                    <label>First Name *</label>
+                                    <label htmlFor="name">Name *</label>
                                     <input
+                                        id="name"
                                         type="text"
                                         value={formData.firstName}
                                         onChange={(e) => {
                                             setFormData({...formData, firstName: e.target.value});
                                             if (errors.firstName) setErrors({...errors, firstName: undefined});
                                         }}
-                                        className={errors.firstName ? 'error' : ''}
-                                        placeholder="Enter your first name"
+                                        className={errors.firstName ? 'error' : formData.firstName.length >= 2 ? 'valid' : ''}
+                                        placeholder="Enter your name"
+                                        aria-describedby={errors.firstName ? 'name-error' : undefined}
+                                        aria-invalid={!!errors.firstName}
+                                        autoComplete="name"
+                                        required
                                     />
-                                    {errors.firstName && <span className="error-message">{errors.firstName}</span>}
-                                </div>
-                                <div className="form-group">
-                                    <label>Last Name *</label>
-                                    <input
-                                        type="text"
-                                        value={formData.lastName}
-                                        onChange={(e) => {
-                                            setFormData({...formData, lastName: e.target.value});
-                                            if (errors.lastName) setErrors({...errors, lastName: undefined});
-                                        }}
-                                        className={errors.lastName ? 'error' : ''}
-                                        placeholder="Enter your last name"
-                                    />
-                                    {errors.lastName && <span className="error-message">{errors.lastName}</span>}
+
+                                    {errors.firstName && (
+                                        <span className="validation-icon invalid" aria-hidden="true">✕</span>
+                                    )}
+                                    {errors.firstName && <span id="name-error" className="error-message" role="alert">{errors.firstName}</span>}
                                 </div>
                             </div>
                             <div className="form-row">
                                 <div className="form-group">
-                                    <label>Email *</label>
+                                    <label htmlFor="email">Email *</label>
                                     <input
+                                        id="email"
                                         type="email"
                                         value={formData.email}
                                         onChange={(e) => {
                                             setFormData({...formData, email: e.target.value});
                                             if (errors.email) setErrors({...errors, email: undefined});
                                         }}
-                                        className={errors.email ? 'error' : ''}
+                                        className={errors.email ? 'error' : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email) ? 'valid' : ''}
                                         placeholder="Enter your email address"
+                                        aria-describedby={errors.email ? 'email-error' : undefined}
+                                        aria-invalid={!!errors.email}
+                                        autoComplete="email"
+                                        required
                                     />
-                                    {errors.email && <span className="error-message">{errors.email}</span>}
+
+                                    {errors.email && (
+                                        <span className="validation-icon invalid" aria-hidden="true">✕</span>
+                                    )}
+                                    {errors.email && <span id="email-error" className="error-message" role="alert">{errors.email}</span>}
                                 </div>
                                 <div className="form-group">
-                                    <label>Phone</label>
+                                    <label htmlFor="phone">Phone (optional)</label>
                                     <input
+                                        id="phone"
                                         type="tel"
                                         value={formData.phone}
                                         onChange={(e) => {
-                                            setFormData({...formData, phone: e.target.value});
+                                            // Auto-format phone number
+                                            let value = e.target.value.replace(/\D/g, '');
+                                            if (value.length >= 6) {
+                                                value = value.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3');
+                                            } else if (value.length >= 3) {
+                                                value = value.replace(/(\d{3})(\d+)/, '($1) $2');
+                                            }
+                                            setFormData({...formData, phone: value});
                                             if (errors.phone) setErrors({...errors, phone: undefined});
                                         }}
-                                        className={errors.phone ? 'error' : ''}
-                                        placeholder="Enter your phone number"
+                                        className={errors.phone ? 'error' : formData.phone && /^[\d\s\-\+\(\)]+$/.test(formData.phone) && formData.phone.replace(/\D/g, '').length >= 10 ? 'valid' : ''}
+                                        placeholder="(555) 123-4567"
+                                        aria-describedby={errors.phone ? 'phone-error' : undefined}
+                                        aria-invalid={!!errors.phone}
+                                        autoComplete="tel"
                                     />
-                                    {errors.phone && <span className="error-message">{errors.phone}</span>}
+
+                                    {errors.phone && (
+                                        <span className="validation-icon invalid" aria-hidden="true">✕</span>
+                                    )}
+                                    {errors.phone && <span id="phone-error" className="error-message" role="alert">{errors.phone}</span>}
                                 </div>
                             </div>
                             
@@ -1021,10 +1488,25 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                             </div>
 
                             <div className="form-actions">
-                                <button type="button" className="back-btn" onClick={() => setStep(4)} disabled={isSubmitting}>← Back</button>
-                                <button type="submit" className={`confirm-btn ${isSubmitting ? 'loading' : ''}`} disabled={isSubmitting}>
-                                    {isSubmitting ? 'BOOKING...' : 'CONFIRM BOOKING'}
+                                <button type="button" className="btn btn-secondary" onClick={() => setStep(4)} disabled={isSubmitting} aria-label="Go back to time selection">
+                                    <i className="fas fa-arrow-left" aria-hidden="true"></i> Back
                                 </button>
+                                <button type="submit" className={`confirm-btn ${isSubmitting ? 'loading' : ''}`} disabled={isSubmitting} aria-describedby="booking-status">
+                                    {isSubmitting ? (
+                                        <>
+                                            <span className="sr-only">Booking in progress</span>
+                                            <span aria-hidden="true">BOOKING...</span>
+                                        </>
+                                    ) : (
+                                        <>
+                                            <i className="fas fa-check" aria-hidden="true"></i>
+                                            CONFIRM BOOKING
+                                        </>
+                                    )}
+                                </button>
+                            </div>
+                            <div id="booking-status" className="sr-only" aria-live="polite" aria-atomic="true">
+                                {isSubmitting ? 'Booking your appointment, please wait...' : ''}
                             </div>
                         </form>}
                         
@@ -1077,8 +1559,8 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                 </div>
                                 <div className="form-actions">
                                     <button type="button" className="back-btn" onClick={() => setStep(4)}>← Back</button>
-                                    <button type="button" className="confirm-btn" onClick={() => handleReschedule(selectedDate, selectedTime)}>
-                                        CONFIRM RESCHEDULE
+                                    <button type="button" className="confirm-btn" onClick={() => handleReschedule(selectedDate, selectedTime)} disabled={isReschedulingSubmit}>
+                                        {isReschedulingSubmit ? <><i className="fas fa-spinner fa-spin"></i> RESCHEDULING...</> : 'CONFIRM RESCHEDULE'}
                                     </button>
                                 </div>
                             </div>
@@ -1105,18 +1587,61 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                         className="id-number" 
                                         title="Click to copy" 
                                         onClick={() => {
-                                            navigator.clipboard.writeText(appointmentId).then(() => {
-                                                const idElement = document.querySelector('.id-number');
-                                                if (idElement) {
-                                                    const original = idElement.textContent;
-                                                    idElement.textContent = 'Copied!';
-                                                    idElement.style.background = 'rgba(40, 167, 69, 0.3)';
-                                                    setTimeout(() => {
-                                                        idElement.textContent = original;
-                                                        idElement.style.background = 'rgba(255,255,255,0.15)';
-                                                    }, 2000);
+                                            const copyText = (text: string) => {
+                                                if (navigator.clipboard && navigator.clipboard.writeText) {
+                                                    navigator.clipboard.writeText(text).then(() => {
+                                                        const idElement = document.querySelector('.id-number');
+                                                        if (idElement) {
+                                                            const original = idElement.textContent;
+                                                            idElement.textContent = 'Copied!';
+                                                            idElement.style.background = 'rgba(40, 167, 69, 0.3)';
+                                                            setTimeout(() => {
+                                                                idElement.textContent = original;
+                                                                idElement.style.background = 'rgba(255,255,255,0.15)';
+                                                            }, 2000);
+                                                        }
+                                                    }).catch(() => {
+                                                        // Fallback for clipboard API failure
+                                                        const textArea = document.createElement('textarea');
+                                                        textArea.value = text;
+                                                        document.body.appendChild(textArea);
+                                                        textArea.select();
+                                                        document.execCommand('copy');
+                                                        document.body.removeChild(textArea);
+                                                        
+                                                        const idElement = document.querySelector('.id-number');
+                                                        if (idElement) {
+                                                            const original = idElement.textContent;
+                                                            idElement.textContent = 'Copied!';
+                                                            idElement.style.background = 'rgba(40, 167, 69, 0.3)';
+                                                            setTimeout(() => {
+                                                                idElement.textContent = original;
+                                                                idElement.style.background = 'rgba(255,255,255,0.15)';
+                                                            }, 2000);
+                                                        }
+                                                    });
+                                                } else {
+                                                    // Fallback for browsers without clipboard API
+                                                    const textArea = document.createElement('textarea');
+                                                    textArea.value = text;
+                                                    document.body.appendChild(textArea);
+                                                    textArea.select();
+                                                    document.execCommand('copy');
+                                                    document.body.removeChild(textArea);
+                                                    
+                                                    const idElement = document.querySelector('.id-number');
+                                                    if (idElement) {
+                                                        const original = idElement.textContent;
+                                                        idElement.textContent = 'Copied!';
+                                                        idElement.style.background = 'rgba(40, 167, 69, 0.3)';
+                                                        setTimeout(() => {
+                                                            idElement.textContent = original;
+                                                            idElement.style.background = 'rgba(255,255,255,0.15)';
+                                                        }, 2000);
+                                                    }
                                                 }
-                                            });
+                                            };
+                                            copyText(appointmentId);
                                         }}
                                     >
                                         {appointmentId}
@@ -1179,7 +1704,7 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                     setManageMode(true);
                                     setCurrentAppointment({
                                         id: appointmentId,
-                                        name: `${formData.firstName} ${formData.lastName}`,
+                                        name: formData.firstName,
                                         email: formData.email,
                                         appointment_date: `${selectedDate} ${selectedTime}:00`,
                                         status: 'confirmed'
@@ -1198,6 +1723,54 @@ const BookingApp = React.forwardRef((props: any, ref) => {
         </div>
         
 
+            {/* Email Lookup Modal */}
+            {showEmailLookup && (
+                <div className="modal-overlay" onClick={() => setShowEmailLookup(false)}>
+                    <div className="modal" onClick={(e) => e.stopPropagation()}>
+                        <div className="modal-header">
+                            <h3 className="modal-title">Find Your Appointments</h3>
+                            <button className="modal-close" onClick={() => setShowEmailLookup(false)} aria-label="Close">
+                                <i className="fas fa-times"></i>
+                            </button>
+                        </div>
+                        <div className="modal-body">
+                            <p>Enter your email address to find your appointments:</p>
+                            <div className="form-group">
+                                <input
+                                    type="email"
+                                    value={lookupEmail}
+                                    onChange={(e) => setLookupEmail(e.target.value)}
+                                    placeholder="your.email@example.com"
+                                    autoComplete="email"
+                                    onKeyDown={(e) => e.key === 'Enter' && handleEmailLookup()}
+                                />
+                            </div>
+                            {foundAppointments.length > 0 && (
+                                <div className="found-appointments">
+                                    <h4>Your Appointments:</h4>
+                                    {foundAppointments.map((apt: any) => (
+                                        <div key={apt.id} className="appointment-item" onClick={() => {
+                                            setAppointmentId(apt.strong_id || `AE${apt.id}`);
+                                            setShowEmailLookup(false);
+                                            handleManageAppointment();
+                                        }}>
+                                            <strong>{apt.strong_id || `AE${apt.id}`}</strong>
+                                            <span>{new Date(apt.appointment_date).toLocaleDateString()}</span>
+                                            <span className={`status ${apt.status}`}>{apt.status}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                        <div className="modal-footer">
+                            <button className="btn btn-secondary" onClick={() => setShowEmailLookup(false)}>Cancel</button>
+                            <button className="btn btn-primary" onClick={handleEmailLookup} disabled={!lookupEmail || isLookingUp}>
+                                {isLookingUp ? 'Searching...' : 'Find Appointments'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </>
     );
 });

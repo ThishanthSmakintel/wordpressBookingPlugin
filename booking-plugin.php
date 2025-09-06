@@ -16,7 +16,7 @@
  */
 
 if (!defined('ABSPATH')) {
-    exit;
+    wp_die('Direct access not allowed.');
 }
 
 define('BOOKING_PLUGIN_VERSION', '1.0.0');
@@ -36,6 +36,23 @@ register_deactivation_hook(__FILE__, array('Booking_Deactivator', 'deactivate'))
 function run_booking_plugin() {
     $plugin = Booking_Plugin::get_instance();
     new Booking_API_Endpoints();
+    
+    // Localize script with WordPress REST API URL
+    add_action('wp_enqueue_scripts', function() {
+        wp_localize_script('booking-frontend', 'bookingAPI', array(
+            'root' => esc_url_raw(rest_url()),
+            'nonce' => wp_create_nonce('wp_rest')
+        ));
+    });
+    
+    // Disable caching for development
+    add_action('init', function() {
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            header('Cache-Control: no-cache, no-store, must-revalidate');
+            header('Pragma: no-cache');
+            header('Expires: 0');
+        }
+    });
 }
 run_booking_plugin();
 
@@ -51,11 +68,11 @@ if (is_admin()) {
             'manage_options',
             'booking-seeder',
             function() {
-                if (isset($_POST['seed_data'])) {
+                if (isset($_POST['seed_data']) && wp_verify_nonce($_POST['_wpnonce'], 'seed_data_action')) {
                     Booking_DB_Seeder::seed_data();
                     echo '<div class="notice notice-success"><p>Database seeded successfully!</p></div>';
                 }
-                if (isset($_POST['clear_data'])) {
+                if (isset($_POST['clear_data']) && wp_verify_nonce($_POST['_wpnonce'], 'clear_data_action')) {
                     Booking_DB_Seeder::clear_data();
                     echo '<div class="notice notice-success"><p>Database cleared successfully!</p></div>';
                 }
@@ -63,9 +80,15 @@ if (is_admin()) {
                 <div class="wrap">
                     <h1>Database Seeder</h1>
                     <form method="post">
+                        <?php wp_nonce_field('seed_data_action'); ?>
                         <p>Populate the database with sample data for testing.</p>
                         <p class="submit">
                             <input type="submit" name="seed_data" class="button-primary" value="Seed Database" />
+                        </p>
+                    </form>
+                    <form method="post">
+                        <?php wp_nonce_field('clear_data_action'); ?>
+                        <p class="submit">
                             <input type="submit" name="clear_data" class="button-secondary" value="Clear Data" onclick="return confirm('Are you sure?')" />
                         </p>
                     </form>
