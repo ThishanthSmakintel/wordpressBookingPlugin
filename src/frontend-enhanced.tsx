@@ -101,6 +101,22 @@ const BookingApp = React.forwardRef((props: any, ref) => {
     const [isVerifyingOtp, setIsVerifyingOtp] = useState(false);
     const [pendingRescheduleData, setPendingRescheduleData] = useState<{date: string, time: string} | null>(null);
     const [otpVerified, setOtpVerified] = useState(false);
+    const [showEmailVerification, setShowEmailVerification] = useState(false);
+    const [emailOtp, setEmailOtp] = useState('');
+    const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
+    const [emailVerified, setEmailVerified] = useState(false);
+    const [otpExpiry, setOtpExpiry] = useState<number>(0);
+    const [resendCooldown, setResendCooldown] = useState<number>(0);
+    const [otpAttempts, setOtpAttempts] = useState<number>(0);
+    const [isBlocked, setIsBlocked] = useState(false);
+    const [loginOtpExpiry, setLoginOtpExpiry] = useState<number>(0);
+    const [loginResendCooldown, setLoginResendCooldown] = useState<number>(0);
+    const [loginOtpAttempts, setLoginOtpAttempts] = useState<number>(0);
+    const [loginIsBlocked, setLoginIsBlocked] = useState(false);
+    const [verifyOtpExpiry, setVerifyOtpExpiry] = useState<number>(0);
+    const [verifyResendCooldown, setVerifyResendCooldown] = useState<number>(0);
+    const [verifyOtpAttempts, setVerifyOtpAttempts] = useState<number>(0);
+    const [verifyIsBlocked, setVerifyIsBlocked] = useState(false);
 
     // Enhanced connection monitoring
     useEffect(() => {
@@ -204,23 +220,7 @@ const BookingApp = React.forwardRef((props: any, ref) => {
         return `APT-${year}-${result}`;
     };
     
-    // Form data persistence
-    useEffect(() => {
-        const saved = localStorage.getItem('appointease-form-data');
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                setFormDataPersisted(parsed);
-                setFormData(parsed);
-            } catch (e) {}
-        }
-    }, []);
-    
-    useEffect(() => {
-        if (formData.firstName || formData.lastName || formData.email || formData.phone) {
-            localStorage.setItem('appointease-form-data', JSON.stringify(formData));
-        }
-    }, [formData]);
+
     
     // Step validation
     const canProceedToStep = (targetStep: number): boolean => {
@@ -348,6 +348,13 @@ const BookingApp = React.forwardRef((props: any, ref) => {
         
         // Skip form validation for logged-in users
         if (!isLoggedIn && !validateForm()) {
+            return;
+        }
+        
+        // Require email verification for non-logged-in users
+        if (!isLoggedIn && !emailVerified) {
+            setShowEmailVerification(true);
+            sendEmailVerification();
             return;
         }
         
@@ -528,12 +535,25 @@ const BookingApp = React.forwardRef((props: any, ref) => {
     };
 
     const handleSendOTP = () => {
-        if (!loginEmail) {
+        if (!loginEmail || loginResendCooldown > 0) {
             return;
         }
         
         setIsLoadingOTP(true);
-        // Simulate OTP sending
+        setLoginOtpExpiry(Date.now() + 5 * 60 * 1000);
+        setLoginResendCooldown(30);
+        setLoginOtpAttempts(0);
+        
+        const timer = setInterval(() => {
+            setLoginResendCooldown(prev => {
+                if (prev <= 1) {
+                    clearInterval(timer);
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+        
         setTimeout(() => {
             setOtpSent(true);
             setIsLoadingOTP(false);
@@ -541,7 +561,18 @@ const BookingApp = React.forwardRef((props: any, ref) => {
     };
     
     const handleVerifyOTP = () => {
+        if (loginIsBlocked) {
+            setErrors({general: 'Too many failed attempts. Please try again later.'});
+            return;
+        }
+        
         if (!otpCode) {
+            setErrors({general: 'Please enter the verification code'});
+            return;
+        }
+        
+        if (Date.now() > loginOtpExpiry) {
+            setErrors({general: 'Code expired. Please request a new one.'});
             return;
         }
         
@@ -550,9 +581,21 @@ const BookingApp = React.forwardRef((props: any, ref) => {
             if (otpCode === '123456') {
                 setIsLoggedIn(true);
                 setShowLogin(false);
+                setShowDashboard(true);
                 setIsLoadingLogin(false);
+                setLoginOtpAttempts(0);
                 loadUserAppointments();
             } else {
+                const newAttempts = loginOtpAttempts + 1;
+                setLoginOtpAttempts(newAttempts);
+                
+                if (newAttempts >= 3) {
+                    setLoginIsBlocked(true);
+                    setErrors({general: 'Too many failed attempts. Try again later.'});
+                    setTimeout(() => setLoginIsBlocked(false), 5 * 60 * 1000);
+                } else {
+                    setErrors({general: `Invalid code. ${3 - newAttempts} attempts remaining.`});
+                }
                 setIsLoadingLogin(false);
             }
         }, 1000);
@@ -594,20 +637,180 @@ const BookingApp = React.forwardRef((props: any, ref) => {
     };
     
     const sendVerificationOtp = () => {
-        // Simulate OTP sending without console log
-        return;
+        if (verifyResendCooldown > 0) return;
+        
+        setVerifyOtpExpiry(Date.now() + 5 * 60 * 1000);
+        setVerifyResendCooldown(30);
+        setVerifyOtpAttempts(0);
+        
+        const timer = setInterval(() => {
+            setVerifyResendCooldown(prev => {
+                if (prev <= 1) {
+                    clearInterval(timer);
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+    };
+    
+    const sendEmailVerification = () => {
+        if (resendCooldown > 0) return;
+        
+        // Set 5-minute expiry and 30-second resend cooldown
+        setOtpExpiry(Date.now() + 5 * 60 * 1000);
+        setResendCooldown(30);
+        setOtpAttempts(0);
+        
+        // Start cooldown timer
+        const timer = setInterval(() => {
+            setResendCooldown(prev => {
+                if (prev <= 1) {
+                    clearInterval(timer);
+                    return 0;
+                }
+                return prev - 1;
+            });
+        }, 1000);
+    };
+    
+    const proceedWithBooking = () => {
+        setIsSubmitting(true);
+        const appointmentDateTime = `${selectedDate} ${selectedTime}:00`;
+        const strongId = generateStrongId();
+        
+        if (!window.bookingAPI) {
+            setTimeout(() => {
+                setAppointmentId(strongId);
+                setStep(6);
+                setIsSubmitting(false);
+            }, 1500);
+            return;
+        }
+        
+        fetch(`${window.bookingAPI?.root || '/wp-json/'}appointease/v1/appointments`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-WP-Nonce': window.bookingAPI.nonce,
+                'Connection': 'keep-alive'
+            },
+            body: JSON.stringify({
+                name: formData.firstName,
+                email: formData.email,
+                phone: formData.phone,
+                date: appointmentDateTime,
+                service_id: selectedService.id,
+                employee_id: selectedEmployee.id
+            }),
+            keepalive: true
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(result => {
+            if (result.strong_id) {
+                setErrors({});
+                setAppointmentId(result.strong_id);
+                setStep(6);
+            } else if (result.id) {
+                setErrors({});
+                const fallbackId = `APT-${new Date().getFullYear()}-${result.id.toString().padStart(6, '0')}`;
+                setAppointmentId(fallbackId);
+                setStep(6);
+            } else {
+                const errorMessage = result.message || 'Booking failed. Please try again.';
+                setErrors({general: errorMessage});
+            }
+        })
+        .catch(error => {
+            console.error('Booking error:', error);
+            const errorMessage = isOnline ? 'Booking failed. Please try again.' : 'Booking failed. Please check your connection.';
+            setErrors({general: errorMessage});
+        })
+        .finally(() => {
+            setIsSubmitting(false);
+        });
+    };
+    
+    const verifyEmailOtp = () => {
+        if (isBlocked) {
+            setErrors({general: 'Too many failed attempts. Please try again later.'});
+            return;
+        }
+        
+        if (!emailOtp) {
+            setErrors({general: 'Please enter the verification code'});
+            return;
+        }
+        
+        if (emailOtp.length !== 6) {
+            setErrors({general: 'Verification code must be 6 digits'});
+            return;
+        }
+        
+        if (Date.now() > otpExpiry) {
+            setErrors({general: 'Verification code has expired. Please request a new one.'});
+            return;
+        }
+        
+        setIsVerifyingEmail(true);
+        setErrors({});
+        
+        setTimeout(() => {
+            if (emailOtp === '123456') {
+                setEmailVerified(true);
+                setOtpAttempts(0);
+                setErrors({general: 'Email verified successfully!'});
+                setTimeout(() => {
+                    setShowEmailVerification(false);
+                    setEmailOtp('');
+                    setErrors({});
+                    // Continue with booking after verification
+                    proceedWithBooking();
+                }, 1500);
+            } else {
+                const newAttempts = otpAttempts + 1;
+                setOtpAttempts(newAttempts);
+                
+                if (newAttempts >= 3) {
+                    setIsBlocked(true);
+                    setErrors({general: 'Too many failed attempts. Please try again later.'});
+                    setTimeout(() => setIsBlocked(false), 5 * 60 * 1000); // 5 min block
+                } else {
+                    setErrors({general: `Invalid code. ${3 - newAttempts} attempts remaining.`});
+                }
+            }
+            setIsVerifyingEmail(false);
+        }, 1000);
     };
     
     const verifyOtpAndProceed = () => {
-        if (!verificationOtp) return;
+        if (verifyIsBlocked) {
+            setErrors({general: 'Too many failed attempts. Please try again later.'});
+            return;
+        }
+        
+        if (!verificationOtp) {
+            setErrors({general: 'Please enter the verification code'});
+            return;
+        }
+        
+        if (Date.now() > verifyOtpExpiry) {
+            setErrors({general: 'Code expired. Please request a new one.'});
+            return;
+        }
         
         setIsVerifyingOtp(true);
         
-        // Simulate OTP verification
         setTimeout(() => {
             if (verificationOtp === '123456') {
                 setShowOtpVerification(false);
                 setVerificationOtp('');
+                setVerifyOtpAttempts(0);
                 
                 if (otpAction === 'cancel') {
                     performCancel();
@@ -616,7 +819,6 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                         performReschedule(pendingRescheduleData.date, pendingRescheduleData.time);
                         setPendingRescheduleData(null);
                     } else {
-                        // Direct reschedule from manage page - go to date selection
                         setSelectedService({name: 'Current Service', price: 0});
                         setSelectedEmployee({name: 'Current Staff'});
                         setIsRescheduling(true);
@@ -630,7 +832,16 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                 
                 setOtpAction(null);
             } else {
-                setErrors({general: 'Invalid OTP. Please try again.'});
+                const newAttempts = verifyOtpAttempts + 1;
+                setVerifyOtpAttempts(newAttempts);
+                
+                if (newAttempts >= 3) {
+                    setVerifyIsBlocked(true);
+                    setErrors({general: 'Too many failed attempts. Try again later.'});
+                    setTimeout(() => setVerifyIsBlocked(false), 5 * 60 * 1000);
+                } else {
+                    setErrors({general: `Invalid code. ${3 - newAttempts} attempts remaining.`});
+                }
             }
             setIsVerifyingOtp(false);
         }, 1000);
@@ -701,35 +912,86 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                     {isLoadingOTP ? (
                                         <>
                                             <i className="fas fa-spinner fa-spin"></i>
-                                            Sending...
+                                            Sending verification code...
                                         </>
-                                    ) : 'Send OTP'}
+                                    ) : (
+                                        <>
+                                            <i className="fas fa-paper-plane"></i>
+                                            Send Verification Code
+                                        </>
+                                    )}
                                 </button>
                             </div>
                         ) : (
-                            <div className="otp-form">
-                                <div className="form-group">
-                                    <label>Enter OTP</label>
-                                    <input
-                                        type="text"
-                                        value={otpCode}
-                                        onChange={(e) => setOtpCode(e.target.value)}
-                                        placeholder="Enter 6-digit OTP"
-                                        maxLength={6}
-                                    />
-                                    <small>OTP sent to {loginEmail}</small>
+                            <div className="otp-verification">
+                                <div className="verification-card">
+                                    <div className="verification-header">
+                                        <i className="fas fa-sign-in-alt" style={{fontSize: '2.5rem', color: '#1CBC9B', marginBottom: '1rem'}}></i>
+                                        <h3>Verify to Login</h3>
+                                        <p>We've sent a 6-digit verification code to:</p>
+                                        <div className="email-highlight">
+                                            {loginEmail}
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="verification-form">
+                                        <div className="form-group">
+                                            <label>Verification Code</label>
+                                            <input
+                                                type="text"
+                                                value={otpCode}
+                                                onChange={(e) => {
+                                                    setOtpCode(e.target.value.replace(/\D/g, ''));
+                                                    if (errors.general) setErrors({});
+                                                }}
+                                                placeholder="000000"
+                                                maxLength={6}
+                                                className="otp-input"
+                                            />
+                                        </div>
+                                        
+                                        <div className="verification-info">
+                                            {loginOtpExpiry > 0 && (
+                                                <div className="timer-display">
+                                                    <i className="fas fa-clock"></i>
+                                                    <span>Expires in {Math.floor(Math.max(0, (loginOtpExpiry - Date.now()) / 1000) / 60)}:{String(Math.max(0, Math.ceil((loginOtpExpiry - Date.now()) / 1000) % 60)).padStart(2, '0')}</span>
+                                                </div>
+                                            )}
+                                            
+                                            <button 
+                                                className="resend-link" 
+                                                onClick={handleSendOTP} 
+                                                disabled={loginResendCooldown > 0 || loginIsBlocked}
+                                            >
+                                                {loginResendCooldown > 0 ? 
+                                                    `Resend in ${loginResendCooldown}s` : 
+                                                    'Didn\'t receive code? Resend'
+                                                }
+                                            </button>
+                                        </div>
+                                        
+                                        {errors.general && (
+                                            <div className={`verification-message ${errors.general.includes('successfully') ? 'success' : 'error'}`}>
+                                                {errors.general}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                                <div className="otp-actions">
-                                    <button className="verify-btn" onClick={handleVerifyOTP} disabled={isLoadingLogin}>
-                                        {isLoadingLogin ? (
-                                            <>
-                                                <i className="fas fa-spinner fa-spin"></i>
-                                                Verifying...
-                                            </>
-                                        ) : 'Verify & Login'}
+                                
+                                <div className="form-actions">
+                                    <button className="back-btn" onClick={() => {
+                                        setOtpSent(false);
+                                        setOtpCode('');
+                                        setErrors({});
+                                    }}>
+                                        <i className="fas fa-arrow-left"></i> Back
                                     </button>
-                                    <button className="resend-btn" onClick={handleSendOTP}>
-                                        Resend OTP
+                                    <button className="confirm-btn" onClick={handleVerifyOTP} disabled={isLoadingLogin || loginIsBlocked || otpCode.length !== 6}>
+                                        {isLoadingLogin ? (
+                                            <><i className="fas fa-spinner fa-spin"></i> Verifying...</>
+                                        ) : (
+                                            <><i className="fas fa-shield-check"></i> Verify & Login</>
+                                        )}
                                     </button>
                                 </div>
                             </div>
@@ -748,13 +1010,13 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                         <span className="logo-icon">A</span>
                     </div>
                     <div className="user-menu">
-                        <span className="user-email">{loginEmail}</span>
                         <button className="logout-btn" onClick={() => {
                             setIsLoggedIn(false);
                             setShowDashboard(false);
                             setLoginEmail('');
                             setOtpCode('');
                             setOtpSent(false);
+                            setStep(1);
                             // Logged out
                         }}>
                             <i className="fas fa-sign-out-alt"></i>
@@ -766,14 +1028,17 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                         <div className="dashboard-header">
                             <div className="dashboard-title-section">
                                 <h2>My Appointments</h2>
-                                <span className="dashboard-email">dev15@mailto:smakintel@gmail.com</span>
+                                <span className="dashboard-email" style={{color: 'black'}}>{loginEmail}</span>
                             </div>
                             <button className="new-appointment-btn" onClick={() => {
                                 setShowDashboard(false);
                                 setStep(1);
                             }}>
                                 <i className="fas fa-plus"></i>
-                                New Appointment
+                                <div className="btn-content">
+                                    <span className="btn-title">New Appointment</span>
+                                    <span className="btn-desc">Book another appointment</span>
+                                </div>
                             </button>
                         </div>
                         
@@ -789,11 +1054,7 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                     <span>No appointments found</span>
                                 </div>
                             ) : (
-                                [...userAppointments, 
-                                 {id: 'AE000097', status: 'cancelled', service: 'Service', staff: 'Staff Member', date: '2025-01-20T14:00:00'},
-                                 {id: 'AE000098', status: 'rescheduled', service: 'Service', staff: 'Staff Member', date: '2025-01-22T11:30:00'},
-                                 {id: 'AE000099', status: 'created', service: 'Service', staff: 'Staff Member', date: '2025-01-25T09:00:00'}
-                                ].map(appointment => (
+                                userAppointments.map(appointment => (
                                 <div key={appointment.id} className="appointment-card-mini">
                                     <div className="appointment-id-mini">
                                         <span className="id-text">{appointment.id}</span>
@@ -986,40 +1247,79 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                 </>
                             ) : showOtpVerification ? (
                                 <div className="otp-verification">
-                                    <h3>Verify Your Identity</h3>
-                                    <div className="action-info">
-                                        <p className="action-description">
-                                            {otpAction === 'cancel' ? 
-                                                'To cancel your appointment, please verify your identity with the code sent to your email.' :
-                                                'To reschedule your appointment, please verify your identity with the code sent to your email.'
-                                            }
-                                        </p>
+                                    <div className="verification-card">
+                                        <div className="verification-header">
+                                            <i className="fas fa-shield-alt" style={{fontSize: '2.5rem', color: '#1CBC9B', marginBottom: '1rem'}}></i>
+                                            <h3>Verify Your Identity</h3>
+                                            <p>
+                                                {otpAction === 'cancel' ? 
+                                                    'To cancel your appointment, please verify your identity with the code sent to your email.' :
+                                                    'To reschedule your appointment, please verify your identity with the code sent to your email.'
+                                                }
+                                            </p>
+                                            <div className="email-highlight">
+                                                {currentAppointment?.email}
+                                            </div>
+                                        </div>
+                                        
+                                        <div className="verification-form">
+                                            <div className="form-group">
+                                                <label>Verification Code</label>
+                                                <input
+                                                    type="text"
+                                                    value={verificationOtp}
+                                                    onChange={(e) => {
+                                                        setVerificationOtp(e.target.value.replace(/\D/g, ''));
+                                                        if (errors.general) setErrors({});
+                                                    }}
+                                                    placeholder="000000"
+                                                    maxLength={6}
+                                                    className="otp-input"
+                                                />
+                                            </div>
+                                            
+                                            <div className="verification-info">
+                                                {verifyOtpExpiry > 0 && (
+                                                    <div className="timer-display">
+                                                        <i className="fas fa-clock"></i>
+                                                        <span>Expires in {Math.floor(Math.max(0, (verifyOtpExpiry - Date.now()) / 1000) / 60)}:{String(Math.max(0, Math.ceil((verifyOtpExpiry - Date.now()) / 1000) % 60)).padStart(2, '0')}</span>
+                                                    </div>
+                                                )}
+                                                
+                                                <button 
+                                                    className="resend-link" 
+                                                    onClick={sendVerificationOtp} 
+                                                    disabled={verifyResendCooldown > 0 || verifyIsBlocked}
+                                                >
+                                                    {verifyResendCooldown > 0 ? 
+                                                        `Resend in ${verifyResendCooldown}s` : 
+                                                        'Didn\'t receive code? Resend'
+                                                    }
+                                                </button>
+                                            </div>
+                                            
+                                            {errors.general && (
+                                                <div className={`verification-message ${errors.general.includes('successfully') ? 'success' : 'error'}`}>
+                                                    {errors.general}
+                                                </div>
+                                            )}
+                                        </div>
                                     </div>
-                                    <p>Verification code sent to: <strong>{currentAppointment?.email}</strong></p>
-                                    <div className="form-group">
-                                        <input
-                                            type="text"
-                                            value={verificationOtp}
-                                            onChange={(e) => setVerificationOtp(e.target.value)}
-                                            placeholder="Enter 6-digit code"
-                                            maxLength={6}
-                                        />
-                                    </div>
-                                    <div className="otp-actions">
-                                        <button className="action-btn primary-btn" onClick={verifyOtpAndProceed} disabled={isVerifyingOtp || !verificationOtp}>
-                                            {isVerifyingOtp ? 
-                                                <><i className="fas fa-spinner fa-spin"></i> Verifying...</> : 
-                                                <><i className="fas fa-shield-alt"></i> Verify & {otpAction === 'cancel' ? 'Cancel Appointment' : 'Proceed to Reschedule'}</>
-                                            }
-                                        </button>
-                                        <button className="action-btn secondary-btn" onClick={() => {
+                                    
+                                    <div className="form-actions">
+                                        <button className="back-btn" onClick={() => {
                                             setShowOtpVerification(false);
                                             setVerificationOtp('');
                                             setOtpAction(null);
                                             setPendingRescheduleData(null);
                                         }}>
-                                            <i className="fas fa-arrow-left"></i>
-                                            Back to Options
+                                            <i className="fas fa-arrow-left"></i> Back to Options
+                                        </button>
+                                        <button className="confirm-btn" onClick={verifyOtpAndProceed} disabled={isVerifyingOtp || verifyIsBlocked || verificationOtp.length !== 6}>
+                                            {isVerifyingOtp ? 
+                                                <><i className="fas fa-spinner fa-spin"></i> Verifying...</> : 
+                                                <><i className="fas fa-shield-check"></i> Verify & {otpAction === 'cancel' ? 'Cancel' : 'Reschedule'}</>
+                                            }
                                         </button>
                                     </div>
                                 </div>
@@ -1051,16 +1351,16 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                             <i className="fas fa-th-large"></i>
                             <div className="dashboard-btn-content">
                                 <span>My Appointments</span>
-                                <span className="dashboard-btn-email">dev15@mailto:smakintel@gmail.com</span>
+                                <span className="dashboard-btn-email">{loginEmail}</span>
                             </div>
                         </button>
-                        <span className="user-email">{loginEmail}</span>
                         <button className="logout-btn" onClick={() => {
                             setIsLoggedIn(false);
                             setShowDashboard(false);
                             setLoginEmail('');
                             setOtpCode('');
                             setOtpSent(false);
+                            setStep(1);
                             // Logged out
                         }}>
                             <i className="fas fa-sign-out-alt"></i>
@@ -1069,8 +1369,8 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                 ) : (
                     <div className="manage-appointment">
                         <button className="login-btn" onClick={() => setShowLogin(true)}>
-                            <i className="fas fa-user"></i>
-                            Existing Customer
+                            <i className="fas fa-sign-in-alt"></i>
+                            <strong>Existing Customer? Login Here</strong>
                         </button>
                     </div>
                 )}
@@ -1331,7 +1631,7 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                 <p className="step-description">Please provide your contact information</p>
                             </>
                         )}
-                        {!isRescheduling && !isLoggedIn && <form onSubmit={handleSubmit} className="customer-form" noValidate>
+                        {!isRescheduling && !isLoggedIn && !showEmailVerification && <form onSubmit={handleSubmit} className="customer-form" noValidate>
 
                             <div className="form-row">
                                 <div className="form-group">
@@ -1460,6 +1760,80 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                             </div>
                         </form>}
                         
+                        {!isRescheduling && !isLoggedIn && showEmailVerification && (
+                            <div className="email-verification">
+                                <div className="verification-card">
+                                    <div className="verification-header">
+                                        <i className="fas fa-envelope-open" style={{fontSize: '2.5rem', color: '#1CBC9B', marginBottom: '1rem'}}></i>
+                                        <h3>Check Your Email</h3>
+                                        <p>We've sent a 6-digit verification code to:</p>
+                                        <div className="email-highlight">
+                                            {formData.email}
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="verification-form">
+                                        <div className="form-group">
+                                            <label>Verification Code</label>
+                                            <input
+                                                type="text"
+                                                value={emailOtp}
+                                                onChange={(e) => {
+                                                    setEmailOtp(e.target.value.replace(/\D/g, ''));
+                                                    if (errors.general) setErrors({});
+                                                }}
+                                                placeholder="000000"
+                                                maxLength={6}
+                                                className="otp-input"
+                                            />
+                                        </div>
+                                        
+                                        <div className="verification-info">
+                                            {otpExpiry > 0 && (
+                                                <div className="timer-display">
+                                                    <i className="fas fa-clock"></i>
+                                                    <span>Expires in {Math.floor(Math.max(0, (otpExpiry - Date.now()) / 1000) / 60)}:{String(Math.max(0, Math.ceil((otpExpiry - Date.now()) / 1000) % 60)).padStart(2, '0')}</span>
+                                                </div>
+                                            )}
+                                            
+                                            <button 
+                                                className="resend-link" 
+                                                onClick={sendEmailVerification} 
+                                                disabled={resendCooldown > 0 || isBlocked}
+                                            >
+                                                {resendCooldown > 0 ? 
+                                                    `Resend in ${resendCooldown}s` : 
+                                                    'Didn\'t receive code? Resend'
+                                                }
+                                            </button>
+                                        </div>
+                                        
+                                        {errors.general && (
+                                            <div className={`verification-message ${errors.general.includes('successfully') ? 'success' : 'error'}`}>
+                                                {errors.general}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                                
+                                <div className="form-actions">
+                                    <button className="back-btn" onClick={() => {
+                                        setShowEmailVerification(false);
+                                        setEmailOtp('');
+                                        setErrors({});
+                                    }}>
+                                        <i className="fas fa-arrow-left"></i> Back to Form
+                                    </button>
+                                    <button className="confirm-btn" onClick={verifyEmailOtp} disabled={isVerifyingEmail || isBlocked || emailOtp.length !== 6}>
+                                        {isVerifyingEmail ? 
+                                            <><i className="fas fa-spinner fa-spin"></i> Verifying...</> : 
+                                            <><i className="fas fa-shield-check"></i> Verify & Book</>
+                                        }
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                        
                         {!isRescheduling && isLoggedIn && (
                             <div className="logged-in-summary">
                                 <div className="booking-summary">
@@ -1526,17 +1900,60 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                         
                         {isRescheduling && showOtpVerification && (
                             <div className="otp-verification">
-                                <h3>Verify Your Identity</h3>
-                                <p>Verification code sent to: <strong>{currentAppointment?.email}</strong></p>
-                                <div className="form-group">
-                                    <input
-                                        type="text"
-                                        value={verificationOtp}
-                                        onChange={(e) => setVerificationOtp(e.target.value)}
-                                        placeholder="Enter 6-digit code"
-                                        maxLength={6}
-                                    />
+                                <div className="verification-card">
+                                    <div className="verification-header">
+                                        <i className="fas fa-calendar-alt" style={{fontSize: '2.5rem', color: '#1CBC9B', marginBottom: '1rem'}}></i>
+                                        <h3>Verify to Reschedule</h3>
+                                        <p>To reschedule your appointment, please verify your identity with the code sent to your email.</p>
+                                        <div className="email-highlight">
+                                            {currentAppointment?.email}
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="verification-form">
+                                        <div className="form-group">
+                                            <label>Verification Code</label>
+                                            <input
+                                                type="text"
+                                                value={verificationOtp}
+                                                onChange={(e) => {
+                                                    setVerificationOtp(e.target.value.replace(/\D/g, ''));
+                                                    if (errors.general) setErrors({});
+                                                }}
+                                                placeholder="000000"
+                                                maxLength={6}
+                                                className="otp-input"
+                                            />
+                                        </div>
+                                        
+                                        <div className="verification-info">
+                                            {verifyOtpExpiry > 0 && (
+                                                <div className="timer-display">
+                                                    <i className="fas fa-clock"></i>
+                                                    <span>Expires in {Math.floor(Math.max(0, (verifyOtpExpiry - Date.now()) / 1000) / 60)}:{String(Math.max(0, Math.ceil((verifyOtpExpiry - Date.now()) / 1000) % 60)).padStart(2, '0')}</span>
+                                                </div>
+                                            )}
+                                            
+                                            <button 
+                                                className="resend-link" 
+                                                onClick={sendVerificationOtp} 
+                                                disabled={verifyResendCooldown > 0 || verifyIsBlocked}
+                                            >
+                                                {verifyResendCooldown > 0 ? 
+                                                    `Resend in ${verifyResendCooldown}s` : 
+                                                    'Didn\'t receive code? Resend'
+                                                }
+                                            </button>
+                                        </div>
+                                        
+                                        {errors.general && (
+                                            <div className={`verification-message ${errors.general.includes('successfully') ? 'success' : 'error'}`}>
+                                                {errors.general}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
+                                
                                 <div className="form-actions">
                                     <button className="back-btn" onClick={() => {
                                         setShowOtpVerification(false);
@@ -1544,12 +1961,12 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                         setOtpAction(null);
                                         setPendingRescheduleData(null);
                                     }}>
-                                        ← Back
+                                        <i className="fas fa-arrow-left"></i> Back
                                     </button>
-                                    <button className="confirm-btn" onClick={verifyOtpAndProceed} disabled={isVerifyingOtp || !verificationOtp}>
+                                    <button className="confirm-btn" onClick={verifyOtpAndProceed} disabled={isVerifyingOtp || verifyIsBlocked || verificationOtp.length !== 6}>
                                         {isVerifyingOtp ? 
                                             <><i className="fas fa-spinner fa-spin"></i> Verifying...</> : 
-                                            'Verify & Reschedule'
+                                            <><i className="fas fa-shield-check"></i> Verify & Reschedule</>
                                         }
                                     </button>
                                 </div>

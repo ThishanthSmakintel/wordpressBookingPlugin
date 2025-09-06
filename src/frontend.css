@@ -2710,6 +2710,10 @@
         padding: 10px 14px;
         font-size: 11px;
     }
+    
+    .email-verification {
+        margin: 20px 0 0;
+    }
 }
 
 @media (max-width: 480px) {
@@ -2890,4 +2894,228 @@
     font-size: 11px;
     opacity: 0.8;
     font-weight: 400;
+}
+
+/* Email Verification Card Styles */
+.email-verification {
+    max-width: 500px;
+    margin: 30px auto 0;
+}
+
+.verification-card {
+    background: var(--card-bg);
+    border: 2px solid var(--card-border);
+    border-radius: 12px;
+    padding: 0;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    overflow: hidden;
+    position: relative;
+}
+
+.verification-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #1CBC9B, #16a085, #20c997);
+}
+
+.verification-header {
+    background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+    padding: 30px 24px;
+    text-align: center;
+    border-bottom: 1px solid var(--card-border);
+}
+
+.verification-header h3 {
+    color: var(--text-primary);
+    margin: 0 0 12px;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.verification-header p {
+    color: var(--text-secondary);
+    margin: 0 0 16px;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+.email-highlight {
+    background: linear-gradient(135deg, #e8f5e8, #d4edda);
+    color: #155724;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 15px;
+    display: inline-block;
+    border: 1px solid rgba(21, 87, 36, 0.2);
+}
+
+.verification-form {
+    padding: 24px;
+}
+
+.verification-form .form-group {
+    margin-bottom: 20px;
+}
+
+.verification-form label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    color: var(--text-primary);
+    font-size: 14px;
+    text-align: center;
+}
+
+.otp-input {
+    width: 100%;
+    padding: 16px 20px;
+    border: 2px solid var(--card-border);
+    border-radius: 12px;
+    font-size: 24px;
+    font-weight: 700;
+    text-align: center;
+    letter-spacing: 8px;
+    background: var(--card-bg);
+    color: var(--text-primary);
+    transition: all 0.3s ease;
+    font-family: 'Courier New', monospace;
+}
+
+.otp-input:focus {
+    outline: none;
+    border-color: #1CBC9B;
+    box-shadow: 0 0 0 3px rgba(28, 188, 155, 0.1);
+    background: rgba(28, 188, 155, 0.02);
+}
+
+.verification-info {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.timer-display {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #fff3cd;
+    color: #856404;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+    border: 1px solid rgba(133, 100, 4, 0.2);
+}
+
+.timer-display i {
+    color: #ffc107;
+}
+
+.resend-link {
+    background: none;
+    border: none;
+    color: #1CBC9B;
+    text-decoration: underline;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 8px 16px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+.resend-link:hover:not(:disabled) {
+    background: rgba(28, 188, 155, 0.1);
+    text-decoration: none;
+}
+
+.resend-link:disabled {
+    color: #6c757d;
+    cursor: not-allowed;
+    text-decoration: none;
+}
+
+.verification-message {
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    text-align: center;
+    margin-top: 16px;
+}
+
+.verification-message.success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid rgba(21, 87, 36, 0.2);
+}
+
+.verification-message.error {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid rgba(114, 28, 36, 0.2);
+}
+
+/* Mobile responsive styles for verification */
+@media (max-width: 768px) {
+    .verification-card {
+        margin: 0 16px;
+        border-radius: 8px;
+    }
+    
+    .verification-header {
+        padding: 24px 20px;
+    }
+    
+    .verification-header h3 {
+        font-size: 18px;
+    }
+    
+    .email-highlight {
+        font-size: 14px;
+        padding: 6px 12px;
+    }
+    
+    .verification-form {
+        padding: 20px;
+    }
+    
+    .otp-input {
+        font-size: 20px;
+        padding: 14px 16px;
+        letter-spacing: 6px;
+    }
+    
+    .timer-display {
+        font-size: 12px;
+        padding: 6px 12px;
+    }
+}
+
+@media (max-width: 480px) {
+    .verification-header {
+        padding: 20px 16px;
+    }
+    
+    .verification-form {
+        padding: 16px;
+    }
+    
+    .otp-input {
+        font-size: 18px;
+        padding: 12px 14px;
+        letter-spacing: 4px;
+    }
+    
+    .email-highlight {
+        font-size: 13px;
+        word-break: break-all;
+    }
 }
