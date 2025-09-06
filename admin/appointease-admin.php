@@ -12,6 +12,23 @@ class AppointEase_Admin {
         add_action('wp_ajax_delete_staff', array($this, 'delete_staff'));
         add_action('wp_ajax_update_appointment_status', array($this, 'update_appointment_status'));
         add_action('wp_ajax_delete_appointment', array($this, 'delete_appointment'));
+        add_action('wp_ajax_get_calendar_data', array($this, 'get_calendar_data'));
+        add_action('wp_ajax_save_category', array($this, 'save_category'));
+        add_action('wp_ajax_delete_category', array($this, 'delete_category'));
+        add_action('wp_ajax_save_customer', array($this, 'save_customer'));
+        add_action('wp_ajax_delete_customer', array($this, 'delete_customer'));
+        add_action('wp_ajax_save_email_template', array($this, 'save_email_template'));
+        add_action('wp_ajax_delete_email_template', array($this, 'delete_email_template'));
+        add_action('wp_ajax_test_email', array($this, 'test_email'));
+        add_action('wp_ajax_preview_email_template', array($this, 'preview_email_template'));
+        add_action('wp_ajax_save_holiday', array($this, 'save_holiday'));
+        add_action('wp_ajax_delete_holiday', array($this, 'delete_holiday'));
+        add_action('wp_ajax_export_appointments', array($this, 'export_appointments'));
+        add_action('wp_ajax_bulk_appointment_action', array($this, 'bulk_appointment_action'));
+        add_action('wp_ajax_save_staff_availability', array($this, 'save_staff_availability'));
+        add_action('wp_ajax_save_blackout_date', array($this, 'save_blackout_date'));
+        add_action('wp_ajax_create_manual_booking', array($this, 'create_manual_booking'));
+        add_action('wp_ajax_reschedule_appointment', array($this, 'reschedule_appointment'));
         add_action('admin_init', array($this, 'init_settings'));
     }
     
@@ -19,6 +36,7 @@ class AppointEase_Admin {
         if (strpos($hook, 'appointease') !== false) {
             wp_enqueue_style('appointease-admin', BOOKING_PLUGIN_URL . 'admin/appointease-admin.css', array(), '1.0.0');
             wp_enqueue_script('appointease-admin', BOOKING_PLUGIN_URL . 'admin/appointease-admin.js', array('jquery'), '1.0.0', true);
+            wp_enqueue_script('appointease-calendar', BOOKING_PLUGIN_URL . 'admin/calendar-integration.js', array('jquery'), '1.0.0', true);
             
             wp_localize_script('appointease-admin', 'appointeaseAdmin', array(
                 'nonce' => wp_create_nonce('appointease_nonce'),
@@ -63,6 +81,60 @@ class AppointEase_Admin {
             'manage_options',
             'appointease-appointments',
             array($this, 'appointments_page')
+        );
+        
+        add_submenu_page(
+            'appointease',
+            'Calendar',
+            'Calendar',
+            'manage_options',
+            'appointease-calendar',
+            array($this, 'calendar_page')
+        );
+        
+        add_submenu_page(
+            'appointease',
+            'Reports',
+            'Reports',
+            'manage_options',
+            'appointease-reports',
+            array($this, 'reports_page')
+        );
+        
+        add_submenu_page(
+            'appointease',
+            'Customers',
+            'Customers',
+            'manage_options',
+            'appointease-customers',
+            array($this, 'customers_page')
+        );
+        
+        add_submenu_page(
+            'appointease',
+            'Categories',
+            'Categories',
+            'manage_options',
+            'appointease-categories',
+            array($this, 'categories_page')
+        );
+        
+        add_submenu_page(
+            'appointease',
+            'Email Templates',
+            'Email Templates',
+            'manage_options',
+            'appointease-emails',
+            array($this, 'emails_page')
+        );
+        
+        add_submenu_page(
+            'appointease',
+            'Holidays',
+            'Holidays',
+            'manage_options',
+            'appointease-holidays',
+            array($this, 'holidays_page')
         );
         
         add_submenu_page(
@@ -443,7 +515,10 @@ class AppointEase_Admin {
         ?>
         <div class="appointease-wrap">
             <div class="ae-page-header">
-                <h1>Appointments</h1>
+                <div class="page-title">
+                    <h1><i class="dashicons dashicons-calendar-alt"></i> Appointments</h1>
+                    <p class="page-subtitle">Manage all appointments</p>
+                </div>
                 <div class="ae-header-actions">
                     <input type="text" id="appointment-search" placeholder="Search appointments..." class="ae-search-input" />
                     <select id="status-filter" class="ae-filter-select">
@@ -451,6 +526,12 @@ class AppointEase_Admin {
                         <option value="confirmed">Confirmed</option>
                         <option value="cancelled">Cancelled</option>
                     </select>
+                    <select id="bulk-action" class="ae-filter-select">
+                        <option value="">Bulk Actions</option>
+                        <option value="confirm">Confirm Selected</option>
+                        <option value="delete">Delete Selected</option>
+                    </select>
+                    <button class="ae-btn primary" onclick="applyBulkAction()">Apply</button>
                 </div>
             </div>
             
@@ -458,6 +539,7 @@ class AppointEase_Admin {
                 <table class="ae-table">
                     <thead>
                         <tr>
+                            <th><input type="checkbox" id="select-all" /></th>
                             <th>ID</th>
                             <th>Customer</th>
                             <th>Service</th>
@@ -471,6 +553,7 @@ class AppointEase_Admin {
                         <?php if($appointments): ?>
                             <?php foreach($appointments as $appointment): ?>
                             <tr>
+                                <td><input type="checkbox" class="appointment-checkbox" value="<?php echo $appointment->id; ?>" /></td>
                                 <td><?php echo $appointment->id; ?></td>
                                 <td>
                                     <strong><?php echo esc_html($appointment->name); ?></strong><br>
@@ -489,6 +572,7 @@ class AppointEase_Admin {
                                         <option value="confirmed" <?php selected($appointment->status, 'confirmed'); ?>>Confirmed</option>
                                         <option value="cancelled" <?php selected($appointment->status, 'cancelled'); ?>>Cancelled</option>
                                     </select>
+                                    <button class="ae-btn-small" onclick="rescheduleAppointment(<?php echo $appointment->id; ?>)">Reschedule</button>
                                     <button class="ae-btn-small danger" onclick="deleteAppointment(<?php echo $appointment->id; ?>)">Delete</button>
                                 </td>
                             </tr>
@@ -504,6 +588,27 @@ class AppointEase_Admin {
                         <?php endif; ?>
                     </tbody>
                 </table>
+            </div>
+            
+            <!-- Reschedule Modal -->
+            <div id="reschedule-modal" class="ae-modal">
+                <div class="ae-modal-content">
+                    <div class="ae-modal-header">
+                        <h3>Reschedule Appointment</h3>
+                        <button class="ae-close">&times;</button>
+                    </div>
+                    <form id="reschedule-form">
+                        <input type="hidden" id="reschedule-appointment-id" />
+                        <div class="ae-form-group">
+                            <label class="ae-form-label">New Date & Time *</label>
+                            <input type="datetime-local" id="reschedule-datetime" class="ae-form-input" required />
+                        </div>
+                        <div class="ae-form-actions">
+                            <button type="button" class="ae-btn" onclick="jQuery('#reschedule-modal').removeClass('show')">Cancel</button>
+                            <button type="submit" class="ae-btn primary">Reschedule</button>
+                        </div>
+                    </form>
+                </div>
             </div>
         </div>
         <?php
@@ -544,6 +649,408 @@ class AppointEase_Admin {
         } else {
             wp_send_json_error('Failed to delete appointment');
         }
+    }
+    
+    public function get_calendar_data() {
+        check_ajax_referer('appointease_nonce', '_wpnonce');
+        global $wpdb;
+        
+        $appointments = $wpdb->get_results(
+            "SELECT a.*, s.name as service_name, st.name as staff_name 
+             FROM {$wpdb->prefix}appointments a 
+             LEFT JOIN {$wpdb->prefix}appointease_services s ON a.service_id = s.id 
+             LEFT JOIN {$wpdb->prefix}appointease_staff st ON a.employee_id = st.id 
+             WHERE a.appointment_date >= CURDATE()"
+        );
+        
+        $events = array();
+        foreach($appointments as $appointment) {
+            $events[] = array(
+                'id' => $appointment->id,
+                'title' => $appointment->name . ' - ' . $appointment->service_name,
+                'start' => $appointment->appointment_date,
+                'end' => date('Y-m-d H:i:s', strtotime($appointment->appointment_date . ' +1 hour')),
+                'status' => $appointment->status
+            );
+        }
+        
+        wp_send_json_success($events);
+    }
+    
+    public function save_category() {
+        check_ajax_referer('appointease_nonce', '_wpnonce');
+        global $wpdb;
+        
+        $id = intval($_POST['id']);
+        $name = sanitize_text_field($_POST['name']);
+        $description = sanitize_textarea_field($_POST['description']);
+        $color = sanitize_hex_color($_POST['color']);
+        
+        if($id) {
+            $wpdb->update(
+                $wpdb->prefix . 'appointease_categories',
+                array('name' => $name, 'description' => $description, 'color' => $color),
+                array('id' => $id)
+            );
+        } else {
+            $wpdb->insert(
+                $wpdb->prefix . 'appointease_categories',
+                array('name' => $name, 'description' => $description, 'color' => $color)
+            );
+        }
+        
+        wp_send_json_success();
+    }
+    
+    public function delete_category() {
+        check_ajax_referer('appointease_nonce', '_wpnonce');
+        global $wpdb;
+        $id = intval($_POST['id']);
+        
+        $result = $wpdb->delete(
+            $wpdb->prefix . 'appointease_categories',
+            array('id' => $id),
+            array('%d')
+        );
+        
+        if($result) {
+            wp_send_json_success();
+        } else {
+            wp_send_json_error('Failed to delete category');
+        }
+    }
+    
+    public function save_customer() {
+        check_ajax_referer('appointease_nonce', '_wpnonce');
+        global $wpdb;
+        
+        $id = intval($_POST['id']);
+        $name = sanitize_text_field($_POST['name']);
+        $email = sanitize_email($_POST['email']);
+        $phone = sanitize_text_field($_POST['phone']);
+        $notes = sanitize_textarea_field($_POST['notes']);
+        
+        if($id) {
+            $wpdb->update(
+                $wpdb->prefix . 'appointease_customers',
+                array('name' => $name, 'email' => $email, 'phone' => $phone, 'notes' => $notes),
+                array('id' => $id)
+            );
+        } else {
+            $wpdb->insert(
+                $wpdb->prefix . 'appointease_customers',
+                array('name' => $name, 'email' => $email, 'phone' => $phone, 'notes' => $notes)
+            );
+        }
+        
+        wp_send_json_success();
+    }
+    
+    public function delete_customer() {
+        check_ajax_referer('appointease_nonce', '_wpnonce');
+        global $wpdb;
+        $id = intval($_POST['id']);
+        
+        $result = $wpdb->delete(
+            $wpdb->prefix . 'appointease_customers',
+            array('id' => $id),
+            array('%d')
+        );
+        
+        if($result) {
+            wp_send_json_success();
+        } else {
+            wp_send_json_error('Failed to delete customer');
+        }
+    }
+    
+    public function save_email_template() {
+        check_ajax_referer('appointease_nonce', '_wpnonce');
+        global $wpdb;
+        
+        $id = intval($_POST['id']);
+        $name = sanitize_text_field($_POST['name']);
+        $type = sanitize_text_field($_POST['type']);
+        $subject = sanitize_text_field($_POST['subject']);
+        $body = sanitize_textarea_field($_POST['body']);
+        
+        if($id) {
+            $wpdb->update(
+                $wpdb->prefix . 'appointease_email_templates',
+                array('name' => $name, 'type' => $type, 'subject' => $subject, 'body' => $body),
+                array('id' => $id)
+            );
+        } else {
+            $wpdb->insert(
+                $wpdb->prefix . 'appointease_email_templates',
+                array('name' => $name, 'type' => $type, 'subject' => $subject, 'body' => $body)
+            );
+        }
+        
+        wp_send_json_success();
+    }
+    
+    public function delete_email_template() {
+        check_ajax_referer('appointease_nonce', '_wpnonce');
+        global $wpdb;
+        $id = intval($_POST['id']);
+        
+        $result = $wpdb->delete(
+            $wpdb->prefix . 'appointease_email_templates',
+            array('id' => $id),
+            array('%d')
+        );
+        
+        if($result) {
+            wp_send_json_success();
+        } else {
+            wp_send_json_error('Failed to delete template');
+        }
+    }
+    
+    public function test_email() {
+        check_ajax_referer('appointease_nonce', '_wpnonce');
+        $email_settings = get_option('appointease_email_settings', array());
+        
+        $to = $email_settings['from_email'] ?? get_option('admin_email');
+        $subject = 'AppointEase Test Email';
+        $message = 'This is a test email from AppointEase booking system.';
+        
+        $sent = wp_mail($to, $subject, $message);
+        
+        if($sent) {
+            wp_send_json_success('Test email sent successfully!');
+        } else {
+            wp_send_json_error('Failed to send test email');
+        }
+    }
+    
+    public function preview_email_template() {
+        check_ajax_referer('appointease_nonce', '_wpnonce');
+        global $wpdb;
+        $id = intval($_POST['id']);
+        
+        $template = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}appointease_email_templates WHERE id = %d", $id));
+        
+        if ($template) {
+            $sample_vars = array(
+                'customer_name' => 'John Doe',
+                'appointment_id' => '123',
+                'appointment_date' => '2024-01-15 10:00 AM',
+                'service_name' => 'Consultation',
+                'staff_name' => 'Sarah Johnson',
+                'business_name' => get_bloginfo('name')
+            );
+            
+            $subject = $template->subject;
+            $body = $template->body;
+            
+            foreach ($sample_vars as $key => $value) {
+                $subject = str_replace('{{' . $key . '}}', $value, $subject);
+                $body = str_replace('{{' . $key . '}}', $value, $body);
+            }
+            
+            wp_send_json_success(array('subject' => $subject, 'body' => $body));
+        } else {
+            wp_send_json_error('Template not found');
+        }
+    }
+    
+    public function holidays_page() {
+        global $wpdb;
+        $holidays = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}appointease_blackout_dates ORDER BY start_date DESC");
+        ?>
+        <div class="appointease-wrap">
+            <div class="ae-page-header">
+                <div class="page-title">
+                    <h1><i class="dashicons dashicons-calendar-alt"></i> Holidays & Closing Days</h1>
+                    <p class="page-subtitle">Manage business holidays and special closing days</p>
+                </div>
+                <div class="page-actions">
+                    <button class="ae-btn primary" onclick="openHolidayModal()">Add Holiday</button>
+                </div>
+            </div>
+            
+            <div class="ae-table-container">
+                <table class="ae-table">
+                    <thead>
+                        <tr>
+                            <th>Holiday Name</th>
+                            <th>Start Date</th>
+                            <th>End Date</th>
+                            <th>Type</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if($holidays): ?>
+                            <?php foreach($holidays as $holiday): ?>
+                            <tr>
+                                <td><?php echo esc_html($holiday->reason ?: 'Holiday'); ?></td>
+                                <td><?php echo date('M j, Y', strtotime($holiday->start_date)); ?></td>
+                                <td><?php echo date('M j, Y', strtotime($holiday->end_date)); ?></td>
+                                <td>
+                                    <?php if($holiday->start_date === $holiday->end_date): ?>
+                                        <span class="status-badge">Single Day</span>
+                                    <?php else: ?>
+                                        <span class="status-badge confirmed">Date Range</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <button class="ae-btn-small" onclick="editHoliday(<?php echo $holiday->id; ?>)">Edit</button>
+                                    <button class="ae-btn-small danger" onclick="deleteHoliday(<?php echo $holiday->id; ?>)">Delete</button>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <tr>
+                                <td colspan="5" class="ae-empty-state">
+                                    <div class="ae-empty-state-icon">🏖️</div>
+                                    <h3>No holidays set</h3>
+                                    <p>Add holidays and special closing days to prevent bookings</p>
+                                </td>
+                            </tr>
+                        <?php endif; ?>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Holiday Modal -->
+            <div id="holiday-modal" class="ae-modal">
+                <div class="ae-modal-content">
+                    <div class="ae-modal-header">
+                        <h3 id="holiday-modal-title">Add Holiday</h3>
+                        <button class="ae-close">&times;</button>
+                    </div>
+                    <form id="holiday-form">
+                        <input type="hidden" id="holiday-id" />
+                        <div class="ae-form-group">
+                            <label class="ae-form-label">Holiday Name *</label>
+                            <input type="text" id="holiday-name" class="ae-form-input" placeholder="e.g., Christmas Day, Summer Break" required />
+                        </div>
+                        <div class="ae-form-group">
+                            <label class="ae-form-label">Start Date *</label>
+                            <input type="date" id="holiday-start" class="ae-form-input" required />
+                        </div>
+                        <div class="ae-form-group">
+                            <label class="ae-form-label">End Date *</label>
+                            <input type="date" id="holiday-end" class="ae-form-input" required />
+                        </div>
+                        <div class="ae-form-group">
+                            <label class="ae-form-label">Quick Presets</label>
+                            <div class="holiday-presets">
+                                <button type="button" class="ae-btn-small" onclick="setHolidayPreset('Christmas Day', '12-25')">Christmas</button>
+                                <button type="button" class="ae-btn-small" onclick="setHolidayPreset('New Year Day', '01-01')">New Year</button>
+                                <button type="button" class="ae-btn-small" onclick="setHolidayPreset('Independence Day', '07-04')">July 4th</button>
+                            </div>
+                        </div>
+                        <div class="ae-form-actions">
+                            <button type="button" class="ae-btn" onclick="jQuery('#holiday-modal').removeClass('show')">Cancel</button>
+                            <button type="submit" class="ae-btn primary">Save Holiday</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <?php
+    }
+    
+    public function save_holiday() {
+        check_ajax_referer('appointease_nonce', '_wpnonce');
+        global $wpdb;
+        
+        $id = intval($_POST['id']);
+        $name = sanitize_text_field($_POST['name']);
+        $start_date = sanitize_text_field($_POST['start_date']);
+        $end_date = sanitize_text_field($_POST['end_date']);
+        
+        if($id) {
+            $wpdb->update(
+                $wpdb->prefix . 'appointease_blackout_dates',
+                array('reason' => $name, 'start_date' => $start_date, 'end_date' => $end_date),
+                array('id' => $id)
+            );
+        } else {
+            $wpdb->insert(
+                $wpdb->prefix . 'appointease_blackout_dates',
+                array('reason' => $name, 'start_date' => $start_date, 'end_date' => $end_date)
+            );
+        }
+        
+        wp_send_json_success();
+    }
+    
+    public function delete_holiday() {
+        check_ajax_referer('appointease_nonce', '_wpnonce');
+        global $wpdb;
+        $id = intval($_POST['id']);
+        
+        $result = $wpdb->delete(
+            $wpdb->prefix . 'appointease_blackout_dates',
+            array('id' => $id),
+            array('%d')
+        );
+        
+        if($result) {
+            wp_send_json_success();
+        } else {
+            wp_send_json_error('Failed to delete holiday');
+        }
+    }
+    
+    public function export_appointments() {
+        check_ajax_referer('appointease_nonce', '_wpnonce');
+        global $wpdb;
+        
+        $appointments = $wpdb->get_results(
+            "SELECT a.*, s.name as service_name, st.name as staff_name 
+             FROM {$wpdb->prefix}appointments a 
+             LEFT JOIN {$wpdb->prefix}appointease_services s ON a.service_id = s.id 
+             LEFT JOIN {$wpdb->prefix}appointease_staff st ON a.employee_id = st.id 
+             ORDER BY a.appointment_date DESC"
+        );
+        
+        $csv_data = "ID,Customer Name,Email,Phone,Service,Staff,Date,Status,Amount\n";
+        foreach($appointments as $appointment) {
+            $csv_data .= sprintf(
+                "%d,%s,%s,%s,%s,%s,%s,%s,%.2f\n",
+                $appointment->id,
+                $appointment->name,
+                $appointment->email,
+                $appointment->phone,
+                $appointment->service_name,
+                $appointment->staff_name,
+                $appointment->appointment_date,
+                $appointment->status,
+                $appointment->total_amount ?: 0
+            );
+        }
+        
+        wp_send_json_success(array('csv' => $csv_data));
+    }
+    
+    public function bulk_appointment_action() {
+        check_ajax_referer('appointease_nonce', '_wpnonce');
+        global $wpdb;
+        
+        $action = sanitize_text_field($_POST['bulk_action']);
+        $appointment_ids = array_map('intval', $_POST['appointment_ids']);
+        
+        if($action === 'delete') {
+            $placeholders = implode(',', array_fill(0, count($appointment_ids), '%d'));
+            $wpdb->query($wpdb->prepare(
+                "DELETE FROM {$wpdb->prefix}appointments WHERE id IN ($placeholders)",
+                $appointment_ids
+            ));
+        } elseif($action === 'confirm') {
+            $placeholders = implode(',', array_fill(0, count($appointment_ids), '%d'));
+            $wpdb->query($wpdb->prepare(
+                "UPDATE {$wpdb->prefix}appointments SET status = 'confirmed' WHERE id IN ($placeholders)",
+                $appointment_ids
+            ));
+        }
+        
+        wp_send_json_success();
     }
     
     public function init_settings() {
@@ -639,6 +1146,50 @@ class AppointEase_Admin {
                 </div>
                 
                 <div class="ae-card">
+                    <h3>Blackout Dates</h3>
+                    <div class="form-group">
+                        <label>Add Blackout Date Range</label>
+                        <div class="form-row">
+                            <input type="date" id="blackout-start" class="form-control" />
+                            <input type="date" id="blackout-end" class="form-control" />
+                            <input type="text" id="blackout-reason" placeholder="Reason" class="form-control" />
+                            <button type="button" class="ae-btn primary" onclick="addBlackoutDate()">Add</button>
+                        </div>
+                    </div>
+                    <div id="blackout-dates-list">
+                        <?php
+                        global $wpdb;
+                        $blackout_dates = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}appointease_blackout_dates ORDER BY start_date");
+                        foreach($blackout_dates as $blackout): ?>
+                        <div class="blackout-item">
+                            <span><?php echo $blackout->start_date; ?> to <?php echo $blackout->end_date; ?></span>
+                            <span><?php echo $blackout->reason; ?></span>
+                            <button type="button" class="ae-btn-small danger" onclick="removeBlackoutDate(<?php echo $blackout->id; ?>)">Remove</button>
+                        </div>
+                        <?php endforeach; ?>
+                    </div>
+                </div>
+                
+                <div class="ae-card">
+                    <h3>Staff Availability</h3>
+                    <div class="form-group">
+                        <label>Default Working Hours</label>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Monday</label>
+                                <input type="time" name="appointease_options[default_hours][mon][start]" value="<?php echo $options['default_hours']['mon']['start'] ?? '09:00'; ?>" />
+                                <input type="time" name="appointease_options[default_hours][mon][end]" value="<?php echo $options['default_hours']['mon']['end'] ?? '17:00'; ?>" />
+                            </div>
+                            <div class="form-group">
+                                <label>Tuesday</label>
+                                <input type="time" name="appointease_options[default_hours][tue][start]" value="<?php echo $options['default_hours']['tue']['start'] ?? '09:00'; ?>" />
+                                <input type="time" name="appointease_options[default_hours][tue][end]" value="<?php echo $options['default_hours']['tue']['end'] ?? '17:00'; ?>" />
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="ae-card">
                     <h3>Appearance</h3>
                     <div class="form-group">
                         <label>Primary Color</label>
@@ -654,6 +1205,487 @@ class AppointEase_Admin {
             </form>
         </div>
         <?php
+    }
+    
+    public function calendar_page() {
+        ?>
+        <div class="appointease-wrap">
+            <div class="ae-page-header">
+                <div class="page-title">
+                    <h1><i class="dashicons dashicons-calendar-alt"></i> Calendar</h1>
+                    <p class="page-subtitle">Visual appointment management</p>
+                </div>
+                <div class="page-actions">
+                    <button class="ae-btn primary" onclick="location.reload()">Refresh</button>
+                </div>
+            </div>
+            <div id="appointease-calendar-root" style="padding: 30px; background: white; min-height: 500px; display: block; visibility: visible;">
+                <div class="calendar-fallback" style="text-align: center; padding: 40px; color: #7f8c8d;">
+                    <i class="dashicons dashicons-calendar-alt" style="font-size: 48px; margin-bottom: 20px;"></i>
+                    <h3>Calendar Loading...</h3>
+                    <p>If the calendar doesn't load, please refresh the page.</p>
+                </div>
+            </div>
+            
+            <noscript>
+                <div style="padding: 30px; background: #fff3cd; border: 1px solid #ffeaa7; border-radius: 6px; margin-top: 20px;">
+                    <strong>JavaScript Required:</strong> The calendar requires JavaScript to function properly. Please enable JavaScript in your browser.
+                </div>
+            </noscript>
+        </div>
+        <script>
+        jQuery(document).ready(function($) {
+            console.log('Calendar page loaded');
+            
+            // Show loading state
+            $('#appointease-calendar-root').show().html('<div style="padding: 40px; text-align: center; color: #7f8c8d;"><i class="dashicons dashicons-update" style="font-size: 24px; animation: spin 1s linear infinite;"></i><br><br>Loading calendar data...</div>');
+            
+            // Load calendar data
+            $.post(appointeaseAdmin.ajaxurl, {
+                action: 'get_calendar_data',
+                _wpnonce: appointeaseAdmin.nonce
+            }, function(response) {
+                console.log('Calendar data response:', response);
+                if (response.success) {
+                    window.appointeaseCalendarData = response.data;
+                    console.log('Calendar data loaded:', response.data.length, 'appointments');
+                    
+                    // Initialize calendar
+                    if (typeof window.initSimpleCalendar === 'function') {
+                        window.initSimpleCalendar();
+                    } else {
+                        console.log('initSimpleCalendar not available, trying fallback');
+                        setTimeout(function() {
+                            if (typeof window.initSimpleCalendar === 'function') {
+                                window.initSimpleCalendar();
+                            } else {
+                                $('#appointease-calendar-root').html('<div style="padding: 40px; text-align: center;"><h3>Calendar View</h3><p>Loaded ' + response.data.length + ' appointments</p><p><a href="admin.php?page=appointease-appointments">View Appointments List</a></p></div>');
+                            }
+                        }, 500);
+                    }
+                } else {
+                    $('#appointease-calendar-root').html('<div style="padding: 40px; text-align: center; color: #e74c3c;"><h3>Failed to load calendar data</h3><p>Error: ' + (response.data || 'Unknown error') + '</p></div>');
+                }
+            }).fail(function(xhr, status, error) {
+                console.error('Calendar AJAX failed:', status, error);
+                $('#appointease-calendar-root').html('<div style="padding: 40px; text-align: center; color: #e74c3c;"><h3>Error loading calendar</h3><p>Please check your connection and try again.</p><button class="ae-btn primary" onclick="location.reload()">Retry</button></div>');
+            });
+        });
+        
+        // Add spinning animation for loading
+        $('<style>@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }</style>').appendTo('head');
+        </script>
+        <?php
+    }
+    
+    public function reports_page() {
+        global $wpdb;
+        $total_appointments = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}appointments");
+        $total_revenue = $wpdb->get_var("SELECT SUM(total_amount) FROM {$wpdb->prefix}appointments WHERE payment_status = 'paid'");
+        $monthly_stats = $wpdb->get_results(
+            "SELECT DATE_FORMAT(appointment_date, '%Y-%m') as month, COUNT(*) as count, SUM(total_amount) as revenue 
+             FROM {$wpdb->prefix}appointments 
+             WHERE appointment_date >= DATE_SUB(NOW(), INTERVAL 12 MONTH) 
+             GROUP BY DATE_FORMAT(appointment_date, '%Y-%m') 
+             ORDER BY month DESC"
+        );
+        ?>
+        <div class="appointease-wrap">
+            <div class="ae-page-header">
+                <div class="page-title">
+                    <h1><i class="dashicons dashicons-chart-bar"></i> Reports & Analytics</h1>
+                    <p class="page-subtitle">Business insights and statistics</p>
+                </div>
+                <div class="page-actions">
+                    <button class="ae-btn primary" onclick="exportAppointments()">Export Data</button>
+                </div>
+            </div>
+            
+            <div class="ae-dashboard" style="padding: 30px;">
+                <div class="ae-stats" style="margin-bottom: 40px;">
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="dashicons dashicons-calendar-alt"></i></div>
+                        <div class="stat-info">
+                            <h3><?php echo $total_appointments; ?></h3>
+                            <p>Total Appointments</p>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-icon"><i class="dashicons dashicons-money-alt"></i></div>
+                        <div class="stat-info">
+                            <h3>$<?php echo number_format($total_revenue ?: 0, 2); ?></h3>
+                            <p>Total Revenue</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="ae-card">
+                    <h3>Monthly Statistics</h3>
+                    <table class="ae-table">
+                        <thead>
+                            <tr>
+                                <th>Month</th>
+                                <th>Appointments</th>
+                                <th>Revenue</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach($monthly_stats as $stat): ?>
+                            <tr>
+                                <td><?php echo date('F Y', strtotime($stat->month . '-01')); ?></td>
+                                <td><?php echo $stat->count; ?></td>
+                                <td>$<?php echo number_format($stat->revenue ?: 0, 2); ?></td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <?php
+    }
+    
+    public function customers_page() {
+        global $wpdb;
+        $customers = $wpdb->get_results(
+            "SELECT c.*, COUNT(a.id) as appointment_count, SUM(a.total_amount) as total_spent
+             FROM {$wpdb->prefix}appointease_customers c
+             LEFT JOIN {$wpdb->prefix}appointments a ON c.id = a.customer_id
+             GROUP BY c.id ORDER BY c.created_at DESC"
+        );
+        ?>
+        <div class="appointease-wrap">
+            <div class="ae-page-header">
+                <div class="page-title">
+                    <h1><i class="dashicons dashicons-groups"></i> Customers</h1>
+                    <p class="page-subtitle">Manage customer database</p>
+                </div>
+                <div class="page-actions">
+                    <button class="ae-btn primary" onclick="openCustomerModal()">Add Customer</button>
+                </div>
+            </div>
+            
+            <div class="ae-table-container">
+                <table class="ae-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Phone</th>
+                            <th>Appointments</th>
+                            <th>Total Spent</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php foreach($customers as $customer): ?>
+                        <tr>
+                            <td><?php echo esc_html($customer->name); ?></td>
+                            <td><?php echo esc_html($customer->email); ?></td>
+                            <td><?php echo esc_html($customer->phone); ?></td>
+                            <td><?php echo $customer->appointment_count; ?></td>
+                            <td>$<?php echo number_format($customer->total_spent ?: 0, 2); ?></td>
+                            <td>
+                                <button class="ae-btn-small" onclick="editCustomer(<?php echo $customer->id; ?>)">Edit</button>
+                                <button class="ae-btn-small danger" onclick="deleteCustomer(<?php echo $customer->id; ?>)">Delete</button>
+                            </td>
+                        </tr>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+            
+            <div id="customer-modal" class="ae-modal">
+                <div class="ae-modal-content">
+                    <div class="ae-modal-header">
+                        <h3 id="customer-modal-title">Add Customer</h3>
+                        <button class="ae-close">&times;</button>
+                    </div>
+                    <form id="customer-form">
+                        <input type="hidden" id="customer-id" />
+                        <div class="ae-form-group">
+                            <label class="ae-form-label">Name *</label>
+                            <input type="text" id="customer-name" class="ae-form-input" required />
+                        </div>
+                        <div class="ae-form-group">
+                            <label class="ae-form-label">Email *</label>
+                            <input type="email" id="customer-email" class="ae-form-input" required />
+                        </div>
+                        <div class="ae-form-group">
+                            <label class="ae-form-label">Phone</label>
+                            <input type="tel" id="customer-phone" class="ae-form-input" />
+                        </div>
+                        <div class="ae-form-group">
+                            <label class="ae-form-label">Notes</label>
+                            <textarea id="customer-notes" class="ae-form-input ae-form-textarea"></textarea>
+                        </div>
+                        <div class="ae-form-actions">
+                            <button type="button" class="ae-btn" onclick="jQuery('#customer-modal').removeClass('show')">Cancel</button>
+                            <button type="submit" class="ae-btn primary">Save Customer</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <?php
+    }
+    
+    public function categories_page() {
+        global $wpdb;
+        $categories = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}appointease_categories ORDER BY created_at DESC");
+        ?>
+        <div class="appointease-wrap">
+            <div class="ae-page-header">
+                <div class="page-title">
+                    <h1><i class="dashicons dashicons-category"></i> Service Categories</h1>
+                    <p class="page-subtitle">Organize your services</p>
+                </div>
+                <div class="page-actions">
+                    <button class="ae-btn primary" onclick="openCategoryModal()">Add Category</button>
+                </div>
+            </div>
+            
+            <div class="ae-cards">
+                <?php foreach($categories as $category): ?>
+                <div class="ae-card">
+                    <div class="card-icon" style="background: <?php echo $category->color; ?>;"></div>
+                    <div class="card-content">
+                        <h3><?php echo esc_html($category->name); ?></h3>
+                        <p><?php echo esc_html($category->description); ?></p>
+                    </div>
+                    <div class="card-actions">
+                        <button class="ae-btn-small" onclick="editCategory(<?php echo $category->id; ?>)">Edit</button>
+                        <button class="ae-btn-small danger" onclick="deleteCategory(<?php echo $category->id; ?>)">Delete</button>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+            
+            <div id="category-modal" class="ae-modal">
+                <div class="ae-modal-content">
+                    <div class="ae-modal-header">
+                        <h3 id="category-modal-title">Add Category</h3>
+                        <button class="ae-close">&times;</button>
+                    </div>
+                    <form id="category-form">
+                        <input type="hidden" id="category-id" />
+                        <div class="ae-form-group">
+                            <label class="ae-form-label">Name *</label>
+                            <input type="text" id="category-name" class="ae-form-input" required />
+                        </div>
+                        <div class="ae-form-group">
+                            <label class="ae-form-label">Description</label>
+                            <textarea id="category-description" class="ae-form-input ae-form-textarea"></textarea>
+                        </div>
+                        <div class="ae-form-group">
+                            <label class="ae-form-label">Color</label>
+                            <input type="color" id="category-color" class="ae-form-input" value="#1CBC9B" />
+                        </div>
+                        <div class="ae-form-actions">
+                            <button type="button" class="ae-btn" onclick="jQuery('#category-modal').removeClass('show')">Cancel</button>
+                            <button type="submit" class="ae-btn primary">Save Category</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <?php
+    }
+    
+    public function emails_page() {
+        global $wpdb;
+        $templates = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}appointease_email_templates ORDER BY created_at DESC");
+        $email_settings = get_option('appointease_email_settings', array());
+        
+        if (isset($_POST['save_email_settings'])) {
+            update_option('appointease_email_settings', $_POST['email_settings']);
+            echo '<div class="notice notice-success"><p>Email settings saved!</p></div>';
+        }
+        ?>
+        <div class="appointease-wrap">
+            <div class="ae-page-header">
+                <div class="page-title">
+                    <h1><i class="dashicons dashicons-email"></i> Email Templates & Settings</h1>
+                    <p class="page-subtitle">Manage email communications</p>
+                </div>
+                <div class="page-actions">
+                    <button class="ae-btn ghost" onclick="testEmail()">Test Email</button>
+                    <button class="ae-btn primary" onclick="openTemplateModal()">Add Template</button>
+                </div>
+            </div>
+            
+            <div style="padding: 30px;">
+                <div class="ae-card" style="margin-bottom: 30px;">
+                    <h3>SMTP Configuration</h3>
+                    <form method="post">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>SMTP Host</label>
+                                <input type="text" name="email_settings[smtp_host]" value="<?php echo $email_settings['smtp_host'] ?? ''; ?>" placeholder="smtp.gmail.com" />
+                            </div>
+                            <div class="form-group">
+                                <label>SMTP Port</label>
+                                <input type="number" name="email_settings[smtp_port]" value="<?php echo $email_settings['smtp_port'] ?? '587'; ?>" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Username</label>
+                                <input type="text" name="email_settings[smtp_username]" value="<?php echo $email_settings['smtp_username'] ?? ''; ?>" />
+                            </div>
+                            <div class="form-group">
+                                <label>Password</label>
+                                <input type="password" name="email_settings[smtp_password]" value="<?php echo $email_settings['smtp_password'] ?? ''; ?>" />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>From Email</label>
+                                <input type="email" name="email_settings[from_email]" value="<?php echo $email_settings['from_email'] ?? get_option('admin_email'); ?>" />
+                            </div>
+                            <div class="form-group">
+                                <label>From Name</label>
+                                <input type="text" name="email_settings[from_name]" value="<?php echo $email_settings['from_name'] ?? get_bloginfo('name'); ?>" />
+                            </div>
+                        </div>
+                        <button type="submit" name="save_email_settings" class="ae-btn primary">Save Settings</button>
+                    </form>
+                </div>
+                
+                <div class="ae-card">
+                    <h3>Email Templates</h3>
+                    <table class="ae-table">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Type</th>
+                                <th>Subject</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach($templates as $template): ?>
+                            <tr>
+                                <td><?php echo esc_html($template->name); ?></td>
+                                <td><?php echo ucfirst($template->type); ?></td>
+                                <td><?php echo esc_html($template->subject); ?></td>
+                                <td>
+                                    <span class="status-badge <?php echo $template->is_active ? 'confirmed' : 'cancelled'; ?>">
+                                        <?php echo $template->is_active ? 'Active' : 'Inactive'; ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <button class="ae-btn-small" onclick="previewTemplate(<?php echo $template->id; ?>)">Preview</button>
+                                    <button class="ae-btn-small" onclick="editTemplate(<?php echo $template->id; ?>)">Edit</button>
+                                    <button class="ae-btn-small danger" onclick="deleteTemplate(<?php echo $template->id; ?>)">Delete</button>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <div id="template-modal" class="ae-modal">
+                <div class="ae-modal-content" style="max-width: 700px;">
+                    <div class="ae-modal-header">
+                        <h3 id="template-modal-title">Add Email Template</h3>
+                        <button class="ae-close">&times;</button>
+                    </div>
+                    <form id="template-form">
+                        <input type="hidden" id="template-id" />
+                        <div class="ae-form-group">
+                            <label class="ae-form-label">Template Name *</label>
+                            <input type="text" id="template-name" class="ae-form-input" required />
+                        </div>
+                        <div class="ae-form-group">
+                            <label class="ae-form-label">Type *</label>
+                            <select id="template-type" class="ae-form-input" required>
+                                <option value="confirmation">Confirmation</option>
+                                <option value="reminder">Reminder</option>
+                                <option value="cancellation">Cancellation</option>
+                            </select>
+                        </div>
+                        <div class="ae-form-group">
+                            <label class="ae-form-label">Subject *</label>
+                            <input type="text" id="template-subject" class="ae-form-input" required />
+                        </div>
+                        <div class="ae-form-group">
+                            <label class="ae-form-label">Body *</label>
+                            <textarea id="template-body" class="ae-form-input ae-form-textarea" rows="10" required></textarea>
+                            <small>Available variables: {{customer_name}}, {{appointment_date}}, {{service_name}}, {{staff_name}}, {{total_amount}}</small>
+                        </div>
+                        <div class="ae-form-actions">
+                            <button type="button" class="ae-btn" onclick="jQuery('#template-modal').removeClass('show')">Cancel</button>
+                            <button type="submit" class="ae-btn primary">Save Template</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <?php
+    }
+    
+    public function create_manual_booking() {
+        check_ajax_referer('appointease_nonce', '_wpnonce');
+        global $wpdb;
+        
+        $name = sanitize_text_field($_POST['name']);
+        $email = sanitize_email($_POST['email']);
+        $phone = sanitize_text_field($_POST['phone']);
+        $appointment_date = sanitize_text_field($_POST['appointment_date']);
+        
+        if (empty($name) || empty($email) || empty($appointment_date)) {
+            wp_send_json_error('Name, email, and appointment date are required.');
+            return;
+        }
+        
+        $result = $wpdb->insert(
+            $wpdb->prefix . 'appointments',
+            array(
+                'name' => $name,
+                'email' => $email,
+                'phone' => $phone,
+                'appointment_date' => $appointment_date,
+                'status' => 'confirmed',
+                'created_at' => current_time('mysql')
+            ),
+            array('%s', '%s', '%s', '%s', '%s', '%s')
+        );
+        
+        if ($result) {
+            wp_send_json_success('Appointment created successfully');
+        } else {
+            wp_send_json_error('Failed to create appointment');
+        }
+    }
+    
+    public function reschedule_appointment() {
+        check_ajax_referer('appointease_nonce', '_wpnonce');
+        global $wpdb;
+        
+        $id = intval($_POST['id']);
+        $new_datetime = sanitize_text_field($_POST['new_datetime']);
+        
+        if (empty($id) || empty($new_datetime)) {
+            wp_send_json_error('Appointment ID and new date/time are required.');
+            return;
+        }
+        
+        $result = $wpdb->update(
+            $wpdb->prefix . 'appointments',
+            array('appointment_date' => $new_datetime),
+            array('id' => $id),
+            array('%s'),
+            array('%d')
+        );
+        
+        if ($result !== false) {
+            wp_send_json_success('Appointment rescheduled successfully');
+        } else {
+            wp_send_json_error('Failed to reschedule appointment');
+        }
     }
     
     private function ensure_default_data() {

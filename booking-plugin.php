@@ -27,15 +27,51 @@ require_once BOOKING_PLUGIN_PATH . 'includes/class-activator.php';
 require_once BOOKING_PLUGIN_PATH . 'includes/class-deactivator.php';
 require_once BOOKING_PLUGIN_PATH . 'includes/class-booking-plugin.php';
 require_once BOOKING_PLUGIN_PATH . 'includes/class-settings.php';
+require_once BOOKING_PLUGIN_PATH . 'includes/class-db-seeder.php';
+require_once BOOKING_PLUGIN_PATH . 'includes/class-api-endpoints.php';
 
 register_activation_hook(__FILE__, array('Booking_Activator', 'activate'));
 register_deactivation_hook(__FILE__, array('Booking_Deactivator', 'deactivate'));
 
 function run_booking_plugin() {
     $plugin = Booking_Plugin::get_instance();
+    new Booking_API_Endpoints();
 }
 run_booking_plugin();
 
 if (is_admin()) {
     require_once BOOKING_PLUGIN_PATH . 'admin/appointease-admin.php';
+    
+    // Add seeder menu item
+    add_action('admin_menu', function() {
+        add_submenu_page(
+            'booking-admin',
+            'Seed Database',
+            'Seed Database',
+            'manage_options',
+            'booking-seeder',
+            function() {
+                if (isset($_POST['seed_data'])) {
+                    Booking_DB_Seeder::seed_data();
+                    echo '<div class="notice notice-success"><p>Database seeded successfully!</p></div>';
+                }
+                if (isset($_POST['clear_data'])) {
+                    Booking_DB_Seeder::clear_data();
+                    echo '<div class="notice notice-success"><p>Database cleared successfully!</p></div>';
+                }
+                ?>
+                <div class="wrap">
+                    <h1>Database Seeder</h1>
+                    <form method="post">
+                        <p>Populate the database with sample data for testing.</p>
+                        <p class="submit">
+                            <input type="submit" name="seed_data" class="button-primary" value="Seed Database" />
+                            <input type="submit" name="clear_data" class="button-secondary" value="Clear Data" onclick="return confirm('Are you sure?')" />
+                        </p>
+                    </form>
+                </div>
+                <?php
+            }
+        );
+    });
 }

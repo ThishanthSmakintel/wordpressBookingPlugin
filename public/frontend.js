@@ -33,47 +33,82 @@ document.addEventListener('DOMContentLoaded', function() {
             const [hours, minutes] = selectedTime.split(':');
             appointmentDateTime.setHours(parseInt(hours), parseInt(minutes));
 
-            const data = new FormData();
-            data.append('action', 'book_appointment');
-            data.append('nonce', booking_ajax.nonce);
-            data.append('name', formData.name);
-            data.append('email', formData.email);
-            data.append('phone', formData.phone);
-            data.append('date', appointmentDateTime.toISOString().slice(0, 19).replace('T', ' '));
-
-            fetch(booking_ajax.ajax_url, {
+            fetch(`${bookingAPI.root}appointments`, {
                 method: 'POST',
-                body: data
+                headers: {
+                    'X-WP-Nonce': bookingAPI.nonce,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    name: formData.name,
+                    email: formData.email,
+                    phone: formData.phone,
+                    date: appointmentDateTime.toISOString().slice(0, 19).replace('T', ' ')
+                })
             })
             .then(response => response.json())
             .then(result => {
-                if (result.success) {
-                    showToast(`${result.data.message} Your appointment ID is: ${result.data.id}`, 'success');
+                if (result.message) {
+                    showToast(`${result.message} Your appointment ID is: ${result.id}`, 'success');
                     setFormData({ name: '', email: '', phone: '' });
                     setMessage('');
                 } else {
-                    showToast(result.data, 'error');
+                    showToast('Failed to book appointment', 'error');
                     setMessage('');
                 }
-            });
+            })
+            .catch(() => showToast('Error booking appointment', 'error'));
         };
 
         const handleCancel = () => {
-            const data = new FormData();
-            data.append('action', 'cancel_appointment');
-            data.append('nonce', booking_ajax.nonce);
-            data.append('id', appointmentId);
-
-            fetch(booking_ajax.ajax_url, { method: 'POST', body: data })
+            if (!confirm('Are you sure you want to cancel this appointment?')) return;
+            
+            fetch(`${bookingAPI.root}appointments/${appointmentId}`, {
+                method: 'DELETE',
+                headers: {
+                    'X-WP-Nonce': bookingAPI.nonce,
+                    'Content-Type': 'application/json'
+                }
+            })
             .then(response => response.json())
             .then(result => {
-                if (result.success) {
+                if (result.message) {
                     showToast('Appointment cancelled successfully!', 'success');
                     setShowManagement(false);
+                    setAppointmentId('');
                 } else {
                     showToast('Failed to cancel appointment', 'error');
                 }
-            });
+            })
+            .catch(() => showToast('Error cancelling appointment', 'error'));
+        };
+        
+        const handleReschedule = () => {
+            const appointmentDateTime = new Date(selectedDate);
+            const [hours, minutes] = selectedTime.split(':');
+            appointmentDateTime.setHours(parseInt(hours), parseInt(minutes));
+            
+            fetch(`${bookingAPI.root}appointments/${appointmentId}`, {
+                method: 'PUT',
+                headers: {
+                    'X-WP-Nonce': bookingAPI.nonce,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    new_date: appointmentDateTime.toISOString().slice(0, 19).replace('T', ' ')
+                })
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.message) {
+                    showToast('Appointment rescheduled successfully!', 'success');
+                    setShowManagement(false);
+                    setAppointmentId('');
+                } else {
+                    showToast('Failed to reschedule appointment', 'error');
+                }
+            })
+            .catch(() => showToast('Error rescheduling appointment', 'error'));
         };
 
         return e('div', { className: 'booking-app' }, [
@@ -160,7 +195,43 @@ document.addEventListener('DOMContentLoaded', function() {
                 
                 showManagement && appointmentId && e('div', { className: 'management-actions' }, [
                     e('p', null, `Managing Appointment #${appointmentId}`),
-                    e('button', { onClick: handleCancel }, 'Cancel Appointment')
+                    e('div', { className: 'reschedule-section' }, [
+                        e('h4', null, 'Reschedule to:'),
+                        e('div', { className: 'form-group' }, [
+                            e('label', null, 'New Date:'),
+                            e('div', { style: { height: 300 } },
+                                e(Calendar, {
+                                    localizer: localizer,
+                                    events: [],
+                                    startAccessor: 'start',
+                                    endAccessor: 'end',
+                                    onSelectSlot: (slotInfo) => setSelectedDate(slotInfo.start),
+                                    selectable: true,
+                                    views: { month: true },
+                                    defaultView: 'month',
+                                    style: { height: 300 }
+                                })
+                            )
+                        ]),
+                        e('div', { className: 'form-group' }, [
+                            e('label', null, 'New Time:'),
+                            e('select', {
+                                value: selectedTime,
+                                onChange: (e) => setSelectedTime(e.target.value)
+                            }, [
+                                e('option', { key: '09', value: '09:00' }, '9:00 AM'),
+                                e('option', { key: '10', value: '10:00' }, '10:00 AM'),
+                                e('option', { key: '11', value: '11:00' }, '11:00 AM'),
+                                e('option', { key: '14', value: '14:00' }, '2:00 PM'),
+                                e('option', { key: '15', value: '15:00' }, '3:00 PM'),
+                                e('option', { key: '16', value: '16:00' }, '4:00 PM')
+                            ])
+                        ])
+                    ]),
+                    e('div', { className: 'action-buttons' }, [
+                        e('button', { onClick: handleReschedule, className: 'reschedule-btn' }, 'Reschedule Appointment'),
+                        e('button', { onClick: handleCancel, className: 'cancel-btn' }, 'Cancel Appointment')
+                    ])
                 ])
             ])
         ]);
@@ -179,6 +250,12 @@ document.addEventListener('DOMContentLoaded', function() {
         .booking-app button:hover { background: #005a87; }
         .message { padding: 10px; margin: 10px 0; border-radius: 4px; background: #f0f8ff; }
         .appointment-management { margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; }
+        .reschedule-section { margin: 20px 0; padding: 15px; border: 1px solid #e0e0e0; border-radius: 8px; background: #f9f9f9; }
+        .action-buttons { display: flex; gap: 10px; margin-top: 15px; }
+        .reschedule-btn { background: #28a745; }
+        .reschedule-btn:hover { background: #218838; }
+        .cancel-btn { background: #dc3545; }
+        .cancel-btn:hover { background: #c82333; }
         .rbc-calendar { border: 1px solid #ddd; border-radius: 4px; }
         .rbc-header { background: #f8f9fa; color: #333; font-weight: 600; }
         .rbc-toolbar { background: #f8f9fa; padding: 10px; border-bottom: 1px solid #ddd; }

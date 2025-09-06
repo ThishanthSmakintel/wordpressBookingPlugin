@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Booking Confirmed - AppointEase</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 500px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+        }
+
+        .header {
+            background: linear-gradient(135deg, #28a745, #20c997);
+            padding: 30px;
+            text-align: center;
+            color: white;
+        }
+
+        .success-icon {
+            width: 80px;
+            height: 80px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-size: 36px;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .booking-card {
+            background: linear-gradient(135deg, #1CBC9B, #16a085);
+            margin: 20px;
+            border-radius: 16px;
+            padding: 24px;
+            color: white;
+            text-align: center;
+        }
+
+        .booking-id {
+            font-size: 13px;
+            opacity: 0.9;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .id-value {
+            font-size: 28px;
+            font-weight: 800;
+            font-family: 'Courier New', monospace;
+            background: rgba(255,255,255,0.15);
+            padding: 12px 20px;
+            border-radius: 12px;
+            margin: 8px 0 16px;
+            letter-spacing: 2px;
+        }
+
+        .copy-btn {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .copy-btn:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .details {
+            padding: 0 20px 20px;
+        }
+
+        .detail-row {
+            display: flex;
+            align-items: center;
+            padding: 16px 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+
+        .detail-row:last-child {
+            border-bottom: none;
+        }
+
+        .detail-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 16px;
+            color: #1976d2;
+            font-size: 16px;
+        }
+
+        .detail-content {
+            flex: 1;
+        }
+
+        .detail-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .detail-value {
+            font-size: 16px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .total-row {
+            background: linear-gradient(135deg, rgba(28, 188, 155, 0.08), rgba(28, 188, 155, 0.04));
+            margin: 16px -20px 0;
+            padding: 20px;
+            border-top: 2px solid rgba(28, 188, 155, 0.2);
+        }
+
+        .total-row .detail-icon {
+            background: linear-gradient(135deg, #1CBC9B, #16a085);
+            color: white;
+        }
+
+        .total-row .detail-value {
+            font-size: 20px;
+            color: #1CBC9B;
+            font-weight: 700;
+        }
+
+        .actions {
+            padding: 20px;
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 14px;
+            border: none;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #1CBC9B, #16a085);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #f8f9fa;
+            color: #666;
+            border: 1px solid #e9ecef;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+        }
+
+        .info-note {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 16px;
+            margin: 20px;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #856404;
+        }
+
+        @media (max-width: 480px) {
+            .container {
+                margin: 10px;
+                border-radius: 16px;
+            }
+            
+            .id-value {
+                font-size: 24px;
+                padding: 10px 16px;
+            }
+            
+            .actions {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="success-icon">
+                <i class="fas fa-check"></i>
+            </div>
+            <h1>Booking Confirmed!</h1>
+            <p>Your appointment has been successfully scheduled</p>
+        </div>
+
+        <div class="booking-card">
+            <div class="booking-id">Booking Reference</div>
+            <div class="id-value">APT-2024-BK7X9M</div>
+            <button class="copy-btn" onclick="copyToClipboard('APT-2024-BK7X9M')">
+                <i class="fas fa-copy"></i> Copy Reference
+            </button>
+        </div>
+
+        <div class="details">
+            <div class="detail-row">
+                <div class="detail-icon">
+                    <i class="fas fa-stethoscope"></i>
+                </div>
+                <div class="detail-content">
+                    <div class="detail-label">Service</div>
+                    <div class="detail-value">Consultation</div>
+                </div>
+            </div>
+
+            <div class="detail-row">
+                <div class="detail-icon">
+                    <i class="fas fa-user-md"></i>
+                </div>
+                <div class="detail-content">
+                    <div class="detail-label">Specialist</div>
+                    <div class="detail-value">Mike Wilson</div>
+                </div>
+            </div>
+
+            <div class="detail-row">
+                <div class="detail-icon">
+                    <i class="fas fa-calendar-alt"></i>
+                </div>
+                <div class="detail-content">
+                    <div class="detail-label">Date & Time</div>
+                    <div class="detail-value">Monday, September 8, 2025 at 14:30</div>
+                </div>
+            </div>
+
+            <div class="detail-row total-row">
+                <div class="detail-icon">
+                    <i class="fas fa-dollar-sign"></i>
+                </div>
+                <div class="detail-content">
+                    <div class="detail-label">Total</div>
+                    <div class="detail-value">$75.00</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="info-note">
+            <i class="fas fa-info-circle"></i>
+            Save your booking reference to manage your appointment later.
+        </div>
+
+        <div class="actions">
+            <a href="#" class="btn btn-secondary">
+                <i class="fas fa-edit"></i> Manage Booking
+            </a>
+            <a href="#" class="btn btn-primary">
+                <i class="fas fa-plus"></i> Book Another
+            </a>
+        </div>
+    </div>
+
+    <script>
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = document.querySelector('.copy-btn');
+                const original = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+                btn.style.background = 'rgba(40, 167, 69, 0.3)';
+                
+                setTimeout(() => {
+                    btn.innerHTML = original;
+                    btn.style.background = 'rgba(255,255,255,0.2)';
+                }, 2000);
+            });
+        }
+    </script>
+</body>
+</html>

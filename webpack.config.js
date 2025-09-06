@@ -5,7 +5,7 @@ module.exports = {
 	...defaultConfig,
 	entry: {
 		index: path.resolve(process.cwd(), 'blocks', 'index.js'),
-		frontend: path.resolve(process.cwd(), 'src', 'frontend.tsx')
+		frontend: path.resolve(process.cwd(), 'src', 'frontend-enhanced.tsx')
 	},
 	resolve: {
 		extensions: ['.tsx', '.ts', '.js', '.jsx']

@@ -1,0 +1,321 @@
+/* Enhanced Appointment Card Styles */
+.appointment-card {
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
+    border-radius: 20px;
+    padding: 0;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+    margin: 20px auto;
+    max-width: 480px;
+    border: 1px solid rgba(28, 188, 155, 0.1);
+    overflow: hidden;
+    position: relative;
+    transition: all 0.3s ease;
+}
+
+.appointment-card:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.12);
+}
+
+.appointment-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #1CBC9B, #16a085, #20c997);
+}
+
+.appointment-id {
+    background: linear-gradient(135deg, #1CBC9B 0%, #16a085 100%);
+    padding: 24px;
+    text-align: center;
+    color: white;
+    position: relative;
+    margin-bottom: 0;
+}
+
+.appointment-id::after {
+    content: '';
+    position: absolute;
+    bottom: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border-left: 12px solid transparent;
+    border-right: 12px solid transparent;
+    border-top: 8px solid #16a085;
+}
+
+.id-label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    opacity: 0.9;
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+}
+
+.id-number {
+    display: block;
+    font-size: 32px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    margin: 0;
+}
+
+.appointment-details {
+    padding: 28px 24px 24px;
+}
+
+.detail-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 14px 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    transition: all 0.2s ease;
+}
+
+.detail-item:hover {
+    background: rgba(28, 188, 155, 0.02);
+    margin: 0 -12px;
+    padding: 14px 12px;
+    border-radius: 8px;
+}
+
+.detail-item:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.detail-label {
+    font-weight: 600;
+    color: #6c757d;
+    font-size: 14px;
+    min-width: 90px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.detail-value {
+    font-weight: 600;
+    color: #212529;
+    font-size: 15px;
+    text-align: right;
+    line-height: 1.4;
+}
+
+/* Special styling for the specialist row */
+.detail-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 0;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    transition: all 0.2s ease;
+}
+
+.detail-row:hover {
+    background: rgba(28, 188, 155, 0.02);
+    margin: 0 -12px;
+    padding: 16px 12px;
+    border-radius: 8px;
+}
+
+.detail-row .icon {
+    width: 40px;
+    height: 40px;
+    background: linear-gradient(135deg, #e3f2fd, #bbdefb);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 12px;
+    flex-shrink: 0;
+}
+
+.detail-row .icon .emoji {
+    width: 20px;
+    height: 20px;
+}
+
+.detail-row > div {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.detail-row .label {
+    font-size: 12px;
+    color: #6c757d;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+}
+
+.detail-row .value {
+    font-size: 16px;
+    font-weight: 600;
+    color: #212529;
+    line-height: 1.3;
+}
+
+/* Enhanced total row */
+.detail-item:has(.detail-label:contains("Total")) {
+    background: linear-gradient(135deg, rgba(28, 188, 155, 0.08), rgba(28, 188, 155, 0.04));
+    margin: 16px -24px 0;
+    padding: 18px 24px;
+    border-bottom: none;
+    border-top: 2px solid rgba(28, 188, 155, 0.2);
+    border-radius: 0;
+}
+
+.detail-item:has(.detail-label:contains("Total")) .detail-value {
+    font-size: 20px;
+    color: #1CBC9B;
+    font-weight: 700;
+}
+
+.detail-item:has(.detail-label:contains("Total")) .detail-label {
+    color: #1CBC9B;
+    font-weight: 700;
+}
+
+/* Service type styling */
+.detail-item:first-child .detail-value {
+    background: linear-gradient(135deg, #e8f5e8, #d4edda);
+    color: #155724;
+    padding: 6px 12px;
+    border-radius: 16px;
+    font-size: 13px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Date & Time styling */
+.detail-item:has(.detail-label:contains("Date")) .detail-value {
+    font-weight: 700;
+    color: #495057;
+    font-size: 14px;
+    line-height: 1.5;
+}
+
+/* Icons for different detail types */
+.detail-label::before {
+    content: '';
+    width: 16px;
+    height: 16px;
+    background-size: contain;
+    background-repeat: no-repeat;
+    display: inline-block;
+    margin-right: 6px;
+    opacity: 0.7;
+}
+
+.detail-label:contains("Service")::before {
+    content: '🏥';
+    font-size: 14px;
+}
+
+.detail-label:contains("Date")::before {
+    content: '📅';
+    font-size: 14px;
+}
+
+.detail-label:contains("Total")::before {
+    content: '💰';
+    font-size: 14px;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 480px) {
+    .appointment-card {
+        margin: 15px 10px;
+        border-radius: 16px;
+    }
+    
+    .appointment-id {
+        padding: 20px 16px;
+    }
+    
+    .id-number {
+        font-size: 28px;
+    }
+    
+    .appointment-details {
+        padding: 24px 20px 20px;
+    }
+    
+    .detail-item {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+        padding: 12px 0;
+    }
+    
+    .detail-label {
+        min-width: auto;
+        font-size: 13px;
+    }
+    
+    .detail-value {
+        text-align: left;
+        font-size: 14px;
+    }
+    
+    .detail-row {
+        flex-direction: row;
+        align-items: center;
+    }
+    
+    .detail-item:has(.detail-label:contains("Total")) {
+        flex-direction: row;
+        justify-content: space-between;
+        align-items: center;
+    }
+}
+
+/* Animation for card appearance */
+@keyframes cardSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+.appointment-card {
+    animation: cardSlideIn 0.6s ease-out;
+}
+
+/* Accessibility improvements */
+.appointment-card:focus-within {
+    outline: 2px solid #1CBC9B;
+    outline-offset: 2px;
+}
+
+/* Print styles */
+@media print {
+    .appointment-card {
+        box-shadow: none;
+        border: 2px solid #1CBC9B;
+        break-inside: avoid;
+    }
+    
+    .appointment-id {
+        background: #1CBC9B !important;
+        -webkit-print-color-adjust: exact;
+        color-adjust: exact;
+    }
+}

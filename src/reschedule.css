@@ -1,0 +1,36 @@
+.reschedule-banner {
+    background: linear-gradient(135deg, #3498db, #2980b9);
+    color: white;
+    padding: 12px 20px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+}
+
+.reschedule-banner i {
+    font-size: 16px;
+}
+
+.reschedule-summary {
+    margin-top: 20px;
+}
+
+.clear-btn {
+    background: #e74c3c;
+    color: white;
+    border: none;
+    padding: 8px 12px;
+    border-radius: 8px;
+    margin-left: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s ease;
+}
+
+.clear-btn:hover {
+    background: #c0392b;
+    transform: translateY(-1px);
+}
