@@ -43,7 +43,7 @@ const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     }).showToast();
 };
 
-const BookingApp = React.forwardRef((props, ref) => {
+const BookingApp = React.forwardRef((props: any, ref) => {
     const [step, setStep] = useState(1);
     const [selectedService, setSelectedService] = useState<any>(null);
     const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
@@ -238,7 +238,8 @@ const BookingApp = React.forwardRef((props, ref) => {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'X-WP-Nonce': window.bookingAPI.nonce
+                'X-WP-Nonce': window.bookingAPI.nonce,
+                'Connection': 'keep-alive'
             },
             body: JSON.stringify({
                 name: isLoggedIn ? loginEmail.split('@')[0] : `${formData.firstName} ${formData.lastName}`,
@@ -247,7 +248,8 @@ const BookingApp = React.forwardRef((props, ref) => {
                 date: appointmentDateTime,
                 service_id: selectedService.id,
                 employee_id: selectedEmployee.id
-            })
+            }),
+            keepalive: true
         })
         .then(response => response.json())
         .then(result => {
@@ -358,8 +360,10 @@ const BookingApp = React.forwardRef((props, ref) => {
         fetch(`/wp-json/booking/v1/appointments/${appointmentId}`, {
             method: 'DELETE',
             headers: {
-                'X-WP-Nonce': window.bookingAPI.nonce
-            }
+                'X-WP-Nonce': window.bookingAPI.nonce,
+                'Connection': 'keep-alive'
+            },
+            keepalive: true
         })
         .then(response => response.json())
         .then(result => {
@@ -388,11 +392,13 @@ const BookingApp = React.forwardRef((props, ref) => {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json',
-                'X-WP-Nonce': window.bookingAPI.nonce
+                'X-WP-Nonce': window.bookingAPI.nonce,
+                'Connection': 'keep-alive'
             },
             body: JSON.stringify({
                 new_date: `${newDate} ${newTime}:00`
-            })
+            }),
+            keepalive: true
         })
         .then(response => response.json())
         .then(result => {
@@ -493,7 +499,6 @@ const BookingApp = React.forwardRef((props, ref) => {
                 <div className="appointease-booking-header">
                     <div className="appointease-logo">
                         <span className="logo-icon">A</span>
-                        <span className="logo-text">AppointEase</span>
                     </div>
                     <button className="close-btn" onClick={() => setShowLogin(false)}>
                         <i className="fas fa-times"></i>
@@ -564,7 +569,6 @@ const BookingApp = React.forwardRef((props, ref) => {
                 <div className="appointease-booking-header">
                     <div className="appointease-logo">
                         <span className="logo-icon">A</span>
-                        <span className="logo-text">AppointEase</span>
                     </div>
                     <div className="user-menu">
                         <span className="user-email">{loginEmail}</span>
@@ -653,7 +657,6 @@ const BookingApp = React.forwardRef((props, ref) => {
                 <div className="appointease-booking-header">
                     <div className="appointease-logo">
                         <span className="logo-icon">A</span>
-                        <span className="logo-text">AppointEase</span>
                     </div>
                 </div>
                 <div className="appointease-booking-content">
@@ -746,7 +749,6 @@ const BookingApp = React.forwardRef((props, ref) => {
             <div className="appointease-booking-header">
                 <div className="appointease-logo">
                     <span className="logo-icon">A</span>
-                    <span className="logo-text">AppointEase</span>
                 </div>
                 {isLoggedIn ? (
                     <div className="user-menu">
@@ -820,7 +822,7 @@ const BookingApp = React.forwardRef((props, ref) => {
                         <h2>Choose Your Service</h2>
                         <p className="step-description">Select the service you'd like to book</p>
 
-                        <div className="services-grid">
+                        <div className="services-grid" style={{gridTemplateColumns: `repeat(${props.columns || 2}, 1fr)`}}>
                             {services.map(service => (
                                 <div key={service.id} className="service-card" onClick={() => handleServiceSelect(service)}>
                                     <div className="service-icon"><i className="ri-briefcase-line"></i></div>
@@ -1207,10 +1209,21 @@ function initBookingApp(containerId) {
     if (bookingContainer) {
         bookingContainer.innerHTML = '';
         
+        const parent = bookingContainer.parentElement;
+        const columns = parent?.getAttribute('data-columns') || 2;
+        const width = parent?.getAttribute('data-width') || 100;
+        const height = parent?.getAttribute('data-height') || 600;
+        
+        // Apply dimensions to container
+        if (parent) {
+            parent.style.width = `${width}%`;
+            parent.style.minWidth = '600px';
+        }
+        
         const root = createRoot(bookingContainer);
         const appRef = React.createRef();
         
-        root.render(<BookingApp ref={appRef} />);
+        root.render(<BookingApp ref={appRef} columns={parseInt(columns)} />);
         
         setTimeout(() => {
             if (appRef.current) {

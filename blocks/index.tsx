@@ -103,7 +103,6 @@ registerBlockType('appointease/booking-form', {
                             <div className="appointease-booking-header">
                                 <div className="appointease-logo">
                                     <span className="logo-icon">A</span>
-                                    <span className="logo-text">AppointEase</span>
                                 </div>
                                 <div className="manage-appointment">
                                     <input type="text" placeholder="Enter Appointment ID" />
