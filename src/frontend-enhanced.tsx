@@ -60,7 +60,7 @@ const removeNotification = (notification: HTMLElement) => {
 
 const showToast = () => {}; // Disabled
 
-const BookingApp = React.forwardRef((props: any, ref) => {
+const BookingApp = React.forwardRef<any, any>((props, ref) => {
     const [step, setStep] = useState(1);
     const [selectedService, setSelectedService] = useState<any>(null);
     const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
@@ -126,9 +126,183 @@ const BookingApp = React.forwardRef((props: any, ref) => {
     const [verifyOtpAttempts, setVerifyOtpAttempts] = useState<number>(0);
     const [verifyIsBlocked, setVerifyIsBlocked] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
-    const [appointmentsPerPage] = useState(2);
+    const [appointmentsPerPage, setAppointmentsPerPage] = useState(2);
     const [isCheckingEmail, setIsCheckingEmail] = useState(false);
     const [existingUser, setExistingUser] = useState<any>(null);
+    const [sessionToken, setSessionToken] = useState<string | null>(null);
+    const dashboardRef = useRef<HTMLDivElement>(null);
+
+    // Calculate optimal cards per page based on container dimensions
+    const calculateCardsPerPage = useCallback(() => {
+        if (!dashboardRef.current) return 2;
+        
+        const container = dashboardRef.current;
+        const containerWidth = container.clientWidth;
+        const containerHeight = container.clientHeight;
+        
+        // Card dimensions (including gap)
+        const cardMinWidth = 280;
+        const cardHeight = 200;
+        const gap = 16;
+        
+        // Calculate cards per row
+        const cardsPerRow = Math.max(1, Math.floor((containerWidth + gap) / (cardMinWidth + gap)));
+        
+        // Calculate rows that fit in height (subtract header and pagination space)
+        const availableHeight = containerHeight - 200; // Reserve space for header/pagination
+        const rowsPerPage = Math.max(1, Math.floor(availableHeight / (cardHeight + gap)));
+        
+        const totalCards = cardsPerRow * rowsPerPage;
+        return Math.max(1, Math.min(totalCards, 12)); // Min 1, max 12 cards
+    }, []);
+
+    // Debug: Check all appointments in database
+    const debugCheckDatabase = async () => {
+        if (!window.bookingAPI) return;
+        
+        try {
+            const response = await fetch(`${window.bookingAPI.root}appointease/v1/debug/appointments`, {
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': window.bookingAPI.nonce
+                }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                console.log('=== DATABASE DEBUG ===');
+                console.log('Total appointments:', data.total_count);
+                console.log('Recent appointments:', data.appointments);
+                console.log('======================');
+            }
+        } catch (error) {
+            console.log('Debug check failed:', error);
+        }
+    };
+
+    // API request wrapper with optional token validation
+    const apiRequest = async (url: string, options: RequestInit = {}) => {
+        if (!window.bookingAPI) throw new Error('API not available');
+        
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            'X-WP-Nonce': window.bookingAPI.nonce,
+            ...(options.headers as Record<string, string> || {})
+        };
+        
+        // Add token for authenticated requests if logged in
+        if (isLoggedIn && sessionToken) {
+            headers['Authorization'] = `Bearer ${sessionToken}`;
+        }
+        
+        const response = await fetch(url, {
+            ...options,
+            headers
+        });
+        
+        // Handle session expiry only for authenticated users
+        if (response.status === 401 && isLoggedIn && sessionToken) {
+            setIsLoggedIn(false);
+            setShowDashboard(false);
+            setSessionToken(null);
+            setLoginEmail('');
+            await clearSession();
+            setErrors({general: 'Session expired. Please login again.'});
+            throw new Error('Session expired');
+        }
+        
+        return response;
+    };
+
+    // WordPress secure session management
+    const saveSession = async (email: string) => {
+        if (!window.bookingAPI) return;
+        
+        try {
+            await fetch(`${window.bookingAPI.root}appointease/v1/session`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-WP-Nonce': window.bookingAPI.nonce
+                },
+                body: JSON.stringify({ email, action: 'create' })
+            });
+        } catch (error) {
+            console.log('Session save failed, using fallback');
+        }
+    };
+
+    const loadSession = async () => {
+        if (!window.bookingAPI) return null;
+        
+        try {
+            const response = await fetch(`${window.bookingAPI.root}appointease/v1/session`, {
+                method: 'GET',
+                headers: {
+                    'X-WP-Nonce': window.bookingAPI.nonce
+                }
+            });
+            
+            if (response.ok) {
+                const session = await response.json();
+                return session.email ? { email: session.email } : null;
+            }
+        } catch (error) {
+            console.log('Session load failed');
+        }
+        
+        return null;
+    };
+
+    const clearSession = async () => {
+        if (!window.bookingAPI) return;
+        
+        try {
+            await fetch(`${window.bookingAPI.root}appointease/v1/session`, {
+                method: 'DELETE',
+                headers: {
+                    'X-WP-Nonce': window.bookingAPI.nonce
+                }
+            });
+        } catch (error) {
+            console.log('Session clear failed');
+        }
+    };
+
+    // Load session on mount
+    useEffect(() => {
+        const checkSession = async () => {
+            const session = await loadSession();
+            if (session) {
+                setLoginEmail(session.email);
+                setIsLoggedIn(true);
+                setShowDashboard(true);
+                loadUserAppointmentsRealtime(session.email);
+            }
+        };
+        checkSession();
+    }, []);
+
+    // Recalculate cards per page on container resize
+    useEffect(() => {
+        if (!showDashboard || !dashboardRef.current) return;
+        
+        const updateCardsPerPage = () => {
+            const newCardsPerPage = calculateCardsPerPage();
+            if (newCardsPerPage !== appointmentsPerPage) {
+                setAppointmentsPerPage(newCardsPerPage);
+                setCurrentPage(1); // Reset to first page
+            }
+        };
+        
+        const resizeObserver = new ResizeObserver(updateCardsPerPage);
+        resizeObserver.observe(dashboardRef.current);
+        
+        // Initial calculation
+        setTimeout(updateCardsPerPage, 100);
+        
+        return () => resizeObserver.disconnect();
+    }, [showDashboard, calculateCardsPerPage, appointmentsPerPage]);
 
     // Enhanced connection monitoring and auto-refresh
     useEffect(() => {
@@ -156,28 +330,29 @@ const BookingApp = React.forwardRef((props: any, ref) => {
     }, [retryCount, isLoggedIn]);
     
     // Real-time data fetching using existing user-appointments endpoint
-    const loadUserAppointmentsRealtime = useCallback(() => {
-        if (!window.bookingAPI || !loginEmail) {
+    const loadUserAppointmentsRealtime = useCallback((email?: string) => {
+        const emailToUse = email || loginEmail;
+        if (!window.bookingAPI || !emailToUse) {
+            console.log('No API or email:', { api: !!window.bookingAPI, email: emailToUse });
             setUserAppointments([]);
             return;
         }
         
+        console.log('Loading appointments for:', emailToUse);
         setIsLoadingAppointments(true);
-        fetch(`${window.bookingAPI?.root || '/wp-json/'}appointease/v1/user-appointments`, {
+        apiRequest(`${window.bookingAPI?.root || '/wp-json/'}appointease/v1/user-appointments`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-WP-Nonce': window.bookingAPI.nonce
-            },
-            body: JSON.stringify({ email: loginEmail })
+            body: JSON.stringify({ email: emailToUse })
         })
         .then(response => {
+            console.log('API response status:', response.status);
             if (!response.ok) {
                 throw new Error('Failed to fetch appointments');
             }
             return response.json();
         })
         .then(appointments => {
+            console.log('Raw appointments:', appointments);
             const formattedAppointments = (appointments || []).map((apt: any) => ({
                 id: apt.strong_id || `AE${apt.id.toString().padStart(6, '0')}`,
                 service: apt.service_name || 'Service',
@@ -187,6 +362,7 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                 name: apt.name,
                 email: apt.email
             }));
+            console.log('Formatted appointments:', formattedAppointments);
             setUserAppointments(formattedAppointments);
         })
         .catch((error) => {
@@ -209,12 +385,8 @@ const BookingApp = React.forwardRef((props: any, ref) => {
         console.log('Checking email using user-appointments endpoint:', email);
         
         try {
-            const response = await fetch(`${window.bookingAPI.root}appointease/v1/user-appointments`, {
+            const response = await apiRequest(`${window.bookingAPI.root}appointease/v1/user-appointments`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-WP-Nonce': window.bookingAPI.nonce
-                },
                 body: JSON.stringify({ email })
             });
             
@@ -331,6 +503,7 @@ const BookingApp = React.forwardRef((props: any, ref) => {
     
     useEffect(() => {
         loadInitialData();
+        debugCheckDatabase();
     }, [loadInitialData]);
 
     const timeSlots = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'];
@@ -546,13 +719,8 @@ const BookingApp = React.forwardRef((props: any, ref) => {
             return;
         }
         
-        fetch(`${window.bookingAPI?.root || '/wp-json/'}appointease/v1/appointments`, {
+        apiRequest(`${window.bookingAPI?.root || '/wp-json/'}appointease/v1/appointments`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-WP-Nonce': window.bookingAPI.nonce,
-                'Connection': 'keep-alive'
-            },
             body: JSON.stringify({
                 name: sanitizeInput(isLoggedIn ? loginEmail.split('@')[0] : formData.firstName),
                 email: sanitizeInput(isLoggedIn ? loginEmail : formData.email),
@@ -560,8 +728,7 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                 date: appointmentDateTime,
                 service_id: parseInt(String(selectedService.id), 10),
                 employee_id: parseInt(String(selectedEmployee.id), 10)
-            }),
-            keepalive: true
+            })
         })
         .then(response => {
             if (!response.ok) {
@@ -611,7 +778,7 @@ const BookingApp = React.forwardRef((props: any, ref) => {
         return days;
     };
 
-    const handleManageAppointment = (appointmentIdToManage?: string) => {
+    const handleManageAppointment = async (appointmentIdToManage?: string) => {
         const idToUse = appointmentIdToManage || appointmentId;
         
         if (!idToUse || typeof idToUse !== 'string' || idToUse.length < 3) {
@@ -640,15 +807,31 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                 });
                 setAppointmentId(String(appointment.id));
                 setManageMode(true);
+                setIsManaging(false);
                 return;
             }
         }
 
-        // Simulate search locally
-        setTimeout(() => {
-            setErrors({general: 'No appointment found with this ID. Please check your booking reference and try again.'});
+        // Check if appointment exists in database
+        try {
+            const response = await apiRequest(`${window.bookingAPI.root}appointease/v1/appointments/${sanitizedId}`, {
+                method: 'GET'
+            });
+            
+            if (response.ok) {
+                const appointment = await response.json();
+                setCurrentAppointment(appointment);
+                setAppointmentId(sanitizedId);
+                setManageMode(true);
+                setErrors({});
+            } else {
+                setErrors({general: 'No appointment found with this ID. Please check your booking reference and try again.'});
+            }
+        } catch (error) {
+            setErrors({general: 'Error checking appointment. Please try again.'});
+        } finally {
             setIsManaging(false);
-        }, 500);
+        }
     };
 
     const handleCancelAppointment = () => {
@@ -686,12 +869,8 @@ const BookingApp = React.forwardRef((props: any, ref) => {
         }
         
         // Actually call the cancel API
-        fetch(`${window.bookingAPI.root}appointease/v1/appointments/${currentAppointment.id}`, {
-            method: 'DELETE',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-WP-Nonce': window.bookingAPI.nonce
-            }
+        apiRequest(`${window.bookingAPI.root}appointease/v1/appointments/${currentAppointment.id}`, {
+            method: 'DELETE'
         })
         .then(response => response.json())
         .then(result => {
@@ -753,12 +932,8 @@ const BookingApp = React.forwardRef((props: any, ref) => {
         
         // Actually call the reschedule API
         const newDateTime = `${newDate} ${newTime}:00`;
-        fetch(`${window.bookingAPI.root}appointease/v1/appointments/${currentAppointment.id}`, {
+        apiRequest(`${window.bookingAPI.root}appointease/v1/appointments/${currentAppointment.id}`, {
             method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-WP-Nonce': window.bookingAPI.nonce
-            },
             body: JSON.stringify({ new_date: newDateTime })
         })
         .then(response => response.json())
@@ -852,20 +1027,32 @@ const BookingApp = React.forwardRef((props: any, ref) => {
         return true;
     };
 
-    const handleVerifyOTP = () => {
+    const handleVerifyOTP = async () => {
         if (!validateOTP(otpCode)) {
             return;
         }
         
         setIsLoadingLogin(true);
-        setTimeout(() => {
-            if (otpCode === '123456') {
+        
+        try {
+            const response = await fetch(`${window.bookingAPI.root}appointease/v1/verify-otp`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-WP-Nonce': window.bookingAPI.nonce
+                },
+                body: JSON.stringify({ email: loginEmail, otp: otpCode })
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok && result.success) {
+                setSessionToken(result.token);
                 setIsLoggedIn(true);
                 setShowLogin(false);
                 setShowDashboard(true);
-                setIsLoadingLogin(false);
                 setLoginOtpAttempts(0);
-                loadUserAppointmentsRealtime();
+                loadUserAppointmentsRealtime(loginEmail);
             } else {
                 const newAttempts = loginOtpAttempts + 1;
                 setLoginOtpAttempts(newAttempts);
@@ -875,11 +1062,14 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                     setErrors({general: 'Too many failed attempts. Try again later.'});
                     setTimeout(() => setLoginIsBlocked(false), 5 * 60 * 1000);
                 } else {
-                    setErrors({general: `Invalid code. ${3 - newAttempts} attempts remaining.`});
+                    setErrors({general: result.message || `Invalid code. ${3 - newAttempts} attempts remaining.`});
                 }
-                setIsLoadingLogin(false);
             }
-        }, 1000);
+        } catch (error) {
+            setErrors({general: 'Network error. Please try again.'});
+        } finally {
+            setIsLoadingLogin(false);
+        }
     };
     
     const loadUserAppointments = () => {
@@ -1052,14 +1242,11 @@ const BookingApp = React.forwardRef((props: any, ref) => {
             if (emailOtp === '123456') {
                 setEmailVerified(true);
                 setOtpAttempts(0);
-                setErrors({general: 'Email verified successfully!'});
-                setTimeout(() => {
-                    setShowEmailVerification(false);
-                    setEmailOtp('');
-                    setErrors({});
-                    // Continue with booking after verification
-                    proceedWithBooking();
-                }, 1500);
+                setShowEmailVerification(false);
+                setEmailOtp('');
+                setErrors({});
+                // Continue with booking after verification
+                proceedWithBooking();
             } else {
                 const newAttempts = otpAttempts + 1;
                 setOtpAttempts(newAttempts);
@@ -1314,30 +1501,66 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                         <span className="logo-icon">A</span>
                     </div>
                     <div className="user-menu">
-                        <button className="logout-btn" onClick={() => {
+                        <button className="logout-btn" onClick={async () => {
                             setIsLoggedIn(false);
                             setShowDashboard(false);
                             setLoginEmail('');
                             setOtpCode('');
                             setOtpSent(false);
+                            setSessionToken(null);
                             setStep(1);
-                            // Logged out
+                            await clearSession();
                         }}>
                             <i className="fas fa-sign-out-alt"></i>
                         </button>
                     </div>
                 </div>
                 <div className="appointease-booking-content">
-                    <div className="dashboard-container">
+                    <div className="dashboard-container" ref={dashboardRef}>
                         <div className="dashboard-header">
                             <div className="dashboard-title-section">
-                                <h2>My Appointments</h2>
-                                <span className="dashboard-email" style={{color: 'black'}}>{loginEmail}</span>
+                                <div className="dashboard-welcome">
+                                    <h2>Welcome back!</h2>
+                                    <div className="user-info">
+                                        <div className="user-avatar">
+                                            <i className="fas fa-user"></i>
+                                        </div>
+                                        <div className="user-details">
+                                            <span className="user-email">{loginEmail}</span>
+                                            <span className="user-status">
+                                                <i className="fas fa-circle online-indicator"></i>
+                                                Online
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div className="dashboard-stats">
+                                    <div className="stat-card">
+                                        <div className="stat-number">{userAppointments.length}</div>
+                                        <div className="stat-label">Total Appointments</div>
+                                    </div>
+                                    <div className="stat-card">
+                                        <div className="stat-number">
+                                            {userAppointments.filter(apt => apt.status === 'confirmed').length}
+                                        </div>
+                                        <div className="stat-label">Active</div>
+                                    </div>
+                                    <div className="stat-card">
+                                        <div className="stat-number">
+                                            {userAppointments.filter(apt => {
+                                                const aptDate = new Date(apt.date);
+                                                const today = new Date();
+                                                return aptDate > today && apt.status === 'confirmed';
+                                            }).length}
+                                        </div>
+                                        <div className="stat-label">Upcoming</div>
+                                    </div>
+                                </div>
                             </div>
                             <div className="dashboard-actions">
                                 <button className="refresh-btn" onClick={() => loadUserAppointmentsRealtime()} disabled={isLoadingAppointments}>
                                     <i className={`fas fa-sync-alt ${isLoadingAppointments ? 'fa-spin' : ''}`}></i>
-                                    {isLoadingAppointments ? 'Refreshing...' : 'Refresh'}
+                                    <span className="btn-text">{isLoadingAppointments ? 'Refreshing...' : 'Refresh'}</span>
                                 </button>
                                 <button className="new-appointment-btn" onClick={() => {
                                     setShowDashboard(false);
@@ -1352,85 +1575,163 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                             </div>
                         </div>
                         
-                        <div className="appointments-grid">
-                            {isLoadingAppointments ? (
-                                <div className="loading-appointments">
-                                    <div className="spinner"></div>
-                                    <span>Loading your appointments...</span>
+                        <div className="appointments-section">
+                            <div className="section-header">
+                                <h3>Your Appointments</h3>
+                                <div className="view-options">
+                                    <button className="view-btn active" title="Grid View">
+                                        <i className="fas fa-th-large"></i>
+                                    </button>
+                                    <button className="view-btn" title="List View">
+                                        <i className="fas fa-list"></i>
+                                    </button>
                                 </div>
-                            ) : userAppointments.length === 0 ? (
+                            </div>
+                            
+                            {userAppointments.length === 0 ? (
                                 <div className="no-appointments">
-                                    <i className="fas fa-calendar-times"></i>
-                                    <span>No appointments found</span>
+                                    <div className="empty-state-icon">
+                                        <i className="fas fa-calendar-times"></i>
+                                    </div>
+                                    <h4>No appointments yet</h4>
+                                    <p>You haven't booked any appointments. Start by booking your first one!</p>
+                                    <button className="empty-state-btn" onClick={() => {
+                                        setShowDashboard(false);
+                                        setStep(1);
+                                    }}>
+                                        <i className="fas fa-plus"></i>
+                                        Book Your First Appointment
+                                    </button>
                                 </div>
                             ) : (
-                                <>
+                                <div className="appointments-grid">
                                     {userAppointments
                                         .slice((currentPage - 1) * appointmentsPerPage, currentPage * appointmentsPerPage)
-                                        .map(appointment => (
-                                        <div key={appointment.id} className="appointment-card-mini">
-                                            <div className="appointment-id-mini">
-                                                <span className="id-text">{appointment.id}</span>
-                                                <span className={`status-badge ${appointment.status}`}>
-                                                    {appointment.status === 'confirmed' && <><i className="fas fa-check"></i> Confirmed</>}
-                                                    {appointment.status === 'cancelled' && <><i className="fas fa-times"></i> Cancelled</>}
-                                                    {appointment.status === 'rescheduled' && <><i className="fas fa-calendar-alt"></i> Rescheduled</>}
-                                                    {appointment.status === 'created' && <><i className="fas fa-plus"></i> Created</>}
-                                                </span>
-                                            </div>
-                                            <div className="appointment-info">
-                                                <div className="info-row">
-                                                    <i className="fas fa-briefcase"></i>
-                                                    <span>{sanitizeInput(appointment.service || 'Unknown Service')}</span>
+                                        .map(appointment => {
+                                            const appointmentDate = new Date(appointment.date);
+                                            const isUpcoming = appointmentDate > new Date() && appointment.status === 'confirmed';
+                                            const isPast = appointmentDate < new Date();
+                                            const timeUntil = isUpcoming ? Math.ceil((appointmentDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : null;
+                                            
+                                            return (
+                                                <div key={appointment.id} className={`appointment-card-enhanced ${isUpcoming ? 'upcoming' : ''} ${isPast ? 'past' : ''}`}>
+                                                    <div className="card-header">
+                                                        <div className="appointment-id-badge">
+                                                            <span className="id-text">{appointment.id}</span>
+                                                        </div>
+                                                        <span className={`status-badge ${appointment.status}`}>
+                                                            {appointment.status === 'confirmed' && <><i className="fas fa-check-circle"></i> Confirmed</>}
+                                                            {appointment.status === 'cancelled' && <><i className="fas fa-times-circle"></i> Cancelled</>}
+                                                            {appointment.status === 'rescheduled' && <><i className="fas fa-calendar-alt"></i> Rescheduled</>}
+                                                            {appointment.status === 'created' && <><i className="fas fa-plus-circle"></i> Created</>}
+                                                        </span>
+                                                    </div>
+                                                    
+                                                    <div className="card-body">
+                                                        <div className="appointment-main-info">
+                                                            <div className="service-info">
+                                                                <h4 className="service-name">
+                                                                    <i className="fas fa-briefcase"></i>
+                                                                    {sanitizeInput(appointment.service || 'Unknown Service')}
+                                                                </h4>
+                                                                <div className="staff-info">
+                                                                    <i className="fas fa-user-md"></i>
+                                                                    <span>with {sanitizeInput(appointment.staff || 'Unknown Staff')}</span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        
+                                                        <div className="appointment-datetime">
+                                                            <div className="date-info">
+                                                                <div className="date-primary">
+                                                                    <i className="fas fa-calendar"></i>
+                                                                    <span className="date-text">
+                                                                        {appointmentDate.toLocaleDateString('en', { 
+                                                                            weekday: 'long', 
+                                                                            month: 'short', 
+                                                                            day: 'numeric' 
+                                                                        })}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="time-info">
+                                                                    <i className="fas fa-clock"></i>
+                                                                    <span className="time-text">
+                                                                        {appointmentDate.toLocaleTimeString('en', {hour: '2-digit', minute: '2-digit'})}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                            {isUpcoming && timeUntil && (
+                                                                <div className="countdown-badge">
+                                                                    <i className="fas fa-hourglass-half"></i>
+                                                                    {timeUntil === 1 ? 'Tomorrow' : `In ${timeUntil} days`}
+                                                                </div>
+                                                            )}
+                                                            {isPast && appointment.status !== 'cancelled' && (
+                                                                <div className="past-badge">
+                                                                    <i className="fas fa-check"></i>
+                                                                    Completed
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    
+                                                    <div className="card-actions">
+                                                        {appointment.status !== 'cancelled' && !isPast && (
+                                                            <>
+                                                                <button 
+                                                                    className="action-btn reschedule-btn" 
+                                                                    onClick={() => {
+                                                                        setCurrentAppointment({
+                                                                            id: appointment.id,
+                                                                            name: appointment.name || loginEmail,
+                                                                            email: appointment.email || loginEmail,
+                                                                            appointment_date: appointment.date,
+                                                                            status: appointment.status
+                                                                        });
+                                                                        setSelectedService({name: 'Current Service', price: 0});
+                                                                        setSelectedEmployee({name: 'Current Staff'});
+                                                                        setIsRescheduling(true);
+                                                                        setShowDashboard(false);
+                                                                        setStep(3);
+                                                                    }}
+                                                                    title="Reschedule this appointment"
+                                                                >
+                                                                    <i className="fas fa-calendar-alt"></i>
+                                                                    <span>Reschedule</span>
+                                                                </button>
+                                                                <button 
+                                                                    className="action-btn cancel-btn" 
+                                                                    onClick={() => {
+                                                                        setCurrentAppointment({
+                                                                            id: appointment.id,
+                                                                            name: appointment.name || loginEmail,
+                                                                            email: appointment.email || loginEmail,
+                                                                            appointment_date: appointment.date,
+                                                                            status: appointment.status
+                                                                        });
+                                                                        setShowCancelConfirm(true);
+                                                                        setShowDashboard(false);
+                                                                        setManageMode(true);
+                                                                    }}
+                                                                    title="Cancel this appointment"
+                                                                >
+                                                                    <i className="fas fa-times"></i>
+                                                                    <span>Cancel</span>
+                                                                </button>
+                                                            </>
+                                                        )}
+                                                        {(appointment.status === 'cancelled' || isPast) && (
+                                                            <div className="disabled-actions">
+                                                                <span className="disabled-text">
+                                                                    {appointment.status === 'cancelled' ? 'Cancelled' : 'Completed'}
+                                                                </span>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                                <div className="info-row">
-                                                    <i className="fas fa-user-md"></i>
-                                                    <span>{sanitizeInput(appointment.staff || 'Unknown Staff')}</span>
-                                                </div>
-                                                <div className="info-row">
-                                                    <i className="fas fa-calendar"></i>
-                                                    <span>{new Date(appointment.date).toLocaleDateString()}</span>
-                                                </div>
-                                                <div className="info-row">
-                                                    <i className="fas fa-clock"></i>
-                                                    <span>{new Date(appointment.date).toLocaleTimeString('en', {hour: '2-digit', minute: '2-digit'})}</span>
-                                                </div>
-                                            </div>
-                                            <div className="appointment-actions-mini">
-                                                <button className="reschedule-btn" onClick={() => {
-                                                    setCurrentAppointment({
-                                                        id: appointment.id,
-                                                        name: appointment.name || loginEmail,
-                                                        email: appointment.email || loginEmail,
-                                                        appointment_date: appointment.date,
-                                                        status: appointment.status
-                                                    });
-                                                    setSelectedService({name: 'Current Service', price: 0});
-                                                    setSelectedEmployee({name: 'Current Staff'});
-                                                    setIsRescheduling(true);
-                                                    setShowDashboard(false);
-                                                    setStep(3);
-                                                }}>
-                                                    Reschedule
-                                                </button>
-                                                <button className="cancel-btn" onClick={() => {
-                                                    setCurrentAppointment({
-                                                        id: appointment.id,
-                                                        name: appointment.name || loginEmail,
-                                                        email: appointment.email || loginEmail,
-                                                        appointment_date: appointment.date,
-                                                        status: appointment.status
-                                                    });
-                                                    setShowCancelConfirm(true);
-                                                    setShowDashboard(false);
-                                                    setManageMode(true);
-                                                }}>
-                                                    Cancel
-                                                </button>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </>
+                                            );
+                                        })}
+                                </div>
                             )}
                         </div>
                         
@@ -1714,14 +2015,15 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                 <span className="dashboard-btn-email">{loginEmail}</span>
                             </div>
                         </button>
-                        <button className="logout-btn" onClick={() => {
+                        <button className="logout-btn" onClick={async () => {
                             setIsLoggedIn(false);
                             setShowDashboard(false);
                             setLoginEmail('');
                             setOtpCode('');
                             setOtpSent(false);
+                            setSessionToken(null);
                             setStep(1);
-                            // Logged out
+                            await clearSession();
                         }}>
                             <i className="fas fa-sign-out-alt"></i>
                         </button>
@@ -2049,6 +2351,10 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                         type="text"
                                         value={formData.firstName || ''}
                                         onChange={(e) => {
+                                            if (!formData.email && !(existingUser && existingUser.exists)) {
+                                                setErrors({...errors, firstName: 'Please enter your email first'});
+                                                return;
+                                            }
                                             const sanitized = sanitizeInput(e.target.value);
                                             setFormData({...formData, firstName: sanitized});
                                             if (errors.firstName) setErrors({...errors, firstName: undefined});
@@ -2074,6 +2380,10 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                         type="tel"
                                         value={formData.phone}
                                         onChange={(e) => {
+                                            if (!formData.email && !(existingUser && existingUser.exists)) {
+                                                setErrors({...errors, phone: 'Please enter your email first'});
+                                                return;
+                                            }
                                             // Auto-format phone number with sanitization
                                             let value = sanitizeInput(e.target.value).replace(/\D/g, '');
                                             if (value.length > 15) value = value.slice(0, 15); // Limit length
@@ -2382,19 +2692,24 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                         
                             <div className="success-actions">
                                 <button className="action-btn primary-btn" onClick={() => {
-                                    setStep(1);
-                                    setSelectedService(null);
-                                    setSelectedEmployee(null);
-                                    setSelectedDate('');
-                                    setSelectedTime('');
-                                    setFormData({ firstName: '', lastName: '', email: '', phone: '' });
-                                    setAppointmentId('');
-                                    setManageMode(false);
-                                    setCurrentAppointment(null);
-                                    setErrors({});
+                                    if (isLoggedIn) {
+                                        setShowDashboard(true);
+                                        loadUserAppointmentsRealtime(loginEmail);
+                                    } else {
+                                        setStep(1);
+                                        setSelectedService(null);
+                                        setSelectedEmployee(null);
+                                        setSelectedDate('');
+                                        setSelectedTime('');
+                                        setFormData({ firstName: '', lastName: '', email: '', phone: '' });
+                                        setAppointmentId('');
+                                        setManageMode(false);
+                                        setCurrentAppointment(null);
+                                        setErrors({});
+                                    }
                                 }}>
-                                    <i className="fas fa-plus"></i>
-                                    Book New Appointment
+                                    <i className="fas fa-list"></i>
+                                    {isLoggedIn ? 'Show All Bookings' : 'Back to Booking'}
                                 </button>
                             </div>
                         </div>

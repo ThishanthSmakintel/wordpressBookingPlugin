@@ -97,6 +97,32 @@ class Booking_API_Endpoints {
             'callback' => array($this, 'stream_appointments'),
             'permission_callback' => array($this, 'public_permission')
         ));
+        
+        // Secure session endpoints
+        register_rest_route('appointease/v1', '/session', array(
+            array(
+                'methods' => 'POST',
+                'callback' => array($this, 'create_secure_session'),
+                'permission_callback' => '__return_true'
+            ),
+            array(
+                'methods' => 'GET',
+                'callback' => array($this, 'get_secure_session'),
+                'permission_callback' => '__return_true'
+            ),
+            array(
+                'methods' => 'DELETE',
+                'callback' => array($this, 'delete_secure_session'),
+                'permission_callback' => '__return_true'
+            )
+        ));
+        
+        // OTP verification endpoint
+        register_rest_route('appointease/v1', '/verify-otp', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'verify_otp_and_create_session'),
+            'permission_callback' => '__return_true'
+        ));
     }
     
     public function get_services() {
@@ -335,11 +361,20 @@ class Booking_API_Endpoints {
         }
         
         $table = $wpdb->prefix . 'appointments';
+        $email_prefix = explode('@', $email)[0];
         
-        $appointments = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$table} WHERE email = %s ORDER BY appointment_date DESC",
-            $email
-        ));
+        // Create flexible search patterns
+        $base_name = str_replace('.', '', $email_prefix); // Remove dots
+        $pattern1 = '%' . $email_prefix . '%';           // Original with dots
+        $pattern2 = '%' . $base_name . '%';              // Without dots
+        $pattern3 = '%' . str_replace('a', 's', $base_name) . '%'; // Handle a/s typos
+        
+        $query = $wpdb->prepare(
+            "SELECT * FROM {$table} WHERE email = %s OR name LIKE %s OR name LIKE %s OR name LIKE %s ORDER BY appointment_date DESC",
+            $email, $pattern1, $pattern2, $pattern3
+        );
+        
+        $appointments = $wpdb->get_results($query);
         
         return rest_ensure_response($appointments);
     }
@@ -508,5 +543,70 @@ class Booking_API_Endpoints {
             'timestamp' => current_time('timestamp'),
             'count' => count($formatted_appointments)
         ));
+    }
+    
+    public function verify_otp_and_create_session($request) {
+        $params = $request->get_json_params();
+        
+        if (!isset($params['email'], $params['otp'])) {
+            return new WP_Error('missing_params', 'Email and OTP are required', array('status' => 400));
+        }
+        
+        $email = sanitize_email($params['email']);
+        $otp = sanitize_text_field($params['otp']);
+        
+        // For demo purposes, accept 123456 as valid OTP
+        if ($otp !== '123456') {
+            return new WP_Error('invalid_otp', 'Invalid OTP code', array('status' => 400));
+        }
+        
+        $session_manager = BookingSessionManager::getInstance();
+        $session = $session_manager->createSession($email);
+        
+        if (!$session) {
+            return new WP_Error('session_failed', 'Failed to create session', array('status' => 500));
+        }
+        
+        return rest_ensure_response(array(
+            'success' => true,
+            'token' => $session['token'],
+            'expires_in' => $session['expires_in']
+        ));
+    }
+    
+    public function create_secure_session($request) {
+        $params = $request->get_json_params();
+        
+        if (!isset($params['email'])) {
+            return new WP_Error('missing_email', 'Email is required', array('status' => 400));
+        }
+        
+        $email = sanitize_email($params['email']);
+        $session_manager = BookingSessionManager::getInstance();
+        $session = $session_manager->createSession($email);
+        
+        if (!$session) {
+            return new WP_Error('session_failed', 'Failed to create session', array('status' => 500));
+        }
+        
+        return rest_ensure_response(array('success' => true));
+    }
+    
+    public function get_secure_session($request) {
+        $session_manager = BookingSessionManager::getInstance();
+        $user = $session_manager->validateSession();
+        
+        if (!$user) {
+            return rest_ensure_response(array('email' => null));
+        }
+        
+        return rest_ensure_response(array('email' => $user->user_email));
+    }
+    
+    public function delete_secure_session($request) {
+        $session_manager = BookingSessionManager::getInstance();
+        $session_manager->clearSession();
+        
+        return rest_ensure_response(array('success' => true));
     }
 }
