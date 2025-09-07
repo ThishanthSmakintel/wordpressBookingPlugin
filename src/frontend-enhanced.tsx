@@ -3,6 +3,8 @@ import { createRoot } from 'react-dom/client';
 import './frontend.css';
 import './reschedule.css';
 import './login.css';
+import Dashboard from './components/Dashboard';
+import LoginForm from './components/LoginForm';
 
 interface FormData {
     firstName: string;
@@ -1358,407 +1360,90 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
 
     if (showLogin) {
         return (
-            <div className="appointease-booking">
-                <div className="appointease-booking-header">
-                    <div className="appointease-logo">
-                        <span className="logo-icon">A</span>
-                    </div>
-                    <button className="close-btn" onClick={() => setShowLogin(false)}>
-                        <i className="fas fa-times"></i>
-                    </button>
-                </div>
-                <div className="appointease-booking-content">
-                    <div className="login-container">
-                        <h2>Login to Your Account</h2>
-                        <p>Access all your appointments and book new ones</p>
-                        
-                        {!otpSent ? (
-                            <div className="login-form">
-                                <div className="form-group">
-                                    <label>Email Address</label>
-                                    <input
-                                        type="email"
-                                        value={loginEmail}
-                                        onChange={(e) => {
-                                            const sanitized = sanitizeInput(e.target.value);
-                                            if (sanitized.length <= 100) {
-                                                setLoginEmail(sanitized);
-                                                if (errors.general) setErrors({});
-                                            }
-                                        }}
-                                        className={errors.general && errors.general.includes('email') ? 'error' : /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(loginEmail) ? 'valid' : ''}
-                                        required
-                                        placeholder="Enter your email"
-                                    />
-                                </div>
-                                {errors.general && (
-                                    <div className="error-message" style={{marginTop: '0.5rem', color: '#dc3545', fontSize: '0.875rem'}}>
-                                        {errors.general}
-                                    </div>
-                                )}
-                                <button className="send-otp-btn" onClick={handleSendOTP} disabled={isLoadingOTP || !loginEmail}>
-                                    {isLoadingOTP ? (
-                                        <>
-                                            <i className="fas fa-spinner fa-spin"></i>
-                                            Sending verification code...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <i className="fas fa-paper-plane"></i>
-                                            Send Verification Code
-                                        </>
-                                    )}
-                                </button>
-                            </div>
-                        ) : (
-                            <div className="otp-verification">
-                                <div className="verification-card">
-                                    <div className="verification-header">
-                                        <i className="fas fa-sign-in-alt" style={{fontSize: '2.5rem', color: '#1CBC9B', marginBottom: '1rem'}}></i>
-                                        <h3>Verify to Login</h3>
-                                        <p>We've sent a 6-digit verification code to:</p>
-                                        <div className="email-highlight">
-                                            {loginEmail}
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="verification-form">
-                                        <div className="form-group">
-                                            <label>Verification Code</label>
-                                            <input
-                                                type="text"
-                                                value={otpCode}
-                                                onChange={(e) => {
-                                                    const sanitized = sanitizeInput(e.target.value.replace(/\D/g, ''));
-                                                    if (sanitized.length <= 6) {
-                                                        setOtpCode(sanitized);
-                                                        if (errors.general) setErrors({});
-                                                    }
-                                                }}
-                                                placeholder="000000"
-                                                maxLength={6}
-                                                className="otp-input"
-                                            />
-                                        </div>
-                                        
-                                        <div className="verification-info">
-                                            {loginOtpExpiry > 0 && (
-                                                <div className="timer-display">
-                                                    <i className="fas fa-clock"></i>
-                                                    <span>Expires in {Math.floor(Math.max(0, (loginOtpExpiry - Date.now()) / 1000) / 60)}:{String(Math.max(0, Math.ceil((loginOtpExpiry - Date.now()) / 1000) % 60)).padStart(2, '0')}</span>
-                                                </div>
-                                            )}
-                                            
-                                            <button 
-                                                className="resend-link" 
-                                                onClick={handleSendOTP} 
-                                                disabled={loginResendCooldown > 0 || loginIsBlocked}
-                                            >
-                                                {loginResendCooldown > 0 ? 
-                                                    `Resend in ${loginResendCooldown}s` : 
-                                                    'Didn\'t receive code? Resend'
-                                                }
-                                            </button>
-                                        </div>
-                                        
-                                        {errors.general && (
-                                            <div className={`verification-message ${errors.general.includes('successfully') ? 'success' : 'error'}`}>
-                                                {errors.general}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                                
-                                <div className="form-actions">
-                                    <button className="back-btn" onClick={() => {
-                                        setOtpSent(false);
-                                        setOtpCode('');
-                                        setErrors({});
-                                    }}>
-                                        <i className="fas fa-arrow-left"></i> Back
-                                    </button>
-                                    <button className="confirm-btn" onClick={handleVerifyOTP} disabled={isLoadingLogin || loginIsBlocked || otpCode.length !== 6}>
-                                        {isLoadingLogin ? (
-                                            <><i className="fas fa-spinner fa-spin"></i> Verifying...</>
-                                        ) : (
-                                            <><i className="fas fa-shield-check"></i> Verify & Login</>
-                                        )}
-                                    </button>
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
+            <LoginForm
+                loginEmail={loginEmail}
+                otpCode={otpCode}
+                otpSent={otpSent}
+                isLoadingOTP={isLoadingOTP}
+                isLoadingLogin={isLoadingLogin}
+                loginOtpExpiry={loginOtpExpiry}
+                loginResendCooldown={loginResendCooldown}
+                loginIsBlocked={loginIsBlocked}
+                errors={errors}
+                onClose={() => setShowLogin(false)}
+                onEmailChange={(email) => {
+                    setLoginEmail(email);
+                    if (errors.general) setErrors({});
+                }}
+                onOtpChange={(otp) => {
+                    setOtpCode(otp);
+                    if (errors.general) setErrors({});
+                }}
+                onSendOTP={handleSendOTP}
+                onVerifyOTP={handleVerifyOTP}
+                onBack={() => {
+                    setOtpSent(false);
+                    setOtpCode('');
+                    setErrors({});
+                }}
+                sanitizeInput={sanitizeInput}
+            />
         );
     }
     
     if (showDashboard) {
         return (
-            <div className="appointease-booking">
-                <div className="appointease-booking-header">
-                    <div className="appointease-logo">
-                        <span className="logo-icon">A</span>
-                    </div>
-                    <div className="user-menu">
-                        <button className="logout-btn" onClick={async () => {
-                            setIsLoggedIn(false);
-                            setShowDashboard(false);
-                            setLoginEmail('');
-                            setOtpCode('');
-                            setOtpSent(false);
-                            setSessionToken(null);
-                            setStep(1);
-                            await clearSession();
-                        }}>
-                            <i className="fas fa-sign-out-alt"></i>
-                        </button>
-                    </div>
-                </div>
-                <div className="appointease-booking-content">
-                    <div className="dashboard-container" ref={dashboardRef}>
-                        <div className="dashboard-header">
-                            <div className="dashboard-title-section">
-                                <div className="dashboard-welcome">
-                                    <h2>Welcome back!</h2>
-                                    <div className="user-info">
-                                        <div className="user-avatar">
-                                            <i className="fas fa-user"></i>
-                                        </div>
-                                        <div className="user-details">
-                                            <span className="user-email">{loginEmail}</span>
-                                            <span className="user-status">
-                                                <i className="fas fa-circle online-indicator"></i>
-                                                Online
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="dashboard-stats">
-                                    <div className="stat-card">
-                                        <div className="stat-number">{userAppointments.length}</div>
-                                        <div className="stat-label">Total Appointments</div>
-                                    </div>
-                                    <div className="stat-card">
-                                        <div className="stat-number">
-                                            {userAppointments.filter(apt => apt.status === 'confirmed').length}
-                                        </div>
-                                        <div className="stat-label">Active</div>
-                                    </div>
-                                    <div className="stat-card">
-                                        <div className="stat-number">
-                                            {userAppointments.filter(apt => {
-                                                const aptDate = new Date(apt.date);
-                                                const today = new Date();
-                                                return aptDate > today && apt.status === 'confirmed';
-                                            }).length}
-                                        </div>
-                                        <div className="stat-label">Upcoming</div>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="dashboard-actions">
-                                <button className="refresh-btn" onClick={() => loadUserAppointmentsRealtime()} disabled={isLoadingAppointments}>
-                                    <i className={`fas fa-sync-alt ${isLoadingAppointments ? 'fa-spin' : ''}`}></i>
-                                    <span className="btn-text">{isLoadingAppointments ? 'Refreshing...' : 'Refresh'}</span>
-                                </button>
-                                <button className="new-appointment-btn" onClick={() => {
-                                    setShowDashboard(false);
-                                    setStep(1);
-                                }}>
-                                    <i className="fas fa-plus"></i>
-                                    <div className="btn-content">
-                                        <span className="btn-title">New Appointment</span>
-                                        <span className="btn-desc">Book another appointment</span>
-                                    </div>
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <div className="appointments-section">
-                            <div className="section-header">
-                                <h3>Your Appointments</h3>
-                                <div className="view-options">
-                                    <button className="view-btn active" title="Grid View">
-                                        <i className="fas fa-th-large"></i>
-                                    </button>
-                                    <button className="view-btn" title="List View">
-                                        <i className="fas fa-list"></i>
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            {userAppointments.length === 0 ? (
-                                <div className="no-appointments">
-                                    <div className="empty-state-icon">
-                                        <i className="fas fa-calendar-times"></i>
-                                    </div>
-                                    <h4>No appointments yet</h4>
-                                    <p>You haven't booked any appointments. Start by booking your first one!</p>
-                                    <button className="empty-state-btn" onClick={() => {
-                                        setShowDashboard(false);
-                                        setStep(1);
-                                    }}>
-                                        <i className="fas fa-plus"></i>
-                                        Book Your First Appointment
-                                    </button>
-                                </div>
-                            ) : (
-                                <div className="appointments-grid">
-                                    {userAppointments
-                                        .slice((currentPage - 1) * appointmentsPerPage, currentPage * appointmentsPerPage)
-                                        .map(appointment => {
-                                            const appointmentDate = new Date(appointment.date);
-                                            const isUpcoming = appointmentDate > new Date() && appointment.status === 'confirmed';
-                                            const isPast = appointmentDate < new Date();
-                                            const timeUntil = isUpcoming ? Math.ceil((appointmentDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : null;
-                                            
-                                            return (
-                                                <div key={appointment.id} className={`appointment-card-enhanced ${isUpcoming ? 'upcoming' : ''} ${isPast ? 'past' : ''}`}>
-                                                    <div className="card-header">
-                                                        <div className="appointment-id-badge">
-                                                            <span className="id-text">{appointment.id}</span>
-                                                        </div>
-                                                        <span className={`status-badge ${appointment.status}`}>
-                                                            {appointment.status === 'confirmed' && <><i className="fas fa-check-circle"></i> Confirmed</>}
-                                                            {appointment.status === 'cancelled' && <><i className="fas fa-times-circle"></i> Cancelled</>}
-                                                            {appointment.status === 'rescheduled' && <><i className="fas fa-calendar-alt"></i> Rescheduled</>}
-                                                            {appointment.status === 'created' && <><i className="fas fa-plus-circle"></i> Created</>}
-                                                        </span>
-                                                    </div>
-                                                    
-                                                    <div className="card-body">
-                                                        <div className="appointment-main-info">
-                                                            <div className="service-info">
-                                                                <h4 className="service-name">
-                                                                    <i className="fas fa-briefcase"></i>
-                                                                    {sanitizeInput(appointment.service || 'Unknown Service')}
-                                                                </h4>
-                                                                <div className="staff-info">
-                                                                    <i className="fas fa-user-md"></i>
-                                                                    <span>with {sanitizeInput(appointment.staff || 'Unknown Staff')}</span>
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                        
-                                                        <div className="appointment-datetime">
-                                                            <div className="date-info">
-                                                                <div className="date-primary">
-                                                                    <i className="fas fa-calendar"></i>
-                                                                    <span className="date-text">
-                                                                        {appointmentDate.toLocaleDateString('en', { 
-                                                                            weekday: 'long', 
-                                                                            month: 'short', 
-                                                                            day: 'numeric' 
-                                                                        })}
-                                                                    </span>
-                                                                </div>
-                                                                <div className="time-info">
-                                                                    <i className="fas fa-clock"></i>
-                                                                    <span className="time-text">
-                                                                        {appointmentDate.toLocaleTimeString('en', {hour: '2-digit', minute: '2-digit'})}
-                                                                    </span>
-                                                                </div>
-                                                            </div>
-                                                            {isUpcoming && timeUntil && (
-                                                                <div className="countdown-badge">
-                                                                    <i className="fas fa-hourglass-half"></i>
-                                                                    {timeUntil === 1 ? 'Tomorrow' : `In ${timeUntil} days`}
-                                                                </div>
-                                                            )}
-                                                            {isPast && appointment.status !== 'cancelled' && (
-                                                                <div className="past-badge">
-                                                                    <i className="fas fa-check"></i>
-                                                                    Completed
-                                                                </div>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                    
-                                                    <div className="card-actions">
-                                                        {appointment.status !== 'cancelled' && !isPast && (
-                                                            <>
-                                                                <button 
-                                                                    className="action-btn reschedule-btn" 
-                                                                    onClick={() => {
-                                                                        setCurrentAppointment({
-                                                                            id: appointment.id,
-                                                                            name: appointment.name || loginEmail,
-                                                                            email: appointment.email || loginEmail,
-                                                                            appointment_date: appointment.date,
-                                                                            status: appointment.status
-                                                                        });
-                                                                        setSelectedService({name: 'Current Service', price: 0});
-                                                                        setSelectedEmployee({name: 'Current Staff'});
-                                                                        setIsRescheduling(true);
-                                                                        setShowDashboard(false);
-                                                                        setStep(3);
-                                                                    }}
-                                                                    title="Reschedule this appointment"
-                                                                >
-                                                                    <i className="fas fa-calendar-alt"></i>
-                                                                    <span>Reschedule</span>
-                                                                </button>
-                                                                <button 
-                                                                    className="action-btn cancel-btn" 
-                                                                    onClick={() => {
-                                                                        setCurrentAppointment({
-                                                                            id: appointment.id,
-                                                                            name: appointment.name || loginEmail,
-                                                                            email: appointment.email || loginEmail,
-                                                                            appointment_date: appointment.date,
-                                                                            status: appointment.status
-                                                                        });
-                                                                        setShowCancelConfirm(true);
-                                                                        setShowDashboard(false);
-                                                                        setManageMode(true);
-                                                                    }}
-                                                                    title="Cancel this appointment"
-                                                                >
-                                                                    <i className="fas fa-times"></i>
-                                                                    <span>Cancel</span>
-                                                                </button>
-                                                            </>
-                                                        )}
-                                                        {(appointment.status === 'cancelled' || isPast) && (
-                                                            <div className="disabled-actions">
-                                                                <span className="disabled-text">
-                                                                    {appointment.status === 'cancelled' ? 'Cancelled' : 'Completed'}
-                                                                </span>
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                </div>
-                            )}
-                        </div>
-                        
-                        {userAppointments.length > appointmentsPerPage && (
-                            <div className="pagination">
-                                <button 
-                                    className="pagination-btn" 
-                                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                                    disabled={currentPage === 1}
-                                >
-                                    <i className="fas fa-chevron-left"></i> Previous
-                                </button>
-                                <span className="pagination-info">
-                                    Page {currentPage} of {Math.ceil(userAppointments.length / appointmentsPerPage)}
-                                </span>
-                                <button 
-                                    className="pagination-btn" 
-                                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(userAppointments.length / appointmentsPerPage)))}
-                                    disabled={currentPage === Math.ceil(userAppointments.length / appointmentsPerPage)}
-                                >
-                                    Next <i className="fas fa-chevron-right"></i>
-                                </button>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            </div>
+            <Dashboard
+                loginEmail={loginEmail}
+                userAppointments={userAppointments}
+                isLoadingAppointments={isLoadingAppointments}
+                currentPage={currentPage}
+                appointmentsPerPage={appointmentsPerPage}
+                dashboardRef={dashboardRef}
+                onRefresh={() => loadUserAppointmentsRealtime()}
+                onNewAppointment={() => {
+                    setShowDashboard(false);
+                    setStep(1);
+                }}
+                onLogout={async () => {
+                    setIsLoggedIn(false);
+                    setShowDashboard(false);
+                    setLoginEmail('');
+                    setOtpCode('');
+                    setOtpSent(false);
+                    setSessionToken(null);
+                    setStep(1);
+                    await clearSession();
+                }}
+                onReschedule={(appointment) => {
+                    setCurrentAppointment({
+                        id: appointment.id,
+                        name: appointment.name || loginEmail,
+                        email: appointment.email || loginEmail,
+                        appointment_date: appointment.date,
+                        status: appointment.status
+                    });
+                    setSelectedService({name: 'Current Service', price: 0});
+                    setSelectedEmployee({name: 'Current Staff'});
+                    setIsRescheduling(true);
+                    setShowDashboard(false);
+                    setStep(3);
+                }}
+                onCancel={(appointment) => {
+                    setCurrentAppointment({
+                        id: appointment.id,
+                        name: appointment.name || loginEmail,
+                        email: appointment.email || loginEmail,
+                        appointment_date: appointment.date,
+                        status: appointment.status
+                    });
+                    setShowCancelConfirm(true);
+                    setShowDashboard(false);
+                    setManageMode(true);
+                }}
+                setCurrentPage={setCurrentPage}
+                sanitizeInput={sanitizeInput}
+            />
         );
     }
     
