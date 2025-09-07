@@ -3411,6 +3411,51 @@
     font-weight: 500;
 }
 
+/* Email Lookup Styles */
+.email-input-container {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.email-checking {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #1CBC9B;
+    font-size: 14px;
+}
+
+.existing-user-badge {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #d4edda;
+    color: #155724;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid rgba(21, 87, 36, 0.2);
+}
+
+.existing-user-badge i {
+    color: #28a745;
+}
+
+/* Disabled input styling for existing users */
+.form-group input:disabled {
+    background-color: #f8f9fa;
+    color: #6c757d;
+    cursor: not-allowed;
+    opacity: 0.8;
+}
+
 /* Mobile responsive - 2 cards per row on tablets, 1 on mobile */
 @media (max-width: 1024px) {
     .appointments-grid {
@@ -3436,5 +3481,12 @@
     
     .info-row {
         font-size: 0.8rem;
+    }
+    
+    .email-checking,
+    .existing-user-badge {
+        right: 8px;
+        font-size: 10px;
+        padding: 2px 6px;
     }
 }

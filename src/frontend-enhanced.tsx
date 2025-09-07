@@ -32,10 +32,18 @@ declare global {
     }
 }
 
-// Enhanced notification system
+// Enhanced notification system with input sanitization
+const sanitizeLogInput = (input: string): string => {
+    return input.replace(/[\r\n\t]/g, ' ').replace(/[<>"'&]/g, (char) => {
+        const entities: Record<string, string> = { '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#x27;', '&': '&amp;' };
+        return entities[char] || char;
+    });
+};
+
 const showNotification = (message: string, type: 'success' | 'error' | 'warning' | 'info' = 'success', title?: string) => {
-    // Simple console log for now
-    console.log(`${type.toUpperCase()}: ${message}`);
+    const sanitizedMessage = sanitizeLogInput(message);
+    const sanitizedType = sanitizeLogInput(type.toUpperCase());
+    console.log(`${sanitizedType}: ${sanitizedMessage}`);
 };
 
 const createNotificationContainer = () => {
@@ -119,6 +127,8 @@ const BookingApp = React.forwardRef((props: any, ref) => {
     const [verifyIsBlocked, setVerifyIsBlocked] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const [appointmentsPerPage] = useState(2);
+    const [isCheckingEmail, setIsCheckingEmail] = useState(false);
+    const [existingUser, setExistingUser] = useState<any>(null);
 
     // Enhanced connection monitoring and auto-refresh
     useEffect(() => {
@@ -188,10 +198,66 @@ const BookingApp = React.forwardRef((props: any, ref) => {
         });
     }, [loginEmail]);
     
+    // Check if email exists using existing user-appointments endpoint
+    const checkExistingEmail = async (email: string) => {
+        if (!email || !window.bookingAPI) {
+            setExistingUser(null);
+            return;
+        }
+        
+        setIsCheckingEmail(true);
+        console.log('Checking email using user-appointments endpoint:', email);
+        
+        try {
+            const response = await fetch(`${window.bookingAPI.root}appointease/v1/user-appointments`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-WP-Nonce': window.bookingAPI.nonce
+                },
+                body: JSON.stringify({ email })
+            });
+            
+            if (response.ok) {
+                const appointments = await response.json();
+                const hasAppointments = appointments && appointments.length > 0;
+                console.log('User check result:', hasAppointments ? 'existing user' : 'new user');
+                if (hasAppointments) {
+                    const userData = { exists: true, name: appointments[0]?.name, phone: appointments[0]?.phone };
+                    setExistingUser(userData);
+                    // Auto-fill form data for existing user
+                    setFormData(prev => ({
+                        ...prev,
+                        firstName: userData.name || prev.firstName,
+                        phone: userData.phone || prev.phone
+                    }));
+                } else {
+                    setExistingUser(null);
+                }
+            } else {
+                console.log('User check failed, treating as new user');
+                setExistingUser(null);
+            }
+        } catch (error) {
+            console.log('Email check error, treating as new user:', error);
+            setExistingUser(null);
+        } finally {
+            setIsCheckingEmail(false);
+        }
+    };
+    
     // Auto-refresh appointments every 10 seconds when logged in
     useEffect(() => {
         if (!isLoggedIn || !showDashboard) return;
         
+        const interval = setInterval(() => {
+            loadUserAppointmentsRealtime();
+        }, 10000);
+        
+        return () => clearInterval(interval);
+    }, [isLoggedIn, showDashboard, loadUserAppointmentsRealtime]);
+    
+    useEffect(() => {
         const interval = setInterval(() => {
             loadUserAppointmentsRealtime();
         }, 10000);
@@ -301,45 +367,53 @@ const BookingApp = React.forwardRef((props: any, ref) => {
     };
 
     const handleServiceSelect = (service: any) => {
+        if (!service || !service.id) {
+            setErrors({service: 'Invalid service selected'});
+            return;
+        }
         setSelectedService(service);
         setErrors({});
-        // Service selected
         setStep(2);
     };
 
     const handleEmployeeSelect = (employee: any) => {
+        if (!employee || !employee.id) {
+            setErrors({employee: 'Invalid employee selected'});
+            return;
+        }
         setSelectedEmployee(employee);
         setErrors({});
         setUnavailableSlots([]);
-        // Employee selected
         setStep(3);
     };
 
     const handleDateSelect = (date: string) => {
+        if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            setErrors({date: 'Invalid date format'});
+            return;
+        }
+        
         const selectedDateObj = new Date(date);
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         
-        if (selectedDateObj < today) {
-            setErrors({general: 'Cannot select past dates'});
+        if (isNaN(selectedDateObj.getTime())) {
+            setErrors({date: 'Invalid date selected'});
             return;
         }
         
-        // Use business hours instead of hardcoded weekends
+        if (selectedDateObj < today) {
+            setErrors({date: 'Cannot select past dates'});
+            return;
+        }
+        
         if (businessHours.closedDays.includes(selectedDateObj.getDay())) {
-            setErrors({general: 'This day is not available for appointments'});
+            setErrors({date: 'This day is not available for appointments'});
             return;
         }
         
         setSelectedDate(date);
         setErrors({});
-        const formattedDate = selectedDateObj.toLocaleDateString('en', { 
-            weekday: 'long', 
-            year: 'numeric', 
-            month: 'long', 
-            day: 'numeric' 
-        });
-        // Date selected
         
         if (selectedEmployee) {
             checkAvailability(date, selectedEmployee.id);
@@ -354,43 +428,80 @@ const BookingApp = React.forwardRef((props: any, ref) => {
     };
 
     const handleTimeSelect = (time: string) => {
+        if (!time || !/^\d{2}:\d{2}$/.test(time)) {
+            setErrors({time: 'Invalid time format'});
+            return;
+        }
+        
         if (unavailableSlots.includes(time)) {
-            setErrors({general: 'This time slot is not available'});
+            setErrors({time: 'This time slot is not available'});
             return;
         }
         
         setSelectedTime(time);
         setErrors({});
-        // Time selected
-        
         setStep(5);
+    };
+
+    const sanitizeInput = (input: string): string => {
+        return input.replace(/[<>"'&]/g, (char) => {
+            const entities: Record<string, string> = { '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#x27;', '&': '&amp;' };
+            return entities[char] || char;
+        }).trim();
     };
 
     const validateForm = (): boolean => {
         const newErrors: FormErrors = {};
         
-        if (!formData.firstName.trim()) {
-            newErrors.firstName = 'Name is required';
-        } else if (formData.firstName.trim().length < 2) {
-            newErrors.firstName = 'Name must be at least 2 characters';
+        // Validate and sanitize required fields
+        if (!selectedService) {
+            newErrors.service = 'Please select a service';
         }
         
-        if (!formData.email.trim()) {
+        if (!selectedEmployee) {
+            newErrors.employee = 'Please select a specialist';
+        }
+        
+        if (!selectedDate) {
+            newErrors.date = 'Please select a date';
+        }
+        
+        if (!selectedTime) {
+            newErrors.time = 'Please select a time';
+        }
+        
+        const sanitizedFirstName = sanitizeInput(formData.firstName);
+        if (!sanitizedFirstName) {
+            newErrors.firstName = 'Name is required';
+        } else if (sanitizedFirstName.length < 2) {
+            newErrors.firstName = 'Name must be at least 2 characters';
+        } else if (sanitizedFirstName.length > 50) {
+            newErrors.firstName = 'Name must be less than 50 characters';
+        } else if (!/^[a-zA-Z\s'-]+$/.test(sanitizedFirstName)) {
+            newErrors.firstName = 'Name can only contain letters, spaces, hyphens, and apostrophes';
+        }
+        
+        const sanitizedEmail = sanitizeInput(formData.email);
+        if (!sanitizedEmail) {
             newErrors.email = 'Email is required';
-        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+        } else if (sanitizedEmail.length > 100) {
+            newErrors.email = 'Email must be less than 100 characters';
+        } else if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(sanitizedEmail)) {
             newErrors.email = 'Please enter a valid email address';
         }
         
-        if (formData.phone && !/^[\d\s\-\+\(\)]+$/.test(formData.phone)) {
-            newErrors.phone = 'Please enter a valid phone number';
-        } else if (formData.phone && formData.phone.replace(/\D/g, '').length < 10) {
-            newErrors.phone = 'Phone number must be at least 10 digits';
+        if (formData.phone) {
+            const sanitizedPhone = sanitizeInput(formData.phone);
+            if (sanitizedPhone.length > 20) {
+                newErrors.phone = 'Phone number is too long';
+            } else if (!/^[\d\s\-\+\(\)]+$/.test(sanitizedPhone)) {
+                newErrors.phone = 'Please enter a valid phone number';
+            } else if (sanitizedPhone.replace(/\D/g, '').length < 10) {
+                newErrors.phone = 'Phone number must be at least 10 digits';
+            }
         }
         
         setErrors(newErrors);
-        
-        // Form validation complete
-        
         return Object.keys(newErrors).length === 0;
     };
     
@@ -443,12 +554,12 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                 'Connection': 'keep-alive'
             },
             body: JSON.stringify({
-                name: isLoggedIn ? loginEmail.split('@')[0] : formData.firstName,
-                email: isLoggedIn ? loginEmail : formData.email,
-                phone: isLoggedIn ? '' : formData.phone,
+                name: sanitizeInput(isLoggedIn ? loginEmail.split('@')[0] : formData.firstName),
+                email: sanitizeInput(isLoggedIn ? loginEmail : formData.email),
+                phone: sanitizeInput(isLoggedIn ? '' : formData.phone),
                 date: appointmentDateTime,
-                service_id: selectedService.id,
-                employee_id: selectedEmployee.id
+                service_id: parseInt(String(selectedService.id), 10),
+                employee_id: parseInt(String(selectedEmployee.id), 10)
             }),
             keepalive: true
         })
@@ -480,7 +591,7 @@ const BookingApp = React.forwardRef((props: any, ref) => {
             }
         })
         .catch(error => {
-            console.error('Booking error:', error);
+            console.error('Booking error:', sanitizeLogInput(error.message || 'Unknown error'));
             const errorMessage = isOnline ? 'Booking failed. Please try again.' : 'Booking failed. Please check your connection.';
             setErrors({general: errorMessage});
         })
@@ -503,7 +614,14 @@ const BookingApp = React.forwardRef((props: any, ref) => {
     const handleManageAppointment = (appointmentIdToManage?: string) => {
         const idToUse = appointmentIdToManage || appointmentId;
         
-        if (!idToUse || typeof idToUse !== 'string') {
+        if (!idToUse || typeof idToUse !== 'string' || idToUse.length < 3) {
+            setErrors({general: 'Please enter a valid appointment ID'});
+            return;
+        }
+        
+        const sanitizedId = sanitizeInput(idToUse);
+        if (sanitizedId !== idToUse) {
+            setErrors({general: 'Invalid characters in appointment ID'});
             return;
         }
         
@@ -671,8 +789,25 @@ const BookingApp = React.forwardRef((props: any, ref) => {
         });
     };
 
+    const validateLoginEmail = (): boolean => {
+        const sanitized = sanitizeInput(loginEmail);
+        if (!sanitized) {
+            setErrors({general: 'Email is required'});
+            return false;
+        }
+        if (!/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(sanitized)) {
+            setErrors({general: 'Please enter a valid email address'});
+            return false;
+        }
+        if (sanitized.length > 100) {
+            setErrors({general: 'Email must be less than 100 characters'});
+            return false;
+        }
+        return true;
+    };
+
     const handleSendOTP = () => {
-        if (!loginEmail || loginResendCooldown > 0) {
+        if (!validateLoginEmail() || loginResendCooldown > 0) {
             return;
         }
         
@@ -697,19 +832,28 @@ const BookingApp = React.forwardRef((props: any, ref) => {
         }, 1500);
     };
     
-    const handleVerifyOTP = () => {
+    const validateOTP = (code: string): boolean => {
         if (loginIsBlocked) {
             setErrors({general: 'Too many failed attempts. Please try again later.'});
-            return;
+            return false;
         }
-        
-        if (!otpCode) {
-            setErrors({general: 'Please enter the verification code'});
-            return;
+        if (!code || code.length !== 6) {
+            setErrors({general: 'Please enter a valid 6-digit verification code'});
+            return false;
         }
-        
+        if (!/^\d{6}$/.test(code)) {
+            setErrors({general: 'Verification code must contain only numbers'});
+            return false;
+        }
         if (Date.now() > loginOtpExpiry) {
             setErrors({general: 'Code expired. Please request a new one.'});
+            return false;
+        }
+        return true;
+    };
+
+    const handleVerifyOTP = () => {
+        if (!validateOTP(otpCode)) {
             return;
         }
         
@@ -1048,11 +1192,24 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                     <input
                                         type="email"
                                         value={loginEmail}
-                                        onChange={(e) => setLoginEmail(e.target.value)}
+                                        onChange={(e) => {
+                                            const sanitized = sanitizeInput(e.target.value);
+                                            if (sanitized.length <= 100) {
+                                                setLoginEmail(sanitized);
+                                                if (errors.general) setErrors({});
+                                            }
+                                        }}
+                                        className={errors.general && errors.general.includes('email') ? 'error' : /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(loginEmail) ? 'valid' : ''}
+                                        required
                                         placeholder="Enter your email"
                                     />
                                 </div>
-                                <button className="send-otp-btn" onClick={handleSendOTP} disabled={isLoadingOTP}>
+                                {errors.general && (
+                                    <div className="error-message" style={{marginTop: '0.5rem', color: '#dc3545', fontSize: '0.875rem'}}>
+                                        {errors.general}
+                                    </div>
+                                )}
+                                <button className="send-otp-btn" onClick={handleSendOTP} disabled={isLoadingOTP || !loginEmail}>
                                     {isLoadingOTP ? (
                                         <>
                                             <i className="fas fa-spinner fa-spin"></i>
@@ -1085,8 +1242,11 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                                 type="text"
                                                 value={otpCode}
                                                 onChange={(e) => {
-                                                    setOtpCode(e.target.value.replace(/\D/g, ''));
-                                                    if (errors.general) setErrors({});
+                                                    const sanitized = sanitizeInput(e.target.value.replace(/\D/g, ''));
+                                                    if (sanitized.length <= 6) {
+                                                        setOtpCode(sanitized);
+                                                        if (errors.general) setErrors({});
+                                                    }
                                                 }}
                                                 placeholder="000000"
                                                 maxLength={6}
@@ -1221,11 +1381,11 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                             <div className="appointment-info">
                                                 <div className="info-row">
                                                     <i className="fas fa-briefcase"></i>
-                                                    <span>{appointment.service}</span>
+                                                    <span>{sanitizeInput(appointment.service || 'Unknown Service')}</span>
                                                 </div>
                                                 <div className="info-row">
                                                     <i className="fas fa-user-md"></i>
-                                                    <span>{appointment.staff}</span>
+                                                    <span>{sanitizeInput(appointment.staff || 'Unknown Staff')}</span>
                                                 </div>
                                                 <div className="info-row">
                                                     <i className="fas fa-calendar"></i>
@@ -1237,11 +1397,35 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                                 </div>
                                             </div>
                                             <div className="appointment-actions-mini">
-                                                <button className="manage-mini-btn" onClick={() => {
+                                                <button className="reschedule-btn" onClick={() => {
+                                                    setCurrentAppointment({
+                                                        id: appointment.id,
+                                                        name: appointment.name || loginEmail,
+                                                        email: appointment.email || loginEmail,
+                                                        appointment_date: appointment.date,
+                                                        status: appointment.status
+                                                    });
+                                                    setSelectedService({name: 'Current Service', price: 0});
+                                                    setSelectedEmployee({name: 'Current Staff'});
+                                                    setIsRescheduling(true);
                                                     setShowDashboard(false);
-                                                    handleManageAppointment(appointment.id);
+                                                    setStep(3);
                                                 }}>
-                                                    Manage
+                                                    Reschedule
+                                                </button>
+                                                <button className="cancel-btn" onClick={() => {
+                                                    setCurrentAppointment({
+                                                        id: appointment.id,
+                                                        name: appointment.name || loginEmail,
+                                                        email: appointment.email || loginEmail,
+                                                        appointment_date: appointment.date,
+                                                        status: appointment.status
+                                                    });
+                                                    setShowCancelConfirm(true);
+                                                    setShowDashboard(false);
+                                                    setManageMode(true);
+                                                }}>
+                                                    Cancel
                                                 </button>
                                             </div>
                                         </div>
@@ -1354,11 +1538,11 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                             <div className="appointment-details">
                                 <div className="detail-item">
                                     <span className="detail-label">Customer:</span>
-                                    <span className="detail-value">{currentAppointment.name}</span>
+                                    <span className="detail-value">{sanitizeInput(currentAppointment.name || 'Unknown')}</span>
                                 </div>
                                 <div className="detail-item">
                                     <span className="detail-label">Email:</span>
-                                    <span className="detail-value">{currentAppointment.email}</span>
+                                    <span className="detail-value">{sanitizeInput(currentAppointment.email || 'Unknown')}</span>
                                 </div>
                                 <div className="detail-item">
                                     <span className="detail-label">Date & Time:</span>
@@ -1811,52 +1995,77 @@ const BookingApp = React.forwardRef((props: any, ref) => {
 
                             <div className="form-row">
                                 <div className="form-group">
+                                    <label htmlFor="email">Email *</label>
+                                    <div className="email-input-container">
+                                        <input
+                                            id="email"
+                                            type="email"
+                                            value={formData.email}
+                                            onChange={(e) => {
+                                                const sanitized = sanitizeInput(e.target.value);
+                                                console.log('Email input changed:', sanitized);
+                                                setFormData({...formData, email: sanitized});
+                                                if (errors.email) setErrors({...errors, email: undefined});
+                                                
+                                                // Check if user exists after 500ms delay
+                                                if (sanitized && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sanitized)) {
+                                                    setTimeout(() => checkExistingEmail(sanitized), 500);
+                                                } else {
+                                                    setExistingUser(null);
+                                                }
+                                            }}
+                                            className={errors.email ? 'error' : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email) ? 'valid' : ''}
+                                            placeholder="Enter your email address"
+                                            aria-describedby={errors.email ? 'email-error' : undefined}
+                                            aria-invalid={!!errors.email}
+                                            autoComplete="email"
+                                            required
+                                            disabled={existingUser && existingUser.exists}
+                                        />
+                                        {isCheckingEmail && (
+                                            <div className="email-checking">
+                                                <i className="fas fa-spinner fa-spin"></i>
+                                            </div>
+                                        )}
+                                        {existingUser && existingUser.exists && (
+                                            <div className="existing-user-badge">
+                                                <i className="fas fa-user-check"></i>
+                                                Welcome back{existingUser.name ? `, ${existingUser.name}` : ''}!
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {errors.email && (
+                                        <span className="validation-icon invalid" aria-hidden="true">✕</span>
+                                    )}
+                                    {errors.email && <span id="email-error" className="error-message" role="alert">{errors.email}</span>}
+                                </div>
+                            </div>
+                            <div className="form-row">
+                                <div className="form-group">
                                     <label htmlFor="name">Name *</label>
                                     <input
                                         id="name"
                                         type="text"
-                                        value={formData.firstName}
+                                        value={formData.firstName || ''}
                                         onChange={(e) => {
-                                            setFormData({...formData, firstName: e.target.value});
+                                            const sanitized = sanitizeInput(e.target.value);
+                                            setFormData({...formData, firstName: sanitized});
                                             if (errors.firstName) setErrors({...errors, firstName: undefined});
                                         }}
-                                        className={errors.firstName ? 'error' : formData.firstName.length >= 2 ? 'valid' : ''}
+                                        className={errors.firstName ? 'error' : formData.firstName && formData.firstName.length >= 2 ? 'valid' : ''}
                                         placeholder="Enter your name"
                                         aria-describedby={errors.firstName ? 'name-error' : undefined}
                                         aria-invalid={!!errors.firstName}
                                         autoComplete="name"
                                         required
+                                        disabled={existingUser && existingUser.exists}
                                     />
 
                                     {errors.firstName && (
                                         <span className="validation-icon invalid" aria-hidden="true">✕</span>
                                     )}
                                     {errors.firstName && <span id="name-error" className="error-message" role="alert">{errors.firstName}</span>}
-                                </div>
-                            </div>
-                            <div className="form-row">
-                                <div className="form-group">
-                                    <label htmlFor="email">Email *</label>
-                                    <input
-                                        id="email"
-                                        type="email"
-                                        value={formData.email}
-                                        onChange={(e) => {
-                                            setFormData({...formData, email: e.target.value});
-                                            if (errors.email) setErrors({...errors, email: undefined});
-                                        }}
-                                        className={errors.email ? 'error' : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email) ? 'valid' : ''}
-                                        placeholder="Enter your email address"
-                                        aria-describedby={errors.email ? 'email-error' : undefined}
-                                        aria-invalid={!!errors.email}
-                                        autoComplete="email"
-                                        required
-                                    />
-
-                                    {errors.email && (
-                                        <span className="validation-icon invalid" aria-hidden="true">✕</span>
-                                    )}
-                                    {errors.email && <span id="email-error" className="error-message" role="alert">{errors.email}</span>}
                                 </div>
                                 <div className="form-group">
                                     <label htmlFor="phone">Phone (optional)</label>
@@ -1865,8 +2074,9 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                         type="tel"
                                         value={formData.phone}
                                         onChange={(e) => {
-                                            // Auto-format phone number
-                                            let value = e.target.value.replace(/\D/g, '');
+                                            // Auto-format phone number with sanitization
+                                            let value = sanitizeInput(e.target.value).replace(/\D/g, '');
+                                            if (value.length > 15) value = value.slice(0, 15); // Limit length
                                             if (value.length >= 6) {
                                                 value = value.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3');
                                             } else if (value.length >= 3) {
@@ -1880,6 +2090,7 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                         aria-describedby={errors.phone ? 'phone-error' : undefined}
                                         aria-invalid={!!errors.phone}
                                         autoComplete="tel"
+                                        disabled={existingUser && existingUser.exists}
                                     />
 
                                     {errors.phone && (
@@ -1955,8 +2166,11 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                                 type="text"
                                                 value={emailOtp}
                                                 onChange={(e) => {
-                                                    setEmailOtp(e.target.value.replace(/\D/g, ''));
-                                                    if (errors.general) setErrors({});
+                                                    const sanitized = sanitizeInput(e.target.value.replace(/\D/g, ''));
+                                                    if (sanitized.length <= 6) {
+                                                        setEmailOtp(sanitized);
+                                                        if (errors.general) setErrors({});
+                                                    }
                                                 }}
                                                 placeholder="000000"
                                                 maxLength={6}
@@ -2093,8 +2307,11 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                                 type="text"
                                                 value={verificationOtp}
                                                 onChange={(e) => {
-                                                    setVerificationOtp(e.target.value.replace(/\D/g, ''));
-                                                    if (errors.general) setErrors({});
+                                                    const sanitized = sanitizeInput(e.target.value.replace(/\D/g, ''));
+                                                    if (sanitized.length <= 6) {
+                                                        setVerificationOtp(sanitized);
+                                                        if (errors.general) setErrors({});
+                                                    }
                                                 }}
                                                 placeholder="000000"
                                                 maxLength={6}
@@ -2350,19 +2567,7 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                     Book Another
                                 </button>
                                 
-                                <button className="action-btn secondary-btn" onClick={() => {
-                                    setManageMode(true);
-                                    setCurrentAppointment({
-                                        id: appointmentId,
-                                        name: isLoggedIn ? loginEmail.split('@')[0] : formData.firstName,
-                                        email: isLoggedIn ? loginEmail : formData.email,
-                                        appointment_date: `${selectedDate} ${selectedTime}:00`,
-                                        status: 'confirmed'
-                                    });
-                                }}>
-                                    <i className="fas fa-edit"></i>
-                                    Manage
-                                </button>
+
                             </div>
                         
 
@@ -2389,7 +2594,13 @@ const BookingApp = React.forwardRef((props: any, ref) => {
                                 <input
                                     type="email"
                                     value={lookupEmail}
-                                    onChange={(e) => setLookupEmail(e.target.value)}
+                                    onChange={(e) => {
+                                        const sanitized = sanitizeInput(e.target.value);
+                                        if (sanitized.length <= 100) {
+                                            setLookupEmail(sanitized);
+                                        }
+                                    }}
+                                    className={/^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/.test(lookupEmail) ? 'valid' : ''}
                                     placeholder="your.email@example.com"
                                     autoComplete="email"
                                     onKeyDown={(e) => e.key === 'Enter' && handleEmailLookup()}
