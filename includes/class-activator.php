@@ -29,6 +29,8 @@ class Booking_Activator {
             total_amount decimal(10,2),
             strong_id varchar(20) UNIQUE,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
+            rescheduled_at datetime NULL,
+            original_date datetime NULL,
             PRIMARY KEY (id)
         ) $charset_collate;";
         
@@ -152,10 +154,20 @@ class Booking_Activator {
         dbDelta($sql8);
         dbDelta($sql9);
         
-        // Ensure strong_id column exists after table creation
-        $column_exists = $wpdb->get_results("SHOW COLUMNS FROM $appointments_table LIKE 'strong_id'");
-        if (empty($column_exists)) {
+        // Ensure new columns exist after table creation
+        $strong_id_exists = $wpdb->get_results("SHOW COLUMNS FROM $appointments_table LIKE 'strong_id'");
+        if (empty($strong_id_exists)) {
             $wpdb->query("ALTER TABLE $appointments_table ADD COLUMN strong_id varchar(20) UNIQUE");
+        }
+        
+        $rescheduled_at_exists = $wpdb->get_results("SHOW COLUMNS FROM $appointments_table LIKE 'rescheduled_at'");
+        if (empty($rescheduled_at_exists)) {
+            $wpdb->query("ALTER TABLE $appointments_table ADD COLUMN rescheduled_at datetime NULL");
+        }
+        
+        $original_date_exists = $wpdb->get_results("SHOW COLUMNS FROM $appointments_table LIKE 'original_date'");
+        if (empty($original_date_exists)) {
+            $wpdb->query("ALTER TABLE $appointments_table ADD COLUMN original_date datetime NULL");
         }
         
         self::insert_default_data();

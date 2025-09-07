@@ -1,0 +1,294 @@
+/* Progress Indicator */
+.progress-indicator {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding: 1rem;
+}
+
+.progress-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+}
+
+.step-circle {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+  transition: all 0.3s ease;
+}
+
+.step-circle.pending {
+  background: #f0f0f0;
+  color: #666;
+  border: 2px solid #ddd;
+}
+
+.step-circle.active {
+  background: #0073aa;
+  color: white;
+  border: 2px solid #0073aa;
+}
+
+.step-circle.completed {
+  background: #46b450;
+  color: white;
+  border: 2px solid #46b450;
+}
+
+.step-label {
+  font-size: 0.875rem;
+  color: #666;
+  text-align: center;
+}
+
+.step-connector {
+  position: absolute;
+  top: 20px;
+  left: 50px;
+  width: 60px;
+  height: 2px;
+  background: #ddd;
+  transition: background 0.3s ease;
+}
+
+.step-connector.completed {
+  background: #46b450;
+}
+
+/* Service/Staff Grids */
+.services-grid,
+.staff-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.service-card,
+.staff-card {
+  padding: 1.5rem;
+  border: 2px solid #ddd;
+  border-radius: 8px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: center;
+}
+
+.service-card:hover,
+.staff-card:hover {
+  border-color: #0073aa;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.service-card.selected,
+.staff-card.selected {
+  border-color: #0073aa;
+  background: #f0f8ff;
+}
+
+.service-card h4,
+.staff-card h4 {
+  margin: 0 0 0.5rem 0;
+  color: #333;
+}
+
+.service-card .price {
+  font-size: 1.25rem;
+  font-weight: bold;
+  color: #0073aa;
+}
+
+.staff-avatar {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  background: #0073aa;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  font-weight: bold;
+  margin: 0 auto 1rem;
+}
+
+/* Time Slots */
+.time-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+  gap: 0.5rem;
+  margin: 1rem 0;
+}
+
+.time-slot {
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.time-slot:hover {
+  border-color: #0073aa;
+  background: #f0f8ff;
+}
+
+.time-slot.selected {
+  background: #0073aa;
+  color: white;
+  border-color: #0073aa;
+}
+
+/* Form Styles */
+.booking-summary {
+  background: #f9f9f9;
+  padding: 1rem;
+  border-radius: 4px;
+  margin-bottom: 1.5rem;
+}
+
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 0.25rem;
+  font-weight: 500;
+}
+
+.form-group input {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.form-group input.error {
+  border-color: #dc3232;
+}
+
+.error-text {
+  color: #dc3232;
+  font-size: 0.875rem;
+  margin-top: 0.25rem;
+  display: block;
+}
+
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: space-between;
+  margin-top: 2rem;
+}
+
+/* Buttons */
+.back-btn,
+.submit-btn,
+.primary-btn {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+}
+
+.back-btn {
+  background: #f0f0f0;
+  color: #333;
+}
+
+.back-btn:hover {
+  background: #e0e0e0;
+}
+
+.submit-btn,
+.primary-btn {
+  background: #0073aa;
+  color: white;
+}
+
+.submit-btn:hover,
+.primary-btn:hover {
+  background: #005a87;
+}
+
+.submit-btn:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+/* Success Page */
+.booking-success {
+  text-align: center;
+  padding: 2rem;
+}
+
+.success-icon {
+  font-size: 4rem;
+  color: #46b450;
+  margin-bottom: 1rem;
+}
+
+.appointment-details {
+  background: #f9f9f9;
+  padding: 1.5rem;
+  border-radius: 8px;
+  margin: 1.5rem 0;
+  text-align: left;
+}
+
+.next-steps {
+  margin-top: 2rem;
+  text-align: left;
+}
+
+.next-steps ul {
+  padding-left: 1.5rem;
+}
+
+.next-steps li {
+  margin-bottom: 0.5rem;
+}
+
+/* Loading States */
+.loading {
+  text-align: center;
+  padding: 2rem;
+  color: #666;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .progress-indicator {
+    flex-wrap: wrap;
+    gap: 1rem;
+  }
+  
+  .step-connector {
+    display: none;
+  }
+  
+  .services-grid,
+  .staff-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .form-actions {
+    flex-direction: column;
+  }
+}

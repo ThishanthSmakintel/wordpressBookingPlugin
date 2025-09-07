@@ -1,0 +1,58 @@
+/* Appointment Dates Styling */
+.appointment-dates {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid #eee;
+}
+
+.appointment-dates p {
+  margin: 0.25rem 0;
+  font-size: 0.875rem;
+  color: #666;
+}
+
+.created-date {
+  color: #666;
+}
+
+.rescheduled-tag {
+  margin: 0.5rem 0 !important;
+}
+
+.reschedule-badge {
+  background: #ff9800;
+  color: white;
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.rescheduled-date {
+  color: #ff9800 !important;
+  font-weight: 500;
+}
+
+.original-date {
+  color: #999 !important;
+  font-style: italic;
+}
+
+.appointment-card .status.confirmed {
+  background: #46b450;
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.appointment-card .status.cancelled {
+  background: #dc3232;
+  color: white;
+  padding: 0.25rem 0.75rem;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
