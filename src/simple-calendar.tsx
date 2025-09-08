@@ -1,11 +1,8 @@
 import React, { useState } from 'react';
+import { useBookingStore } from './store/bookingStore';
 
-interface CalendarProps {
-    selectedDate: string;
-    onDateSelect: (date: string) => void;
-}
-
-const SimpleCalendar: React.FC<CalendarProps> = ({ selectedDate, onDateSelect }) => {
+const SimpleCalendar: React.FC = () => {
+    const { selectedDate, setSelectedDate } = useBookingStore();
     const [currentMonth, setCurrentMonth] = useState(new Date());
     
     const getDaysInMonth = (date: Date) => {
@@ -57,7 +54,7 @@ const SimpleCalendar: React.FC<CalendarProps> = ({ selectedDate, onDateSelect })
                 <div
                     key={day}
                     className={`calendar-day ${isSelected ? 'selected' : ''} ${isTodayDate ? 'today' : ''} ${isPastDate ? 'past' : ''}`}
-                    onClick={() => !isPastDate && onDateSelect(dateStr)}
+                    onClick={() => !isPastDate && setSelectedDate(dateStr)}
                 >
                     {day}
                 </div>
@@ -83,9 +80,9 @@ const SimpleCalendar: React.FC<CalendarProps> = ({ selectedDate, onDateSelect })
     return (
         <div className="simple-calendar">
             <div className="calendar-header">
-                <button onClick={prevMonth} className="nav-btn">‹</button>
+                <button onClick={prevMonth} className="nav-btn" aria-label="Previous month">‹</button>
                 <h3>{monthNames[currentMonth.getMonth()]} {currentMonth.getFullYear()}</h3>
-                <button onClick={nextMonth} className="nav-btn">›</button>
+                <button onClick={nextMonth} className="nav-btn" aria-label="Next month">›</button>
             </div>
             <div className="calendar-weekdays">
                 <div>Sun</div>

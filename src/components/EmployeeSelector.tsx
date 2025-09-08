@@ -1,4 +1,5 @@
 import React from 'react';
+import { useBookingStore } from '../store/bookingStore';
 
 interface Employee {
     id: number;
@@ -9,20 +10,22 @@ interface Employee {
 }
 
 interface EmployeeSelectorProps {
-    employees: Employee[];
-    employeesLoading: boolean;
-    onEmployeeSelect: (employee: Employee) => void;
     onRetry: () => void;
-    onBack: () => void;
 }
 
 const EmployeeSelector: React.FC<EmployeeSelectorProps> = ({
-    employees,
-    employeesLoading,
-    onEmployeeSelect,
-    onRetry,
-    onBack
+    onRetry
 }) => {
+    const { employees, employeesLoading, setSelectedEmployee, setStep } = useBookingStore();
+    
+    const handleEmployeeSelect = (employee: Employee) => {
+        setSelectedEmployee(employee);
+        setStep(3);
+    };
+    
+    const handleBack = () => {
+        setStep(1);
+    };
     return (
         <div className="appointease-step-content">
             <div className="progress-bar">
@@ -53,8 +56,8 @@ const EmployeeSelector: React.FC<EmployeeSelectorProps> = ({
                         <div 
                             key={employee.id} 
                             className="employee-card" 
-                            onClick={() => onEmployeeSelect(employee)}
-                            onKeyDown={(e) => e.key === 'Enter' && onEmployeeSelect(employee)}
+                            onClick={() => handleEmployeeSelect(employee)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleEmployeeSelect(employee)}
                             tabIndex={0}
                             role="button"
                             aria-label={`Select ${employee.name}, rated ${employee.rating} stars with ${employee.reviews} reviews`}
@@ -73,7 +76,7 @@ const EmployeeSelector: React.FC<EmployeeSelectorProps> = ({
                 )}
             </div>
             <div className="form-actions">
-                <button className="back-btn" onClick={onBack} aria-label="Go back to service selection">
+                <button className="back-btn" onClick={handleBack} aria-label="Go back to service selection">
                     <i className="fas fa-arrow-left" aria-hidden="true"></i> Back
                 </button>
             </div>

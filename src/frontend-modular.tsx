@@ -12,7 +12,7 @@ const initBookingApp = () => {
   containers.forEach(container => {
     if (!container.hasAttribute('data-initialized')) {
       const root = createRoot(container);
-      root.render(<ServiceSelector services={[]} servicesLoading={false} isOnline={true} onServiceSelect={() => {}} onRetry={() => {}} />);
+      root.render(<ServiceSelector onRetry={() => {}} />);
       container.setAttribute('data-initialized', 'true');
     }
   });

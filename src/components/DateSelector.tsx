@@ -1,16 +1,17 @@
 import React from 'react';
+import { useBookingStore } from '../store/bookingStore';
 
-interface DateSelectorProps {
-    selectedDate: string;
-    onDateSelect: (date: string) => void;
-    onBack: () => void;
-}
-
-const DateSelector: React.FC<DateSelectorProps> = ({
-    selectedDate,
-    onDateSelect,
-    onBack
-}) => {
+const DateSelector: React.FC = () => {
+    const { selectedDate, setSelectedDate, setStep } = useBookingStore();
+    
+    const handleDateSelect = (date: string) => {
+        setSelectedDate(date);
+        setStep(4);
+    };
+    
+    const handleBack = () => {
+        setStep(2);
+    };
     const generateCalendar = () => {
         const today = new Date();
         const days = [];
@@ -46,8 +47,8 @@ const DateSelector: React.FC<DateSelectorProps> = ({
                         <div 
                             key={index} 
                             className={`calendar-day ${isDisabled ? 'disabled' : ''}`}
-                            onClick={() => !isDisabled && onDateSelect(dateString)}
-                            onKeyDown={(e) => e.key === 'Enter' && !isDisabled && onDateSelect(dateString)}
+                            onClick={() => !isDisabled && handleDateSelect(dateString)}
+                            onKeyDown={(e) => e.key === 'Enter' && !isDisabled && handleDateSelect(dateString)}
                             tabIndex={isDisabled ? -1 : 0}
                             role="button"
                             aria-label={isDisabled ? `${formattedDate} - unavailable` : `Select ${formattedDate}`}
@@ -63,7 +64,7 @@ const DateSelector: React.FC<DateSelectorProps> = ({
                 })}
             </div>
             <div className="form-actions">
-                <button className="back-btn" onClick={onBack} aria-label="Go back to specialist selection">
+                <button className="back-btn" onClick={handleBack} aria-label="Go back to specialist selection">
                     <i className="fas fa-arrow-left" aria-hidden="true"></i> Back
                 </button>
             </div>

@@ -15,6 +15,7 @@ import BookingSuccessPage from './components/BookingSuccessPage';
 import StepProgress from './components/StepProgress';
 import ConnectionStatus from './components/ConnectionStatus';
 import { sanitizeInput, sanitizeLogInput, generateStrongId, timeSlots, businessHours } from './utils';
+import { useBookingStore } from './store/bookingStore';
 
 interface FormData {
     firstName: string;
@@ -49,35 +50,29 @@ declare global {
 
 
 const BookingApp = React.forwardRef<any, any>((props, ref) => {
-    const [step, setStep] = useState(1);
-    const [selectedService, setSelectedService] = useState<any>(null);
-    const [selectedEmployee, setSelectedEmployee] = useState<any>(null);
-    const [selectedDate, setSelectedDate] = useState<string>('');
-    const [selectedTime, setSelectedTime] = useState<string>('');
-    const [formData, setFormData] = useState<FormData>({ firstName: '', lastName: '', email: '', phone: '' });
-    const [services, setServices] = useState<any[]>([]);
-    const [employees, setEmployees] = useState<any[]>([]);
+    const {
+        step, selectedService, selectedEmployee, selectedDate, selectedTime, formData,
+        services, employees, appointments, servicesLoading, employeesLoading, appointmentsLoading, isSubmitting, isOnline, errors,
+        setStep, setSelectedService, setSelectedEmployee, setSelectedDate, setSelectedTime,
+        setFormData, setServices, setEmployees, setAppointments, setServicesLoading, setEmployeesLoading,
+        setAppointmentsLoading, setIsSubmitting, setIsOnline, setErrors, clearError
+    } = useBookingStore();
+    
     const [appointmentId, setAppointmentId] = useState<string>('');
     const [manageMode, setManageMode] = useState(false);
     const [currentAppointment, setCurrentAppointment] = useState<any>(null);
     const [isRescheduling, setIsRescheduling] = useState(false);
-    const [errors, setErrors] = useState<FormErrors>({});
-    const [isLoading, setIsLoading] = useState(false);
-    const [isSubmitting, setIsSubmitting] = useState(false);
     const [showLogin, setShowLogin] = useState(false);
     const [loginEmail, setLoginEmail] = useState('');
     const [otpCode, setOtpCode] = useState('');
     const [otpSent, setOtpSent] = useState(false);
     const [isLoggedIn, setIsLoggedIn] = useState(false);
-    const [userAppointments, setUserAppointments] = useState<any[]>([]);
+
     const [showDashboard, setShowDashboard] = useState(false);
     const [isLoadingOTP, setIsLoadingOTP] = useState(false);
     const [isLoadingLogin, setIsLoadingLogin] = useState(false);
     const [isLoadingAppointments, setIsLoadingAppointments] = useState(false);
     const [showCancelConfirm, setShowCancelConfirm] = useState(false);
-    const [isOnline, setIsOnline] = useState(navigator.onLine);
-    const [servicesLoading, setServicesLoading] = useState(true);
-    const [employeesLoading, setEmployeesLoading] = useState(true);
     const [unavailableSlots, setUnavailableSlots] = useState<string[]>([]);
     const [retryCount, setRetryCount] = useState(0);
     const liveRegionRef = useRef<HTMLDivElement>(null);
@@ -157,13 +152,10 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
             
             if (response.ok) {
                 const data = await response.json();
-                console.log('=== DATABASE DEBUG ===');
-                console.log('Total appointments:', data.total_count);
-                console.log('Recent appointments:', data.appointments);
-                console.log('======================');
+                // Debug info available in data object
             }
         } catch (error) {
-            console.log('Debug check failed:', error);
+            // Debug check failed silently
         }
     };
 
@@ -215,7 +207,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                 body: JSON.stringify({ email, action: 'create' })
             });
         } catch (error) {
-            console.log('Session save failed, using fallback');
+            // Session save failed, using fallback
         }
     };
 
@@ -235,7 +227,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                 return session.email ? { email: session.email } : null;
             }
         } catch (error) {
-            console.log('Session load failed');
+            // Session load failed
         }
         
         return null;
@@ -252,7 +244,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                 }
             });
         } catch (error) {
-            console.log('Session clear failed');
+            // Session clear failed
         }
     };
 
@@ -319,27 +311,29 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
     // Real-time data fetching using existing user-appointments endpoint
     const loadUserAppointmentsRealtime = useCallback((email?: string) => {
         const emailToUse = email || loginEmail;
+        console.log('[loadUserAppointmentsRealtime] Starting with:', { emailToUse, hasAPI: !!window.bookingAPI });
+        
         if (!window.bookingAPI || !emailToUse) {
-            console.log('No API or email:', { api: !!window.bookingAPI, email: emailToUse });
-            setUserAppointments([]);
+            console.log('[loadUserAppointmentsRealtime] Missing API or email, setting empty appointments');
+            setAppointments([]);
             return;
         }
         
-        console.log('Loading appointments for:', emailToUse);
-        setIsLoadingAppointments(true);
+        console.log('[loadUserAppointmentsRealtime] Loading appointments for:', emailToUse);
+        setAppointmentsLoading(true);
         apiRequest(`${window.bookingAPI?.root || '/wp-json/'}appointease/v1/user-appointments`, {
             method: 'POST',
             body: JSON.stringify({ email: emailToUse })
         })
         .then(response => {
-            console.log('API response status:', response.status);
+            console.log('[loadUserAppointmentsRealtime] API response status:', response.status);
             if (!response.ok) {
                 throw new Error('Failed to fetch appointments');
             }
             return response.json();
         })
         .then(appointments => {
-            console.log('Raw appointments:', appointments);
+            console.log('[loadUserAppointmentsRealtime] Raw appointments data:', appointments);
             const formattedAppointments = (appointments || []).map((apt: any) => ({
                 id: apt.strong_id || `AE${apt.id.toString().padStart(6, '0')}`,
                 service: apt.service_name || 'Service',
@@ -349,15 +343,15 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                 name: apt.name,
                 email: apt.email
             }));
-            console.log('Formatted appointments:', formattedAppointments);
-            setUserAppointments(formattedAppointments);
+            console.log('[loadUserAppointmentsRealtime] Formatted appointments:', formattedAppointments);
+            setAppointments(formattedAppointments);
         })
         .catch((error) => {
-            console.error('Error loading appointments:', error);
-            setUserAppointments([]);
+            console.error('[loadUserAppointmentsRealtime] Error loading appointments:', error);
+            setAppointments([]);
         })
         .finally(() => {
-            setIsLoadingAppointments(false);
+            setAppointmentsLoading(false);
         });
     }, [loginEmail]);
     
@@ -369,7 +363,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
         }
         
         setIsCheckingEmail(true);
-        console.log('Checking email using user-appointments endpoint:', email);
+        // Checking email
         
         try {
             const response = await apiRequest(`${window.bookingAPI.root}appointease/v1/user-appointments`, {
@@ -380,25 +374,24 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
             if (response.ok) {
                 const appointments = await response.json();
                 const hasAppointments = appointments && appointments.length > 0;
-                console.log('User check result:', hasAppointments ? 'existing user' : 'new user');
+                // User check completed
                 if (hasAppointments) {
                     const userData = { exists: true, name: appointments[0]?.name, phone: appointments[0]?.phone };
                     setExistingUser(userData);
                     // Auto-fill form data for existing user
-                    setFormData(prev => ({
-                        ...prev,
-                        firstName: userData.name || prev.firstName,
-                        phone: userData.phone || prev.phone
-                    }));
+                    setFormData({
+                        firstName: userData.name || formData.firstName,
+                        phone: userData.phone || formData.phone
+                    });
                 } else {
                     setExistingUser(null);
                 }
             } else {
-                console.log('User check failed, treating as new user');
+                // User check failed, treating as new user
                 setExistingUser(null);
             }
         } catch (error) {
-            console.log('Email check error, treating as new user:', error);
+            // Email check error, treating as new user
             setExistingUser(null);
         } finally {
             setIsCheckingEmail(false);
@@ -706,6 +699,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
             if (result.strong_id) {
                 setErrors({});
                 setAppointmentId(result.strong_id);
+                setStep(6);
             } else if (result.id) {
                 setErrors({});
                 // Fallback: create strong_id format if not provided
@@ -724,7 +718,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
             }
         })
         .catch(error => {
-            console.error('Booking error:', sanitizeLogInput(error.message || 'Unknown error'));
+            console.error('Booking error:', error instanceof Error ? error.message : 'Unknown error');
             const errorMessage = isOnline ? 'Booking failed. Please try again.' : 'Booking failed. Please check your connection.';
             setErrors({general: errorMessage});
         })
@@ -751,9 +745,10 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
         
         setIsManaging(true);
 
-        // For logged-in users, find appointment in userAppointments
+        // For logged-in users, find appointment in appointments
         if (isLoggedIn && appointmentIdToManage) {
-            const appointment = userAppointments.find(apt => apt.id === appointmentIdToManage);
+            console.log('[handleManageAppointment] Searching in appointments:', appointments);
+            const appointment = appointments.find(apt => apt.id === appointmentIdToManage);
             if (appointment) {
                 setCurrentAppointment({
                     id: appointment.id,
@@ -841,7 +836,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
             }
         })
         .catch(error => {
-            console.error('Cancel error:', error);
+            console.error('Cancel error:', error instanceof Error ? error.message : 'Unknown error');
             // Still proceed to show cancellation even if API fails
             setManageMode(false);
             setCurrentAppointment(null);
@@ -905,7 +900,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
             }
         })
         .catch(error => {
-            console.error('Reschedule error:', error);
+            console.error('Reschedule error:', error instanceof Error ? error.message : 'Unknown error');
             // Still proceed to show success even if API fails
             setManageMode(false);
             setCurrentAppointment(null);
@@ -1122,7 +1117,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
             }
         })
         .catch(error => {
-            console.error('Booking error:', error);
+            console.error('Booking error:', error instanceof Error ? error.message : 'Unknown error');
             const errorMessage = isOnline ? 'Booking failed. Please try again.' : 'Booking failed. Please check your connection.';
             setErrors({general: errorMessage});
         })
@@ -1310,12 +1305,11 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
         return (
             <Dashboard
                 loginEmail={loginEmail}
-                userAppointments={userAppointments}
-                isLoadingAppointments={isLoadingAppointments}
-                currentPage={currentPage}
-                appointmentsPerPage={appointmentsPerPage}
                 dashboardRef={dashboardRef}
-                onRefresh={() => loadUserAppointmentsRealtime()}
+                onRefresh={() => {
+                    console.log('[Dashboard] Refresh button clicked');
+                    loadUserAppointmentsRealtime();
+                }}
                 onNewAppointment={() => {
                     setShowDashboard(false);
                     setStep(1);
@@ -1356,8 +1350,6 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                     setShowDashboard(false);
                     setManageMode(true);
                 }}
-                setCurrentPage={setCurrentPage}
-                sanitizeInput={sanitizeInput}
             />
         );
     }
@@ -1596,7 +1588,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
         <>
         <div className="appointease-booking" role="main" aria-label="Appointment booking system" style={{overflow: 'visible', height: 'auto'}}>
             <div ref={liveRegionRef} className="live-region" aria-live="polite" aria-atomic="true"></div>
-            <ConnectionStatus isOnline={isOnline} />
+            <ConnectionStatus />
             <div className="appointease-booking-header">
                 <div className="appointease-logo">
                     <span className="logo-icon">A</span>
@@ -1634,14 +1626,10 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
             </div>
 
             <div className="appointease-booking-content">
-                <StepProgress currentStep={step} />
+                <StepProgress />
 
                 {step === 1 && (
                     <ServiceSelector
-                        services={services}
-                        servicesLoading={servicesLoading}
-                        isOnline={isOnline}
-                        onServiceSelect={handleServiceSelect}
                         onRetry={loadInitialData}
                         columns={props.columns || 2}
                     />
@@ -1649,31 +1637,18 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
 
                 {step === 2 && (
                     <EmployeeSelector
-                        employees={employees}
-                        employeesLoading={employeesLoading}
-                        onEmployeeSelect={handleEmployeeSelect}
                         onRetry={loadInitialData}
-                        onBack={() => setStep(1)}
                     />
                 )}
 
                 {step === 3 && (
-                    <DateSelector
-                        selectedDate={selectedDate}
-                        onDateSelect={handleDateSelect}
-                        onBack={() => setStep(2)}
-                    />
+                    <DateSelector />
                 )}
 
                 {step === 4 && (
                     <TimeSelector
-                        selectedDate={selectedDate}
-                        selectedTime={selectedTime}
-                        selectedService={selectedService}
                         unavailableSlots={unavailableSlots}
                         timezone={timezone}
-                        onTimeSelect={handleTimeSelect}
-                        onBack={() => setStep(3)}
                     />
                 )}
 
@@ -1696,34 +1671,22 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                         )}
                         {!isRescheduling && !isLoggedIn && !showEmailVerification && (
                             <CustomerInfoForm
-                                formData={formData}
-                                errors={errors}
-                                selectedService={selectedService}
-                                selectedEmployee={selectedEmployee}
-                                selectedDate={selectedDate}
-                                selectedTime={selectedTime}
-                                isSubmitting={isSubmitting}
                                 isLoggedIn={isLoggedIn}
                                 isCheckingEmail={isCheckingEmail}
                                 existingUser={existingUser}
-                                onFormDataChange={setFormData}
                                 onSubmit={handleSubmit}
                                 onBack={() => setStep(4)}
-                                sanitizeInput={sanitizeInput}
                                 checkExistingEmail={checkExistingEmail}
-                                setErrors={setErrors}
                             />
                         )}
                         
                         {!isRescheduling && !isLoggedIn && showEmailVerification && (
                             <EmailVerification
-                                formData={formData}
                                 emailOtp={emailOtp}
                                 otpExpiry={otpExpiry}
                                 resendCooldown={resendCooldown}
                                 isBlocked={isBlocked}
                                 isVerifyingEmail={isVerifyingEmail}
-                                errors={errors}
                                 onOtpChange={setEmailOtp}
                                 onVerifyOtp={verifyEmailOtp}
                                 onResendOtp={sendEmailVerification}
@@ -1732,8 +1695,6 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                                     setEmailOtp('');
                                     setErrors({});
                                 }}
-                                sanitizeInput={sanitizeInput}
-                                setErrors={setErrors}
                             />
                         )}
                         
@@ -1764,8 +1725,8 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                                 </div>
                                 <div className="form-actions">
                                     <button type="button" className="back-btn" onClick={() => setStep(4)}>← Back</button>
-                                    <button type="button" className="confirm-btn" onClick={handleSubmit}>
-                                        CONFIRM BOOKING
+                                    <button type="button" className="confirm-btn" onClick={handleSubmit} disabled={isSubmitting}>
+                                        {isSubmitting ? <><i className="fas fa-spinner fa-spin"></i> BOOKING...</> : 'CONFIRM BOOKING'}
                                     </button>
                                 </div>
                             </div>
@@ -1956,11 +1917,6 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                 {step === 6 && (
                     <BookingSuccessPage
                         appointmentId={appointmentId}
-                        selectedService={selectedService}
-                        selectedEmployee={selectedEmployee}
-                        selectedDate={selectedDate}
-                        selectedTime={selectedTime}
-                        formData={formData}
                         onBookAnother={() => {
                             setStep(1);
                             setSelectedService(null);
@@ -2036,25 +1992,35 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
 });
 
 window.BookingApp = null;
+const activeRoots = new Map();
 
 function initBookingApp(containerId) {
     const bookingContainer = document.getElementById(containerId);
-    if (bookingContainer) {
-        bookingContainer.innerHTML = '';
-        
-        const parent = bookingContainer.parentElement;
-        const columns = parent?.getAttribute('data-columns') || 2;
-        const width = parent?.getAttribute('data-width') || 100;
-        const height = parent?.getAttribute('data-height') || 600;
-        
-        // Apply dimensions to container
-        if (parent) {
-            parent.style.width = `${width}%`;
-            parent.style.minWidth = '600px';
-        }
-        
+    if (!bookingContainer) return;
+    
+    // Prevent duplicate initialization
+    if (activeRoots.has(containerId)) {
+        return;
+    }
+    
+    // Clear container
+    bookingContainer.innerHTML = '';
+    
+    const parent = bookingContainer.parentElement;
+    const columns = parent?.getAttribute('data-columns') || 2;
+    const width = parent?.getAttribute('data-width') || 100;
+    
+    // Apply dimensions to container
+    if (parent) {
+        parent.style.width = `${width}%`;
+        parent.style.minWidth = '600px';
+    }
+    
+    try {
         const root = createRoot(bookingContainer);
         const appRef = React.createRef();
+        
+        activeRoots.set(containerId, root);
         
         root.render(<BookingApp ref={appRef} columns={parseInt(columns)} />);
         
@@ -2066,24 +2032,23 @@ function initBookingApp(containerId) {
                 };
             }
         }, 100);
+    } catch (error) {
+        console.error('Error initializing BookingApp:', error);
     }
 }
 
 if (typeof window !== 'undefined') {
     window.initBookingApp = initBookingApp;
     
-    setTimeout(() => {
+    // Single initialization on DOM ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            initBookingApp('appointease-booking');
+            initBookingApp('appointease-booking-editor');
+        });
+    } else {
+        // DOM already loaded
         initBookingApp('appointease-booking');
         initBookingApp('appointease-booking-editor');
-    }, 10);
-    
-    document.addEventListener('DOMContentLoaded', () => {
-        initBookingApp('appointease-booking');
-        initBookingApp('appointease-booking-editor');
-    });
-    
-    window.addEventListener('load', () => {
-        initBookingApp('appointease-booking');
-        initBookingApp('appointease-booking-editor');
-    });
+    }
 }

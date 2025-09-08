@@ -1,6 +1,5 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { BookingProvider } from './contexts/BookingContext';
 import HeartbeatBookingForm from './components/HeartbeatBookingForm';
 import HeartbeatAppointmentManager from './components/HeartbeatAppointmentManager';
 import './frontend.css';
@@ -19,32 +18,30 @@ const HeartbeatBookingApp: React.FC = () => {
   }
 
   return (
-    <BookingProvider>
-      <div className="heartbeat-booking-app">
-        <div className="app-header">
-          <button 
-            className={mode === 'booking' ? 'active' : ''}
-            onClick={() => setMode('booking')}
-          >
-            Book Appointment
-          </button>
-          <button 
-            className={mode === 'manage' ? 'active' : ''}
-            onClick={() => {
-              const email = prompt('Enter your email to manage appointments:');
-              if (email) {
-                setUserEmail(email);
-                setMode('manage');
-              }
-            }}
-          >
-            Manage Appointments
-          </button>
-        </div>
-        
-        {mode === 'booking' && <HeartbeatBookingForm />}
+    <div className="heartbeat-booking-app">
+      <div className="app-header">
+        <button 
+          className={mode === 'booking' ? 'active' : ''}
+          onClick={() => setMode('booking')}
+        >
+          Book Appointment
+        </button>
+        <button 
+          className={mode === 'manage' ? 'active' : ''}
+          onClick={() => {
+            const email = prompt('Enter your email to manage appointments:');
+            if (email) {
+              setUserEmail(email);
+              setMode('manage');
+            }
+          }}
+        >
+          Manage Appointments
+        </button>
       </div>
-    </BookingProvider>
+      
+      {mode === 'booking' && <HeartbeatBookingForm />}
+    </div>
   );
 };
 

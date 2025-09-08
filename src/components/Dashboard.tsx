@@ -1,36 +1,36 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { useBookingStore } from '../store/bookingStore';
+import { sanitizeInput } from '../utils';
 
 interface DashboardProps {
     loginEmail: string;
-    userAppointments: any[];
-    isLoadingAppointments: boolean;
-    currentPage: number;
-    appointmentsPerPage: number;
     dashboardRef: React.RefObject<HTMLDivElement>;
     onRefresh: () => void;
     onNewAppointment: () => void;
     onLogout: () => void;
     onReschedule: (appointment: any) => void;
     onCancel: (appointment: any) => void;
-    setCurrentPage: (page: number) => void;
-    sanitizeInput: (input: string) => string;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({
     loginEmail,
-    userAppointments,
-    isLoadingAppointments,
-    currentPage,
-    appointmentsPerPage,
     dashboardRef,
     onRefresh,
     onNewAppointment,
     onLogout,
     onReschedule,
-    onCancel,
-    setCurrentPage,
-    sanitizeInput
+    onCancel
 }) => {
+    const { appointments, appointmentsLoading } = useBookingStore();
+    const [currentPage, setCurrentPage] = useState(1);
+    const appointmentsPerPage = 6;
+    
+    console.log('[Dashboard] Component rendered with:', {
+        loginEmail,
+        appointments: appointments?.length || 0,
+        appointmentsLoading,
+        appointmentsData: appointments
+    });
     return (
         <div className="appointease-booking">
             <div className="appointease-booking-header">
@@ -64,18 +64,18 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </div>
                             <div className="dashboard-stats">
                                 <div className="stat-card">
-                                    <div className="stat-number">{userAppointments.length}</div>
+                                    <div className="stat-number">{appointments.length}</div>
                                     <div className="stat-label">Total Appointments</div>
                                 </div>
                                 <div className="stat-card">
                                     <div className="stat-number">
-                                        {userAppointments.filter(apt => apt.status === 'confirmed').length}
+                                        {appointments.filter(apt => apt.status === 'confirmed').length}
                                     </div>
                                     <div className="stat-label">Active</div>
                                 </div>
                                 <div className="stat-card">
                                     <div className="stat-number">
-                                        {userAppointments.filter(apt => {
+                                        {appointments.filter(apt => {
                                             const aptDate = new Date(apt.date);
                                             const today = new Date();
                                             return aptDate > today && apt.status === 'confirmed';
@@ -86,9 +86,12 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </div>
                         </div>
                         <div className="dashboard-actions">
-                            <button className="refresh-btn" onClick={onRefresh} disabled={isLoadingAppointments}>
-                                <i className={`fas fa-sync-alt ${isLoadingAppointments ? 'fa-spin' : ''}`}></i>
-                                <span className="btn-text">{isLoadingAppointments ? 'Refreshing...' : 'Refresh'}</span>
+                            <button className="refresh-btn" onClick={() => {
+                                console.log('[Dashboard] Refresh clicked, current loading state:', appointmentsLoading);
+                                onRefresh();
+                            }} disabled={appointmentsLoading}>
+                                <i className={`fas fa-sync-alt ${appointmentsLoading ? 'fa-spin' : ''}`}></i>
+                                <span className="btn-text">{appointmentsLoading ? 'Refreshing...' : 'Refresh'}</span>
                             </button>
                             <button className="new-appointment-btn" onClick={onNewAppointment}>
                                 <i className="fas fa-plus"></i>
@@ -113,7 +116,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </div>
                         </div>
                         
-                        {userAppointments.length === 0 ? (
+                        {appointments.length === 0 ? (
                             <div className="no-appointments">
                                 <div className="empty-state-icon">
                                     <i className="fas fa-calendar-times"></i>
@@ -127,7 +130,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </div>
                         ) : (
                             <div className="appointments-grid">
-                                {userAppointments
+                                {appointments
                                     .slice((currentPage - 1) * appointmentsPerPage, currentPage * appointmentsPerPage)
                                     .map(appointment => {
                                         const appointmentDate = new Date(appointment.date);
@@ -234,7 +237,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         )}
                     </div>
                     
-                    {userAppointments.length > appointmentsPerPage && (
+                    {appointments.length > appointmentsPerPage && (
                         <div className="pagination">
                             <button 
                                 className="pagination-btn" 
@@ -244,12 +247,12 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 <i className="fas fa-chevron-left"></i> Previous
                             </button>
                             <span className="pagination-info">
-                                Page {currentPage} of {Math.ceil(userAppointments.length / appointmentsPerPage)}
+                                Page {currentPage} of {Math.ceil(appointments.length / appointmentsPerPage)}
                             </span>
                             <button 
                                 className="pagination-btn" 
-                                onClick={() => setCurrentPage(Math.min(currentPage + 1, Math.ceil(userAppointments.length / appointmentsPerPage)))}
-                                disabled={currentPage === Math.ceil(userAppointments.length / appointmentsPerPage)}
+                                onClick={() => setCurrentPage(Math.min(currentPage + 1, Math.ceil(appointments.length / appointmentsPerPage)))}
+                                disabled={currentPage === Math.ceil(appointments.length / appointmentsPerPage)}
                             >
                                 Next <i className="fas fa-chevron-right"></i>
                             </button>

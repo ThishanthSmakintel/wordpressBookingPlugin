@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { useBooking } from '../contexts/BookingContext';
+import { useBookingStore } from '../store/bookingStore';
 import { useHeartbeat } from '../hooks/useHeartbeat';
 import { useValidation } from '../hooks/useValidation';
 import BookingSummary from './BookingSummary';
 
 const HeartbeatBookingForm: React.FC = () => {
-  const { state, dispatch } = useBooking();
+  const { 
+    selectedService, selectedEmployee, selectedDate, selectedTime, formData,
+    setFormData, setStep
+  } = useBookingStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [availableSlots, setAvailableSlots] = useState<string[]>([]);
   const [showSummary, setShowSummary] = useState(false);
@@ -17,7 +20,8 @@ const HeartbeatBookingForm: React.FC = () => {
     phone: { required: true, phone: true }
   };
 
-  const { errors, validateForm, clearError, setErrors } = useValidation(validationSchema);
+  const { errors, validateForm, clearError } = useValidation(validationSchema);
+  const { setErrors } = useBookingStore();
 
   const { sendHeartbeatData } = useHeartbeat((data) => {
     if (data.validation_errors) {
@@ -30,8 +34,7 @@ const HeartbeatBookingForm: React.FC = () => {
     }
 
     if (data.booking_confirmed && data.appointment_id) {
-      dispatch({ type: 'SET_APPOINTMENT_ID', payload: data.appointment_id });
-      dispatch({ type: 'SET_STEP', payload: 5 });
+      setStep(5);
       setIsSubmitting(false);
     }
 
@@ -43,24 +46,24 @@ const HeartbeatBookingForm: React.FC = () => {
 
   // Real-time availability check
   useEffect(() => {
-    if (state.selectedDate && state.selectedEmployee) {
+    if (selectedDate && selectedEmployee) {
       sendHeartbeatData({
         action: 'check_availability',
-        date: state.selectedDate,
-        staff_id: state.selectedEmployee.id
+        date: selectedDate,
+        staff_id: selectedEmployee.id
       });
     }
-  }, [state.selectedDate, state.selectedEmployee, sendHeartbeatData]);
+  }, [selectedDate, selectedEmployee, sendHeartbeatData]);
 
   const handleInputChange = (field: string, value: string) => {
-    dispatch({ type: 'SET_FORM_DATA', payload: { [field]: value } });
+    setFormData({ [field]: value });
     clearError(field);
   };
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!validateForm(state.formData)) return;
+    if (!validateForm(formData)) return;
     setShowSummary(true);
   };
 
@@ -70,11 +73,11 @@ const HeartbeatBookingForm: React.FC = () => {
     // Send booking confirmation via heartbeat
     sendHeartbeatData({
       action: 'confirm_booking',
-      service_id: state.selectedService?.id,
-      staff_id: state.selectedEmployee?.id,
-      date: state.selectedDate,
-      time: state.selectedTime,
-      ...state.formData
+      service_id: selectedService?.id,
+      staff_id: selectedEmployee?.id,
+      date: selectedDate,
+      time: selectedTime,
+      ...formData
     });
 
     // Fallback timeout
@@ -87,14 +90,7 @@ const HeartbeatBookingForm: React.FC = () => {
   };
 
   if (showSummary) {
-    return (
-      <BookingSummary 
-        selectedService={state.selectedService}
-        selectedEmployee={state.selectedEmployee}
-        selectedDate={state.selectedDate}
-        selectedTime={state.selectedTime}
-      />
-    );
+    return <BookingSummary />;
   }
 
   return (
@@ -102,10 +98,10 @@ const HeartbeatBookingForm: React.FC = () => {
       <h3>Your Details</h3>
       
       <div className="booking-summary">
-        <p><strong>Service:</strong> {state.selectedService?.name}</p>
-        <p><strong>Staff:</strong> {state.selectedEmployee?.name}</p>
-        <p><strong>Date:</strong> {state.selectedDate}</p>
-        <p><strong>Time:</strong> {state.selectedTime}</p>
+        <p><strong>Service:</strong> {selectedService?.name}</p>
+        <p><strong>Staff:</strong> {selectedEmployee?.name}</p>
+        <p><strong>Date:</strong> {selectedDate}</p>
+        <p><strong>Time:</strong> {selectedTime}</p>
         {availableSlots.length > 0 ? (
           <p className="availability-status">✓ Time slot available</p>
         ) : (
@@ -118,7 +114,7 @@ const HeartbeatBookingForm: React.FC = () => {
           <label>First Name *</label>
           <input
             type="text"
-            value={state.formData.firstName}
+            value={formData.firstName}
             onChange={(e) => handleInputChange('firstName', e.target.value)}
             className={errors.firstName ? 'error' : ''}
             maxLength={50}
@@ -130,7 +126,7 @@ const HeartbeatBookingForm: React.FC = () => {
           <label>Last Name *</label>
           <input
             type="text"
-            value={state.formData.lastName}
+            value={formData.lastName}
             onChange={(e) => handleInputChange('lastName', e.target.value)}
             className={errors.lastName ? 'error' : ''}
             maxLength={50}
@@ -142,7 +138,7 @@ const HeartbeatBookingForm: React.FC = () => {
           <label>Email *</label>
           <input
             type="email"
-            value={state.formData.email}
+            value={formData.email}
             onChange={(e) => handleInputChange('email', e.target.value)}
             className={errors.email ? 'error' : ''}
           />
@@ -153,7 +149,7 @@ const HeartbeatBookingForm: React.FC = () => {
           <label>Phone *</label>
           <input
             type="tel"
-            value={state.formData.phone}
+            value={formData.phone}
             onChange={(e) => handleInputChange('phone', e.target.value)}
             className={errors.phone ? 'error' : ''}
           />
@@ -168,7 +164,7 @@ const HeartbeatBookingForm: React.FC = () => {
           <button 
             type="button"
             className="back-btn"
-            onClick={() => dispatch({ type: 'SET_STEP', payload: 3 })}
+            onClick={() => setStep(3)}
           >
             Back
           </button>

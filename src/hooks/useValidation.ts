@@ -1,4 +1,5 @@
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
+import { useBookingStore } from '../store/bookingStore';
 
 interface ValidationRules {
   required?: boolean;
@@ -15,7 +16,7 @@ interface ValidationSchema {
 }
 
 export const useValidation = (schema: ValidationSchema) => {
-  const [errors, setErrors] = useState<Record<string, string>>({});
+  const { errors, setErrors, clearError } = useBookingStore();
 
   const validateField = useCallback((field: string, value: string): string | null => {
     const rules = schema[field];
@@ -64,21 +65,12 @@ export const useValidation = (schema: ValidationSchema) => {
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [schema, validateField]);
-
-  const clearError = useCallback((field: string) => {
-    setErrors(prev => {
-      const newErrors = { ...prev };
-      delete newErrors[field];
-      return newErrors;
-    });
-  }, []);
+  }, [schema, validateField, setErrors]);
 
   return {
     errors,
     validateField,
     validateForm,
-    clearError,
-    setErrors
+    clearError
   };
 };

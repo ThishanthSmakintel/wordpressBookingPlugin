@@ -1,10 +1,8 @@
 import React from 'react';
+import { useBookingStore } from '../store/bookingStore';
 
-interface ConnectionStatusProps {
-    isOnline: boolean;
-}
-
-const ConnectionStatus: React.FC<ConnectionStatusProps> = ({ isOnline }) => {
+const ConnectionStatus: React.FC = () => {
+    const { isOnline } = useBookingStore();
     if (isOnline) return null;
 
     return (

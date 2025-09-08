@@ -1,40 +1,31 @@
 import React from 'react';
-
-interface FormErrors {
-    general?: string;
-}
+import { useBookingStore } from '../store/bookingStore';
+import { sanitizeInput } from '../utils';
 
 interface EmailVerificationProps {
-    formData: { email: string };
     emailOtp: string;
     otpExpiry: number;
     resendCooldown: number;
     isBlocked: boolean;
     isVerifyingEmail: boolean;
-    errors: FormErrors;
     onOtpChange: (otp: string) => void;
     onVerifyOtp: () => void;
     onResendOtp: () => void;
     onBack: () => void;
-    sanitizeInput: (input: string) => string;
-    setErrors: (errors: FormErrors) => void;
 }
 
 const EmailVerification: React.FC<EmailVerificationProps> = ({
-    formData,
     emailOtp,
     otpExpiry,
     resendCooldown,
     isBlocked,
     isVerifyingEmail,
-    errors,
     onOtpChange,
     onVerifyOtp,
     onResendOtp,
-    onBack,
-    sanitizeInput,
-    setErrors
+    onBack
 }) => {
+    const { formData, errors, setErrors } = useBookingStore();
     return (
         <div className="email-verification">
             <div className="verification-card">
@@ -43,7 +34,7 @@ const EmailVerification: React.FC<EmailVerificationProps> = ({
                     <h3>Check Your Email</h3>
                     <p>We've sent a 6-digit verification code to:</p>
                     <div className="email-highlight">
-                        {formData.email}
+                        {formData?.email}
                     </div>
                 </div>
                 

@@ -1,66 +1,36 @@
 import React from 'react';
-
-interface FormData {
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone: string;
-}
-
-interface FormErrors {
-    firstName?: string;
-    lastName?: string;
-    email?: string;
-    phone?: string;
-    general?: string;
-}
-
-interface Service {
-    name: string;
-    price: number;
-}
-
-interface Employee {
-    name: string;
-}
+import { useBookingStore } from '../store/bookingStore';
+import { sanitizeInput } from '../utils';
 
 interface CustomerInfoFormProps {
-    formData: FormData;
-    errors: FormErrors;
-    selectedService: Service | null;
-    selectedEmployee: Employee | null;
-    selectedDate: string;
-    selectedTime: string;
-    isSubmitting: boolean;
     isLoggedIn: boolean;
     isCheckingEmail: boolean;
     existingUser: any;
-    onFormDataChange: (data: FormData) => void;
     onSubmit: (e: React.FormEvent) => void;
     onBack: () => void;
-    sanitizeInput: (input: string) => string;
     checkExistingEmail: (email: string) => void;
-    setErrors: (errors: FormErrors) => void;
 }
 
 const CustomerInfoForm: React.FC<CustomerInfoFormProps> = ({
-    formData,
-    errors,
-    selectedService,
-    selectedEmployee,
-    selectedDate,
-    selectedTime,
-    isSubmitting,
     isLoggedIn,
     isCheckingEmail,
     existingUser,
-    onFormDataChange,
     onSubmit,
     onBack,
-    sanitizeInput,
-    checkExistingEmail,
-    setErrors
+    checkExistingEmail
 }) => {
+    const { 
+        formData, 
+        errors, 
+        selectedService, 
+        selectedEmployee, 
+        selectedDate, 
+        selectedTime, 
+        isSubmitting,
+        setFormData,
+        setErrors,
+        clearError
+    } = useBookingStore();
     return (
         <div className="appointease-step-content">
             <h2>Almost Done!</h2>
@@ -77,8 +47,8 @@ const CustomerInfoForm: React.FC<CustomerInfoFormProps> = ({
                                 value={formData.email}
                                 onChange={(e) => {
                                     const sanitized = sanitizeInput(e.target.value);
-                                    onFormDataChange({...formData, email: sanitized});
-                                    if (errors.email) setErrors({...errors, email: undefined});
+                                    setFormData({ email: sanitized });
+                                    if (errors.email) clearError('email');
                                     
                                     if (sanitized && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sanitized)) {
                                         setTimeout(() => checkExistingEmail(sanitized), 500);
@@ -120,12 +90,12 @@ const CustomerInfoForm: React.FC<CustomerInfoFormProps> = ({
                             value={formData.firstName || ''}
                             onChange={(e) => {
                                 if (!formData.email && !(existingUser && existingUser.exists)) {
-                                    setErrors({...errors, firstName: 'Please enter your email first'});
+                                    setErrors({ ...errors, firstName: 'Please enter your email first' });
                                     return;
                                 }
                                 const sanitized = sanitizeInput(e.target.value);
-                                onFormDataChange({...formData, firstName: sanitized});
-                                if (errors.firstName) setErrors({...errors, firstName: undefined});
+                                setFormData({ firstName: sanitized });
+                                if (errors.firstName) clearError('firstName');
                             }}
                             className={errors.firstName ? 'error' : formData.firstName && formData.firstName.length >= 2 ? 'valid' : ''}
                             placeholder="Enter your name"
@@ -149,7 +119,7 @@ const CustomerInfoForm: React.FC<CustomerInfoFormProps> = ({
                             value={formData.phone}
                             onChange={(e) => {
                                 if (!formData.email && !(existingUser && existingUser.exists)) {
-                                    setErrors({...errors, phone: 'Please enter your email first'});
+                                    setErrors({ ...errors, phone: 'Please enter your email first' });
                                     return;
                                 }
                                 let value = sanitizeInput(e.target.value).replace(/\D/g, '');
@@ -159,8 +129,8 @@ const CustomerInfoForm: React.FC<CustomerInfoFormProps> = ({
                                 } else if (value.length >= 3) {
                                     value = value.replace(/(\d{3})(\d+)/, '($1) $2');
                                 }
-                                onFormDataChange({...formData, phone: value});
-                                if (errors.phone) setErrors({...errors, phone: undefined});
+                                setFormData({ phone: value });
+                                if (errors.phone) clearError('phone');
                             }}
                             className={errors.phone ? 'error' : formData.phone && /^[\d\s\-\+\(\)]+$/.test(formData.phone) && formData.phone.replace(/\D/g, '').length >= 10 ? 'valid' : ''}
                             placeholder="(555) 123-4567"

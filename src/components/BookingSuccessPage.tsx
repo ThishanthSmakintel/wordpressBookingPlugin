@@ -1,37 +1,16 @@
 import React from 'react';
-
-interface Service {
-    name: string;
-    price: number;
-}
-
-interface Employee {
-    name: string;
-}
-
-interface FormData {
-    email: string;
-}
+import { useBookingStore } from '../store/bookingStore';
 
 interface BookingSuccessPageProps {
     appointmentId: string;
-    selectedService: Service | null;
-    selectedEmployee: Employee | null;
-    selectedDate: string;
-    selectedTime: string;
-    formData: FormData;
     onBookAnother: () => void;
 }
 
 const BookingSuccessPage: React.FC<BookingSuccessPageProps> = ({
     appointmentId,
-    selectedService,
-    selectedEmployee,
-    selectedDate,
-    selectedTime,
-    formData,
     onBookAnother
 }) => {
+    const { selectedService, selectedEmployee, selectedDate, selectedTime, formData } = useBookingStore();
     const copyToClipboard = (text: string) => {
         if (navigator.clipboard && navigator.clipboard.writeText) {
             navigator.clipboard.writeText(text).then(() => {
@@ -96,7 +75,7 @@ const BookingSuccessPage: React.FC<BookingSuccessPageProps> = ({
                 
                 <h1 className="success-title">Booking Confirmed!</h1>
                 <p className="success-subtitle">
-                    Your appointment has been successfully booked. We've sent a confirmation email to <strong>{formData.email}</strong>.
+                    Your appointment has been successfully booked. We've sent a confirmation email to <strong>{formData?.email}</strong>.
                 </p>
             
                 <div className="appointment-card">

@@ -1,21 +1,13 @@
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import { useAPI } from './useAPI';
-
-interface Appointment {
-  id: string;
-  service: string;
-  staff: string;
-  date: string;
-  status: string;
-  name: string;
-  email: string;
-}
+import { useBookingStore } from '../store/bookingStore';
 
 export const useAppointments = () => {
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const { request } = useAPI<Appointment[]>();
+  const { appointments, setAppointments, setAppointmentsLoading } = useBookingStore();
+  const { request } = useAPI<any>();
 
   const loadUserAppointments = useCallback(async (email: string) => {
+    setAppointmentsLoading(true);
     try {
       const data = await request('appointease/v1/user-appointments', {
         method: 'POST',
@@ -35,11 +27,13 @@ export const useAppointments = () => {
       setAppointments(formatted);
       return formatted;
     } catch (error) {
-      console.error('Failed to load appointments:', error);
+      console.error('Failed to load appointments:', error instanceof Error ? error.message : 'Unknown error');
       setAppointments([]);
       return [];
+    } finally {
+      setAppointmentsLoading(false);
     }
-  }, [request]);
+  }, [request, setAppointments, setAppointmentsLoading]);
 
   const cancelAppointment = useCallback(async (appointmentId: string) => {
     try {
@@ -48,8 +42,8 @@ export const useAppointments = () => {
         body: JSON.stringify({ appointment_id: appointmentId })
       });
       
-      setAppointments(prev => 
-        prev.map(apt => 
+      setAppointments(
+        appointments.map(apt => 
           apt.id === appointmentId 
             ? { ...apt, status: 'cancelled' }
             : apt
@@ -58,10 +52,10 @@ export const useAppointments = () => {
       
       return true;
     } catch (error) {
-      console.error('Failed to cancel appointment:', error);
+      console.error('Failed to cancel appointment:', error instanceof Error ? error.message : 'Unknown error');
       return false;
     }
-  }, [request]);
+  }, [request, appointments, setAppointments]);
 
   const rescheduleAppointment = useCallback(async (
     appointmentId: string, 
@@ -78,8 +72,8 @@ export const useAppointments = () => {
         })
       });
       
-      setAppointments(prev =>
-        prev.map(apt =>
+      setAppointments(
+        appointments.map(apt =>
           apt.id === appointmentId
             ? { ...apt, date: `${newDate} ${newTime}` }
             : apt
@@ -88,13 +82,12 @@ export const useAppointments = () => {
       
       return true;
     } catch (error) {
-      console.error('Failed to reschedule appointment:', error);
+      console.error('Failed to reschedule appointment:', error instanceof Error ? error.message : 'Unknown error');
       return false;
     }
-  }, [request]);
+  }, [request, appointments, setAppointments]);
 
   return {
-    appointments,
     loadUserAppointments,
     cancelAppointment,
     rescheduleAppointment

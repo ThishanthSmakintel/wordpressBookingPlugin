@@ -1,10 +1,8 @@
 import React from 'react';
+import { useBookingStore } from '../store/bookingStore';
 
-interface StepProgressProps {
-    currentStep: number;
-}
-
-const StepProgress: React.FC<StepProgressProps> = ({ currentStep }) => {
+const StepProgress: React.FC = () => {
+    const { step: currentStep } = useBookingStore();
     const steps = [
         { number: 1, label: 'Service' },
         { number: 2, label: 'Employee' },

@@ -1,28 +1,25 @@
 import React from 'react';
-
-interface Service {
-    duration?: number;
-}
+import { useBookingStore } from '../store/bookingStore';
 
 interface TimeSelectorProps {
-    selectedDate: string;
-    selectedTime: string;
-    selectedService: Service | null;
     unavailableSlots: string[];
     timezone: string;
-    onTimeSelect: (time: string) => void;
-    onBack: () => void;
 }
 
 const TimeSelector: React.FC<TimeSelectorProps> = ({
-    selectedDate,
-    selectedTime,
-    selectedService,
     unavailableSlots,
-    timezone,
-    onTimeSelect,
-    onBack
+    timezone
 }) => {
+    const { selectedDate, selectedTime, selectedService, setSelectedTime, setStep } = useBookingStore();
+    
+    const handleTimeSelect = (time: string) => {
+        setSelectedTime(time);
+        setStep(5);
+    };
+    
+    const handleBack = () => {
+        setStep(3);
+    };
     const timeSlots = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'];
 
     return (
@@ -47,8 +44,8 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                         <div 
                             key={time} 
                             className={`time-slot ${isUnavailable ? 'unavailable' : ''}`}
-                            onClick={() => onTimeSelect(time)}
-                            onKeyDown={(e) => e.key === 'Enter' && onTimeSelect(time)}
+                            onClick={() => handleTimeSelect(time)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleTimeSelect(time)}
                             tabIndex={isUnavailable ? -1 : 0}
                             role="button"
                             aria-label={`${time} for ${serviceDuration} minutes - ${isUnavailable ? 'unavailable' : 'available'}`}
@@ -64,7 +61,7 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                 })}
             </div>
             <div className="form-actions">
-                <button className="back-btn" onClick={onBack} aria-label="Go back to date selection">
+                <button className="back-btn" onClick={handleBack} aria-label="Go back to date selection">
                     <i className="fas fa-arrow-left" aria-hidden="true"></i> Back
                 </button>
             </div>

@@ -1,44 +1,44 @@
 import React from 'react';
+import { useBookingStore } from './store/bookingStore';
 
 interface SuccessPageProps {
     appointmentId: string;
-    selectedService: any;
-    selectedEmployee: any;
-    selectedDate: string;
-    selectedTime: string;
-    formData: any;
     onNewBooking: () => void;
     onManageBooking: () => void;
 }
 
-
-
 const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text).then(() => {
-        const idElement = document.querySelector('.id-number');
-        if (idElement) {
-            const original = idElement.textContent;
-            idElement.textContent = 'Copied!';
-            (idElement as HTMLElement).style.background = 'rgba(40, 167, 69, 0.3)';
-            
-            setTimeout(() => {
-                idElement.textContent = original;
-                (idElement as HTMLElement).style.background = 'rgba(255,255,255,0.15)';
-            }, 2000);
-        }
-    });
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+            const idElement = document.querySelector('.id-number');
+            if (idElement) {
+                const original = idElement.textContent;
+                idElement.textContent = 'Copied!';
+                (idElement as HTMLElement).style.background = 'rgba(40, 167, 69, 0.3)';
+                
+                setTimeout(() => {
+                    idElement.textContent = original;
+                    (idElement as HTMLElement).style.background = 'rgba(255,255,255,0.15)';
+                }, 2000);
+            }
+        }).catch(() => {
+            // Fallback for clipboard API failure
+            const textArea = document.createElement('textarea');
+            textArea.value = text;
+            document.body.appendChild(textArea);
+            textArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textArea);
+        });
+    }
 };
 
 export const EnhancedSuccessPage: React.FC<SuccessPageProps> = ({
     appointmentId,
-    selectedService,
-    selectedEmployee,
-    selectedDate,
-    selectedTime,
-    formData,
     onNewBooking,
     onManageBooking
 }) => {
+    const { selectedService, selectedEmployee, selectedDate, selectedTime } = useBookingStore();
     return (
         <div className="appointease-step-content success-step">
             <div className="success-container">

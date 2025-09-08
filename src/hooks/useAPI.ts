@@ -1,20 +1,12 @@
-import { useState, useCallback } from 'react';
-
-interface APIResponse<T> {
-  data: T | null;
-  loading: boolean;
-  error: string | null;
-}
+import { useCallback } from 'react';
+import { useBookingStore } from '../store/bookingStore';
 
 export const useAPI = <T>() => {
-  const [state, setState] = useState<APIResponse<T>>({
-    data: null,
-    loading: false,
-    error: null
-  });
+  const { apiLoading, apiError, setApiLoading, setApiError } = useBookingStore();
 
-  const request = useCallback(async (url: string, options?: RequestInit) => {
-    setState(prev => ({ ...prev, loading: true, error: null }));
+  const request = useCallback(async (url: string, options?: RequestInit): Promise<T> => {
+    setApiLoading(true);
+    setApiError(null);
     
     try {
       const response = await fetch(`${window.bookingAPI?.root || '/wp-json/'}${url}`, {
@@ -31,14 +23,15 @@ export const useAPI = <T>() => {
       }
 
       const data = await response.json();
-      setState({ data, loading: false, error: null });
+      setApiLoading(false);
       return data;
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Request failed';
-      setState({ data: null, loading: false, error: errorMessage });
+      setApiError(errorMessage);
+      setApiLoading(false);
       throw error;
     }
-  }, []);
+  }, [setApiLoading, setApiError]);
 
-  return { ...state, request };
+  return { request, loading: apiLoading, error: apiError };
 };

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useBookingStore } from '../store/bookingStore';
 
 interface Service {
     id: number;
@@ -9,22 +10,20 @@ interface Service {
 }
 
 interface ServiceSelectorProps {
-    services: Service[];
-    servicesLoading: boolean;
-    isOnline: boolean;
-    onServiceSelect: (service: Service) => void;
     onRetry: () => void;
     columns?: number;
 }
 
 const ServiceSelector: React.FC<ServiceSelectorProps> = ({
-    services,
-    servicesLoading,
-    isOnline,
-    onServiceSelect,
     onRetry,
     columns = 2
 }) => {
+    const { services, servicesLoading, isOnline, setSelectedService, setStep } = useBookingStore();
+    
+    const handleServiceSelect = (service: Service) => {
+        setSelectedService(service);
+        setStep(2);
+    };
     return (
         <div className="appointease-step-content">
             <div className="progress-bar">
@@ -63,8 +62,8 @@ const ServiceSelector: React.FC<ServiceSelectorProps> = ({
                         <div 
                             key={service.id} 
                             className="service-card" 
-                            onClick={() => onServiceSelect(service)}
-                            onKeyDown={(e) => e.key === 'Enter' && onServiceSelect(service)}
+                            onClick={() => handleServiceSelect(service)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleServiceSelect(service)}
                             tabIndex={0}
                             role="button"
                             aria-label={`Select ${service.name} service, ${service.duration} minutes, $${service.price}`}

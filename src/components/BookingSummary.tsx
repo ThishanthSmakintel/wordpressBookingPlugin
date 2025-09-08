@@ -1,27 +1,8 @@
 import React from 'react';
+import { useBookingStore } from '../store/bookingStore';
 
-interface Service {
-    name: string;
-    price: number;
-}
-
-interface Employee {
-    name: string;
-}
-
-interface BookingSummaryProps {
-    selectedService: Service | null;
-    selectedEmployee: Employee | null;
-    selectedDate: string;
-    selectedTime: string;
-}
-
-const BookingSummary: React.FC<BookingSummaryProps> = ({
-    selectedService,
-    selectedEmployee,
-    selectedDate,
-    selectedTime
-}) => {
+const BookingSummary: React.FC = () => {
+    const { selectedService, selectedEmployee, selectedDate, selectedTime } = useBookingStore();
     return (
         <div className="booking-summary">
             <h3>Booking Summary</h3>
