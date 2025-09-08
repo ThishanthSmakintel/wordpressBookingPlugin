@@ -1,6 +1,6 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
-import { BookingApp } from './components';
+import { ServiceSelector } from './components';
 import './frontend.css';
 import './components/booking-components.css';
 import './components/loading-states.css';
@@ -12,7 +12,7 @@ const initBookingApp = () => {
   containers.forEach(container => {
     if (!container.hasAttribute('data-initialized')) {
       const root = createRoot(container);
-      root.render(<BookingApp />);
+      root.render(<ServiceSelector services={[]} servicesLoading={false} isOnline={true} onServiceSelect={() => {}} onRetry={() => {}} />);
       container.setAttribute('data-initialized', 'true');
     }
   });

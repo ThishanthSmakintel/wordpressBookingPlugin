@@ -14,6 +14,7 @@ import EmailVerification from './components/EmailVerification';
 import BookingSuccessPage from './components/BookingSuccessPage';
 import StepProgress from './components/StepProgress';
 import ConnectionStatus from './components/ConnectionStatus';
+import { sanitizeInput, sanitizeLogInput, generateStrongId, timeSlots, businessHours } from './utils';
 
 interface FormData {
     firstName: string;
@@ -43,33 +44,9 @@ declare global {
     }
 }
 
-// Enhanced notification system with input sanitization
-const sanitizeLogInput = (input: string): string => {
-    return input.replace(/[\r\n\t]/g, ' ').replace(/[<>"'&]/g, (char) => {
-        const entities: Record<string, string> = { '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#x27;', '&': '&amp;' };
-        return entities[char] || char;
-    });
-};
 
-const showNotification = (message: string, type: 'success' | 'error' | 'warning' | 'info' = 'success', title?: string) => {
-    const sanitizedMessage = sanitizeLogInput(message);
-    const sanitizedType = sanitizeLogInput(type.toUpperCase());
-    console.log(`${sanitizedType}: ${sanitizedMessage}`);
-};
 
-const createNotificationContainer = () => {
-    const container = document.createElement('div');
-    container.className = 'notification-container';
-    document.body.appendChild(container);
-    return container;
-};
 
-const removeNotification = (notification: HTMLElement) => {
-    notification.classList.remove('show');
-    setTimeout(() => notification.remove(), 300);
-};
-
-const showToast = () => {}; // Disabled
 
 const BookingApp = React.forwardRef<any, any>((props, ref) => {
     const [step, setStep] = useState(1);
@@ -104,9 +81,8 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
     const [unavailableSlots, setUnavailableSlots] = useState<string[]>([]);
     const [retryCount, setRetryCount] = useState(0);
     const liveRegionRef = useRef<HTMLDivElement>(null);
-    const [formDataPersisted, setFormDataPersisted] = useState<FormData>({ firstName: '', lastName: '', email: '', phone: '' });
+
     const [timezone, setTimezone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
-    const [businessHours] = useState({ start: '09:00', end: '17:00', closedDays: [0, 6] });
     const [showEmailLookup, setShowEmailLookup] = useState(false);
     const [lookupEmail, setLookupEmail] = useState('');
     const [foundAppointments, setFoundAppointments] = useState<any[]>([]);
@@ -323,7 +299,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                 loadInitialData();
             }
             if (isLoggedIn) {
-                loadUserAppointments();
+                loadUserAppointmentsRealtime();
             }
         };
         
@@ -440,13 +416,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
         return () => clearInterval(interval);
     }, [isLoggedIn, showDashboard, loadUserAppointmentsRealtime]);
     
-    useEffect(() => {
-        const interval = setInterval(() => {
-            loadUserAppointmentsRealtime();
-        }, 10000);
-        
-        return () => clearInterval(interval);
-    }, [isLoggedIn, showDashboard, loginEmail, loadUserAppointmentsRealtime]);
+
     
     // Live region announcements for screen readers
     const announceToScreenReader = useCallback((message: string) => {
@@ -517,17 +487,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
         debugCheckDatabase();
     }, [loadInitialData]);
 
-    const timeSlots = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'];
 
-    const generateStrongId = () => {
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-        let result = '';
-        for (let i = 0; i < 6; i++) {
-            result += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        const year = new Date().getFullYear();
-        return `APT-${year}-${result}`;
-    };
     
 
     
@@ -627,12 +587,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
         setStep(5);
     };
 
-    const sanitizeInput = (input: string): string => {
-        return input.replace(/[<>"'&]/g, (char) => {
-            const entities: Record<string, string> = { '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#x27;', '&': '&amp;' };
-            return entities[char] || char;
-        }).trim();
-    };
+
 
     const validateForm = (): boolean => {
         const newErrors: FormErrors = {};
@@ -778,16 +733,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
         });
     };
 
-    const generateCalendar = () => {
-        const today = new Date();
-        const days = [];
-        for (let i = 0; i < 30; i++) {
-            const date = new Date(today);
-            date.setDate(today.getDate() + i);
-            days.push(date);
-        }
-        return days;
-    };
+
 
     const handleManageAppointment = async (appointmentIdToManage?: string) => {
         const idToUse = appointmentIdToManage || appointmentId;
@@ -1083,47 +1029,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
         }
     };
     
-    const loadUserAppointments = () => {
-        if (!window.bookingAPI) {
-            setUserAppointments([]);
-            return;
-        }
-        
-        setIsLoadingAppointments(true);
-        fetch(`${window.bookingAPI?.root || '/wp-json/'}appointease/v1/user-appointments`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-WP-Nonce': window.bookingAPI.nonce
-            },
-            body: JSON.stringify({ email: loginEmail })
-        })
-        .then(response => {
-            if (!response.ok) {
-                throw new Error('Failed to fetch appointments');
-            }
-            return response.json();
-        })
-        .then(appointments => {
-            const formattedAppointments = (appointments || []).map((apt: any) => ({
-                id: apt.strong_id || `AE${apt.id.toString().padStart(6, '0')}`,
-                service: apt.service_name || 'Service',
-                staff: apt.staff_name || 'Staff Member',
-                date: apt.appointment_date,
-                status: apt.status,
-                name: apt.name,
-                email: apt.email
-            }));
-            setUserAppointments(formattedAppointments);
-        })
-        .catch((error) => {
-            console.error('Error loading appointments:', error);
-            setUserAppointments([]);
-        })
-        .finally(() => {
-            setIsLoadingAppointments(false);
-        });
-    };
+
     
     const sendVerificationOtp = () => {
         if (verifyResendCooldown > 0) return;

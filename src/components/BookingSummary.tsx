@@ -1,62 +1,52 @@
 import React from 'react';
-import { useBooking } from '../contexts/BookingContext';
 
-const BookingSummary: React.FC<{ onConfirm: () => void; onBack: () => void; isLoading?: boolean }> = ({ 
-  onConfirm, 
-  onBack, 
-  isLoading = false 
+interface Service {
+    name: string;
+    price: number;
+}
+
+interface Employee {
+    name: string;
+}
+
+interface BookingSummaryProps {
+    selectedService: Service | null;
+    selectedEmployee: Employee | null;
+    selectedDate: string;
+    selectedTime: string;
+}
+
+const BookingSummary: React.FC<BookingSummaryProps> = ({
+    selectedService,
+    selectedEmployee,
+    selectedDate,
+    selectedTime
 }) => {
-  const { state } = useBooking();
-
-  return (
-    <div className="booking-summary-page">
-      <h3>Almost Done!</h3>
-      <p>Please provide your contact information</p>
-
-      <div className="booking-summary-card">
-        <h4>Booking Summary</h4>
-        <div className="summary-item">
-          <span className="label">Service:</span>
-          <span className="value">{state.selectedService?.name || 'Consultation'}</span>
+    return (
+        <div className="booking-summary">
+            <h3>Booking Summary</h3>
+            <div className="summary-item">
+                <span>Service:</span>
+                <span>{selectedService?.name}</span>
+            </div>
+            <div className="summary-item">
+                <span>Employee:</span>
+                <span>{selectedEmployee?.name}</span>
+            </div>
+            <div className="summary-item">
+                <span>Date:</span>
+                <span>{new Date(selectedDate).toLocaleDateString()}</span>
+            </div>
+            <div className="summary-item">
+                <span>Time:</span>
+                <span>{selectedTime}</span>
+            </div>
+            <div className="summary-item total">
+                <span>Total:</span>
+                <span>${selectedService?.price}</span>
+            </div>
         </div>
-        <div className="summary-item">
-          <span className="label">Employee:</span>
-          <span className="value">{state.selectedEmployee?.name || 'Mike Wilson'}</span>
-        </div>
-        <div className="summary-item">
-          <span className="label">Date:</span>
-          <span className="value">{state.selectedDate || '9/9/2025'}</span>
-        </div>
-        <div className="summary-item">
-          <span className="label">Time:</span>
-          <span className="value">{state.selectedTime || '11:00'}</span>
-        </div>
-        <div className="summary-item total">
-          <span className="label">Total:</span>
-          <span className="value">${state.selectedService?.price || '75.00'}</span>
-        </div>
-      </div>
-
-      <div className="summary-actions">
-        <button 
-          type="button"
-          className="back-btn"
-          onClick={onBack}
-          disabled={isLoading}
-        >
-          ← Back
-        </button>
-        <button 
-          type="button"
-          className="confirm-btn"
-          onClick={onConfirm}
-          disabled={isLoading}
-        >
-          {isLoading ? 'CONFIRMING...' : 'CONFIRM BOOKING'}
-        </button>
-      </div>
-    </div>
-  );
+    );
 };
 
 export default BookingSummary;

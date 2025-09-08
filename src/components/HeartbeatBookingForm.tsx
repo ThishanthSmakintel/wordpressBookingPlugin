@@ -89,9 +89,10 @@ const HeartbeatBookingForm: React.FC = () => {
   if (showSummary) {
     return (
       <BookingSummary 
-        onConfirm={handleConfirmBooking}
-        onBack={() => setShowSummary(false)}
-        isLoading={isSubmitting}
+        selectedService={state.selectedService}
+        selectedEmployee={state.selectedEmployee}
+        selectedDate={state.selectedDate}
+        selectedTime={state.selectedTime}
       />
     );
   }
