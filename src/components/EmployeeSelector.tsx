@@ -8,7 +8,7 @@ interface Employee {
     reviews: number;
 }
 
-interface StaffSelectorProps {
+interface EmployeeSelectorProps {
     employees: Employee[];
     employeesLoading: boolean;
     onEmployeeSelect: (employee: Employee) => void;
@@ -16,7 +16,7 @@ interface StaffSelectorProps {
     onBack: () => void;
 }
 
-const StaffSelector: React.FC<StaffSelectorProps> = ({
+const EmployeeSelector: React.FC<EmployeeSelectorProps> = ({
     employees,
     employeesLoading,
     onEmployeeSelect,
@@ -81,4 +81,4 @@ const StaffSelector: React.FC<StaffSelectorProps> = ({
     );
 };
 
-export default StaffSelector;
+export default EmployeeSelector;

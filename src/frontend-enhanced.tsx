@@ -5,6 +5,15 @@ import './reschedule.css';
 import './login.css';
 import Dashboard from './components/Dashboard';
 import LoginForm from './components/LoginForm';
+import ServiceSelector from './components/ServiceSelector';
+import EmployeeSelector from './components/EmployeeSelector';
+import DateSelector from './components/DateSelector';
+import TimeSelector from './components/TimeSelector';
+import CustomerInfoForm from './components/CustomerInfoForm';
+import EmailVerification from './components/EmailVerification';
+import BookingSuccessPage from './components/BookingSuccessPage';
+import StepProgress from './components/StepProgress';
+import ConnectionStatus from './components/ConnectionStatus';
 
 interface FormData {
     firstName: string;
@@ -1681,12 +1690,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
         <>
         <div className="appointease-booking" role="main" aria-label="Appointment booking system" style={{overflow: 'visible', height: 'auto'}}>
             <div ref={liveRegionRef} className="live-region" aria-live="polite" aria-atomic="true"></div>
-            {!isOnline && (
-                <div className="connection-status show" role="alert">
-                    <i className="fas fa-wifi"></i>
-                    You are offline
-                </div>
-            )}
+            <ConnectionStatus isOnline={isOnline} />
             <div className="appointease-booking-header">
                 <div className="appointease-logo">
                     <span className="logo-icon">A</span>
@@ -1724,241 +1728,47 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
             </div>
 
             <div className="appointease-booking-content">
-                <div className="appointease-steps">
-                    <div className={`step ${step >= 1 ? 'active' : ''} ${step > 1 ? 'completed' : ''}`}>
-                        <span className="step-number">1</span>
-                        <span className="step-label">Service</span>
-                    </div>
-                    <div className={`step ${step >= 2 ? 'active' : ''} ${step > 2 ? 'completed' : ''}`}>
-                        <span className="step-number">2</span>
-                        <span className="step-label">Employee</span>
-                    </div>
-                    <div className={`step ${step >= 3 ? 'active' : ''} ${step > 3 ? 'completed' : ''}`}>
-                        <span className="step-number">3</span>
-                        <span className="step-label">Date</span>
-                    </div>
-                    <div className={`step ${step >= 4 ? 'active' : ''} ${step > 4 ? 'completed' : ''}`}>
-                        <span className="step-number">4</span>
-                        <span className="step-label">Time</span>
-                    </div>
-                    <div className={`step ${step >= 5 ? 'active' : ''} ${step > 5 ? 'completed' : ''}`}>
-                        <span className="step-number">5</span>
-                        <span className="step-label">Info</span>
-                    </div>
-                </div>
+                <StepProgress currentStep={step} />
 
                 {step === 1 && (
-                    <div className="appointease-step-content">
-                        <div className="progress-bar">
-                            <div className="progress-fill" style={{width: '20%'}}></div>
-                        </div>
-                        <h2>Choose Your Service</h2>
-                        <p className="step-description">Select the service you'd like to book</p>
-                        
-                        {!isOnline && (
-                            <div className="offline-banner">
-                                <i className="fas fa-wifi"></i>
-                                You are offline. Limited functionality available.
-                            </div>
-                        )}
-
-                        <div className="services-grid" style={{gridTemplateColumns: `repeat(${props.columns || 2}, 1fr)`}} role="grid" aria-label="Available services">
-                            {servicesLoading ? (
-                                // Loading skeleton
-                                Array.from({length: 4}).map((_, index) => (
-                                    <div key={index} className="service-card skeleton skeleton-card" aria-hidden="true">
-                                        <div className="skeleton-text short"></div>
-                                        <div className="skeleton-text medium"></div>
-                                        <div className="skeleton-text long"></div>
-                                    </div>
-                                ))
-                            ) : services.length === 0 ? (
-                                // Empty state
-                                <div className="empty-state" role="status">
-                                    <i className="fas fa-briefcase" aria-hidden="true"></i>
-                                    <h3>No Services Available</h3>
-                                    <p>Please try again later or contact support.</p>
-                                    <button className="retry-btn" onClick={() => loadInitialData()}>
-                                        <i className="fas fa-redo"></i> Retry
-                                    </button>
-                                </div>
-                            ) : (
-                                services.map(service => (
-                                    <div 
-                                        key={service.id} 
-                                        className="service-card" 
-                                        onClick={() => handleServiceSelect(service)}
-                                        onKeyDown={(e) => e.key === 'Enter' && handleServiceSelect(service)}
-                                        tabIndex={0}
-                                        role="button"
-                                        aria-label={`Select ${service.name} service, ${service.duration} minutes, $${service.price}`}
-                                    >
-                                        <div className="service-icon" aria-hidden="true"><i className="ri-briefcase-line"></i></div>
-                                        <div className="service-info">
-                                            <h3>{service.name}</h3>
-                                            <p>{service.description}</p>
-                                            <div className="service-meta">
-                                                <span className="duration"><i className="ri-time-line" aria-hidden="true"></i> {service.duration} min</span>
-                                                <span className="price"><i className="ri-money-dollar-circle-line" aria-hidden="true"></i> ${service.price}</span>
-                                            </div>
-                                        </div>
-                                        <div className="service-arrow" aria-hidden="true"><i className="ri-arrow-right-line"></i></div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                    </div>
+                    <ServiceSelector
+                        services={services}
+                        servicesLoading={servicesLoading}
+                        isOnline={isOnline}
+                        onServiceSelect={handleServiceSelect}
+                        onRetry={loadInitialData}
+                        columns={props.columns || 2}
+                    />
                 )}
 
                 {step === 2 && (
-                    <div className="appointease-step-content">
-                        <div className="progress-bar">
-                            <div className="progress-fill" style={{width: '40%'}}></div>
-                        </div>
-                        <h2>Choose Your Specialist</h2>
-                        <p className="step-description">Select who you'd like to work with</p>
-
-                        <div className="employees-grid" role="grid" aria-label="Available specialists">
-                            {employeesLoading ? (
-                                Array.from({length: 3}).map((_, index) => (
-                                    <div key={index} className="employee-card skeleton skeleton-card" aria-hidden="true">
-                                        <div className="skeleton-text short"></div>
-                                        <div className="skeleton-text medium"></div>
-                                    </div>
-                                ))
-                            ) : employees.length === 0 ? (
-                                <div className="empty-state" role="status">
-                                    <i className="fas fa-user-md" aria-hidden="true"></i>
-                                    <h3>No Specialists Available</h3>
-                                    <p>Please try again later or contact support.</p>
-                                    <button className="retry-btn" onClick={() => loadInitialData()}>
-                                        <i className="fas fa-redo"></i> Retry
-                                    </button>
-                                </div>
-                            ) : (
-                                employees.map(employee => (
-                                    <div 
-                                        key={employee.id} 
-                                        className="employee-card" 
-                                        onClick={() => handleEmployeeSelect(employee)}
-                                        onKeyDown={(e) => e.key === 'Enter' && handleEmployeeSelect(employee)}
-                                        tabIndex={0}
-                                        role="button"
-                                        aria-label={`Select ${employee.name}, rated ${employee.rating} stars with ${employee.reviews} reviews`}
-                                    >
-                                        <div className="employee-avatar" aria-hidden="true">{employee.avatar}</div>
-                                        <div className="employee-info">
-                                            <h3>{employee.name}</h3>
-                                            <div className="employee-rating">
-                                                <span className="rating"><i className="ri-star-fill" aria-hidden="true"></i> {employee.rating}</span>
-                                                <span className="reviews">({employee.reviews} reviews)</span>
-                                            </div>
-                                        </div>
-                                        <div className="employee-arrow" aria-hidden="true"><i className="ri-arrow-right-line"></i></div>
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                        <div className="form-actions">
-                            <button className="back-btn" onClick={() => setStep(1)} aria-label="Go back to service selection">
-                                <i className="fas fa-arrow-left" aria-hidden="true"></i> Back
-                            </button>
-                        </div>
-                    </div>
+                    <EmployeeSelector
+                        employees={employees}
+                        employeesLoading={employeesLoading}
+                        onEmployeeSelect={handleEmployeeSelect}
+                        onRetry={loadInitialData}
+                        onBack={() => setStep(1)}
+                    />
                 )}
 
                 {step === 3 && (
-                    <div className="appointease-step-content">
-                        <div className="progress-bar">
-                            <div className="progress-fill" style={{width: '60%'}}></div>
-                        </div>
-                        <h2>Pick Your Date</h2>
-                        <p className="step-description">Choose when you'd like your appointment</p>
-                        <div className="calendar-grid" role="grid" aria-label="Calendar for date selection">
-                            {generateCalendar().map((date, index) => {
-                                const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-                                const isPast = date < new Date(new Date().setHours(0,0,0,0));
-                                const isDisabled = isWeekend || isPast;
-                                const dateString = date.toISOString().split('T')[0];
-                                const formattedDate = date.toLocaleDateString('en', { 
-                                    weekday: 'long', 
-                                    year: 'numeric', 
-                                    month: 'long', 
-                                    day: 'numeric' 
-                                });
-                                
-                                return (
-                                    <div 
-                                        key={index} 
-                                        className={`calendar-day ${isDisabled ? 'disabled' : ''}`}
-                                        onClick={() => !isDisabled && handleDateSelect(dateString)}
-                                        onKeyDown={(e) => e.key === 'Enter' && !isDisabled && handleDateSelect(dateString)}
-                                        tabIndex={isDisabled ? -1 : 0}
-                                        role="button"
-                                        aria-label={isDisabled ? `${formattedDate} - unavailable` : `Select ${formattedDate}`}
-                                        aria-disabled={isDisabled}
-                                    >
-                                        <span className="day-name">{date.toLocaleDateString('en', { weekday: 'short' })}</span>
-                                        <span className="day-number">{date.getDate()}</span>
-                                        <span className="day-month">{date.toLocaleDateString('en', { month: 'short' })}</span>
-                                        {isWeekend && <span className="unavailable">Closed</span>}
-                                        {isPast && !isWeekend && <span className="unavailable">Past</span>}
-                                    </div>
-                                );
-                            })}
-                        </div>
-                        <div className="form-actions">
-                            <button className="back-btn" onClick={() => setStep(2)} aria-label="Go back to specialist selection">
-                                <i className="fas fa-arrow-left" aria-hidden="true"></i> Back
-                            </button>
-                        </div>
-                    </div>
+                    <DateSelector
+                        selectedDate={selectedDate}
+                        onDateSelect={handleDateSelect}
+                        onBack={() => setStep(2)}
+                    />
                 )}
 
                 {step === 4 && (
-                    <div className="appointease-step-content">
-                        <div className="progress-bar">
-                            <div className="progress-fill" style={{width: '80%'}}></div>
-                        </div>
-                        <h2>Choose Your Time</h2>
-                        <p className="step-description">Select your preferred time slot</p>
-                        <div className="selected-info" role="status">
-                            <span><i className="ri-calendar-line" aria-hidden="true"></i> {new Date(selectedDate).toLocaleDateString('en', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
-                        </div>
-                        <div className="timezone-info" role="status">
-                            <i className="fas fa-clock" aria-hidden="true"></i>
-                            All times shown in {timezone}
-                        </div>
-                        <div className="time-slots" role="grid" aria-label="Available time slots">
-                            {timeSlots.map(time => {
-                                const isUnavailable = unavailableSlots.includes(time);
-                                const serviceDuration = selectedService?.duration || 30;
-                                return (
-                                    <div 
-                                        key={time} 
-                                        className={`time-slot ${isUnavailable ? 'unavailable' : ''}`}
-                                        onClick={() => handleTimeSelect(time)}
-                                        onKeyDown={(e) => e.key === 'Enter' && handleTimeSelect(time)}
-                                        tabIndex={isUnavailable ? -1 : 0}
-                                        role="button"
-                                        aria-label={`${time} for ${serviceDuration} minutes - ${isUnavailable ? 'unavailable' : 'available'}`}
-                                        aria-disabled={isUnavailable}
-                                    >
-                                        <div className="time-info">
-                                            <span className="time">{time}</span>
-                                            <span className="duration">{serviceDuration} min</span>
-                                        </div>
-                                        <span className="status">{isUnavailable ? 'Unavailable' : 'Available'}</span>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                        <div className="form-actions">
-                            <button className="back-btn" onClick={() => setStep(3)} aria-label="Go back to date selection">
-                                <i className="fas fa-arrow-left" aria-hidden="true"></i> Back
-                            </button>
-                        </div>
-                    </div>
+                    <TimeSelector
+                        selectedDate={selectedDate}
+                        selectedTime={selectedTime}
+                        selectedService={selectedService}
+                        unavailableSlots={unavailableSlots}
+                        timezone={timezone}
+                        onTimeSelect={handleTimeSelect}
+                        onBack={() => setStep(3)}
+                    />
                 )}
 
                 {step === 5 && (
@@ -1978,245 +1788,47 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                                 <p className="step-description">Please provide your contact information</p>
                             </>
                         )}
-                        {!isRescheduling && !isLoggedIn && !showEmailVerification && <form onSubmit={handleSubmit} className="customer-form" noValidate>
-
-                            <div className="form-row">
-                                <div className="form-group">
-                                    <label htmlFor="email">Email *</label>
-                                    <div className="email-input-container">
-                                        <input
-                                            id="email"
-                                            type="email"
-                                            value={formData.email}
-                                            onChange={(e) => {
-                                                const sanitized = sanitizeInput(e.target.value);
-                                                console.log('Email input changed:', sanitized);
-                                                setFormData({...formData, email: sanitized});
-                                                if (errors.email) setErrors({...errors, email: undefined});
-                                                
-                                                // Check if user exists after 500ms delay
-                                                if (sanitized && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sanitized)) {
-                                                    setTimeout(() => checkExistingEmail(sanitized), 500);
-                                                } else {
-                                                    setExistingUser(null);
-                                                }
-                                            }}
-                                            className={errors.email ? 'error' : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email) ? 'valid' : ''}
-                                            placeholder="Enter your email address"
-                                            aria-describedby={errors.email ? 'email-error' : undefined}
-                                            aria-invalid={!!errors.email}
-                                            autoComplete="email"
-                                            required
-                                            disabled={existingUser && existingUser.exists}
-                                        />
-                                        {isCheckingEmail && (
-                                            <div className="email-checking">
-                                                <i className="fas fa-spinner fa-spin"></i>
-                                            </div>
-                                        )}
-                                        {existingUser && existingUser.exists && (
-                                            <div className="existing-user-badge">
-                                                <i className="fas fa-user-check"></i>
-                                                Welcome back{existingUser.name ? `, ${existingUser.name}` : ''}!
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {errors.email && (
-                                        <span className="validation-icon invalid" aria-hidden="true">✕</span>
-                                    )}
-                                    {errors.email && <span id="email-error" className="error-message" role="alert">{errors.email}</span>}
-                                </div>
-                            </div>
-                            <div className="form-row">
-                                <div className="form-group">
-                                    <label htmlFor="name">Name *</label>
-                                    <input
-                                        id="name"
-                                        type="text"
-                                        value={formData.firstName || ''}
-                                        onChange={(e) => {
-                                            if (!formData.email && !(existingUser && existingUser.exists)) {
-                                                setErrors({...errors, firstName: 'Please enter your email first'});
-                                                return;
-                                            }
-                                            const sanitized = sanitizeInput(e.target.value);
-                                            setFormData({...formData, firstName: sanitized});
-                                            if (errors.firstName) setErrors({...errors, firstName: undefined});
-                                        }}
-                                        className={errors.firstName ? 'error' : formData.firstName && formData.firstName.length >= 2 ? 'valid' : ''}
-                                        placeholder="Enter your name"
-                                        aria-describedby={errors.firstName ? 'name-error' : undefined}
-                                        aria-invalid={!!errors.firstName}
-                                        autoComplete="name"
-                                        required
-                                        disabled={existingUser && existingUser.exists}
-                                    />
-
-                                    {errors.firstName && (
-                                        <span className="validation-icon invalid" aria-hidden="true">✕</span>
-                                    )}
-                                    {errors.firstName && <span id="name-error" className="error-message" role="alert">{errors.firstName}</span>}
-                                </div>
-                                <div className="form-group">
-                                    <label htmlFor="phone">Phone (optional)</label>
-                                    <input
-                                        id="phone"
-                                        type="tel"
-                                        value={formData.phone}
-                                        onChange={(e) => {
-                                            if (!formData.email && !(existingUser && existingUser.exists)) {
-                                                setErrors({...errors, phone: 'Please enter your email first'});
-                                                return;
-                                            }
-                                            // Auto-format phone number with sanitization
-                                            let value = sanitizeInput(e.target.value).replace(/\D/g, '');
-                                            if (value.length > 15) value = value.slice(0, 15); // Limit length
-                                            if (value.length >= 6) {
-                                                value = value.replace(/(\d{3})(\d{3})(\d{4})/, '($1) $2-$3');
-                                            } else if (value.length >= 3) {
-                                                value = value.replace(/(\d{3})(\d+)/, '($1) $2');
-                                            }
-                                            setFormData({...formData, phone: value});
-                                            if (errors.phone) setErrors({...errors, phone: undefined});
-                                        }}
-                                        className={errors.phone ? 'error' : formData.phone && /^[\d\s\-\+\(\)]+$/.test(formData.phone) && formData.phone.replace(/\D/g, '').length >= 10 ? 'valid' : ''}
-                                        placeholder="(555) 123-4567"
-                                        aria-describedby={errors.phone ? 'phone-error' : undefined}
-                                        aria-invalid={!!errors.phone}
-                                        autoComplete="tel"
-                                        disabled={existingUser && existingUser.exists}
-                                    />
-
-                                    {errors.phone && (
-                                        <span className="validation-icon invalid" aria-hidden="true">✕</span>
-                                    )}
-                                    {errors.phone && <span id="phone-error" className="error-message" role="alert">{errors.phone}</span>}
-                                </div>
-                            </div>
-                            
-                            <div className="booking-summary">
-                                <h3>Booking Summary</h3>
-                                <div className="summary-item">
-                                    <span>Service:</span>
-                                    <span>{selectedService?.name}</span>
-                                </div>
-                                <div className="summary-item">
-                                    <span>Employee:</span>
-                                    <span>{selectedEmployee?.name}</span>
-                                </div>
-                                <div className="summary-item">
-                                    <span>Date:</span>
-                                    <span>{new Date(selectedDate).toLocaleDateString()}</span>
-                                </div>
-                                <div className="summary-item">
-                                    <span>Time:</span>
-                                    <span>{selectedTime}</span>
-                                </div>
-                                <div className="summary-item total">
-                                    <span>Total:</span>
-                                    <span>${selectedService?.price}</span>
-                                </div>
-                            </div>
-
-                            <div className="form-actions">
-                                <button type="button" className="btn btn-secondary" onClick={() => setStep(4)} disabled={isSubmitting} aria-label="Go back to time selection">
-                                    <i className="fas fa-arrow-left" aria-hidden="true"></i> Back
-                                </button>
-                                <button type="submit" className={`confirm-btn ${isSubmitting ? 'loading' : ''}`} disabled={isSubmitting} aria-describedby="booking-status">
-                                    {isSubmitting ? (
-                                        <>
-                                            <span className="sr-only">Booking in progress</span>
-                                            <span aria-hidden="true">BOOKING...</span>
-                                        </>
-                                    ) : (
-                                        <>
-                                            <i className="fas fa-check" aria-hidden="true"></i>
-                                            CONFIRM BOOKING
-                                        </>
-                                    )}
-                                </button>
-                            </div>
-                            <div id="booking-status" className="sr-only" aria-live="polite" aria-atomic="true">
-                                {isSubmitting ? 'Booking your appointment, please wait...' : ''}
-                            </div>
-                        </form>}
+                        {!isRescheduling && !isLoggedIn && !showEmailVerification && (
+                            <CustomerInfoForm
+                                formData={formData}
+                                errors={errors}
+                                selectedService={selectedService}
+                                selectedEmployee={selectedEmployee}
+                                selectedDate={selectedDate}
+                                selectedTime={selectedTime}
+                                isSubmitting={isSubmitting}
+                                isLoggedIn={isLoggedIn}
+                                isCheckingEmail={isCheckingEmail}
+                                existingUser={existingUser}
+                                onFormDataChange={setFormData}
+                                onSubmit={handleSubmit}
+                                onBack={() => setStep(4)}
+                                sanitizeInput={sanitizeInput}
+                                checkExistingEmail={checkExistingEmail}
+                                setErrors={setErrors}
+                            />
+                        )}
                         
                         {!isRescheduling && !isLoggedIn && showEmailVerification && (
-                            <div className="email-verification">
-                                <div className="verification-card">
-                                    <div className="verification-header">
-                                        <i className="fas fa-envelope-open" style={{fontSize: '2.5rem', color: '#1CBC9B', marginBottom: '1rem'}}></i>
-                                        <h3>Check Your Email</h3>
-                                        <p>We've sent a 6-digit verification code to:</p>
-                                        <div className="email-highlight">
-                                            {formData.email}
-                                        </div>
-                                    </div>
-                                    
-                                    <div className="verification-form">
-                                        <div className="form-group">
-                                            <label>Verification Code</label>
-                                            <input
-                                                type="text"
-                                                value={emailOtp}
-                                                onChange={(e) => {
-                                                    const sanitized = sanitizeInput(e.target.value.replace(/\D/g, ''));
-                                                    if (sanitized.length <= 6) {
-                                                        setEmailOtp(sanitized);
-                                                        if (errors.general) setErrors({});
-                                                    }
-                                                }}
-                                                placeholder="000000"
-                                                maxLength={6}
-                                                className="otp-input"
-                                            />
-                                        </div>
-                                        
-                                        <div className="verification-info">
-                                            {otpExpiry > 0 && (
-                                                <div className="timer-display">
-                                                    <i className="fas fa-clock"></i>
-                                                    <span>Expires in {Math.floor(Math.max(0, (otpExpiry - Date.now()) / 1000) / 60)}:{String(Math.max(0, Math.ceil((otpExpiry - Date.now()) / 1000) % 60)).padStart(2, '0')}</span>
-                                                </div>
-                                            )}
-                                            
-                                            <button 
-                                                className="resend-link" 
-                                                onClick={sendEmailVerification} 
-                                                disabled={resendCooldown > 0 || isBlocked}
-                                            >
-                                                {resendCooldown > 0 ? 
-                                                    `Resend in ${resendCooldown}s` : 
-                                                    'Didn\'t receive code? Resend'
-                                                }
-                                            </button>
-                                        </div>
-                                        
-                                        {errors.general && (
-                                            <div className={`verification-message ${errors.general.includes('successfully') ? 'success' : 'error'}`}>
-                                                {errors.general}
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                                
-                                <div className="form-actions">
-                                    <button className="back-btn" onClick={() => {
-                                        setShowEmailVerification(false);
-                                        setEmailOtp('');
-                                        setErrors({});
-                                    }}>
-                                        <i className="fas fa-arrow-left"></i> Back to Form
-                                    </button>
-                                    <button className="confirm-btn" onClick={verifyEmailOtp} disabled={isVerifyingEmail || isBlocked || emailOtp.length !== 6}>
-                                        {isVerifyingEmail ? 
-                                            <><i className="fas fa-spinner fa-spin"></i> Verifying...</> : 
-                                            <><i className="fas fa-shield-check"></i> Verify & Book</>
-                                        }
-                                    </button>
-                                </div>
-                            </div>
+                            <EmailVerification
+                                formData={formData}
+                                emailOtp={emailOtp}
+                                otpExpiry={otpExpiry}
+                                resendCooldown={resendCooldown}
+                                isBlocked={isBlocked}
+                                isVerifyingEmail={isVerifyingEmail}
+                                errors={errors}
+                                onOtpChange={setEmailOtp}
+                                onVerifyOtp={verifyEmailOtp}
+                                onResendOtp={sendEmailVerification}
+                                onBack={() => {
+                                    setShowEmailVerification(false);
+                                    setEmailOtp('');
+                                    setErrors({});
+                                }}
+                                sanitizeInput={sanitizeInput}
+                                setErrors={setErrors}
+                            />
                         )}
                         
                         {!isRescheduling && isLoggedIn && (
@@ -2436,143 +2048,24 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                 )}
 
                 {step === 6 && (
-                    <div className="appointease-step-content success-step">
-                        <div className="success-container">
-                            <div className="success-animation">
-                                <div className="success-icon">✓</div>
-                            </div>
-                            
-                            <h1 className="success-title">Booking Confirmed!</h1>
-                            <p className="success-subtitle">
-                                Your appointment has been successfully booked. We've sent a confirmation email to <strong>{formData.email}</strong>.
-                            </p>
-                        
-                            <div className="appointment-card">
-                                <div className="appointment-id">
-                                    <span className="id-label">Your Booking Reference</span>
-                                    <span 
-                                        className="id-number" 
-                                        title="Click to copy" 
-                                        onClick={() => {
-                                            const copyText = (text: string) => {
-                                                if (navigator.clipboard && navigator.clipboard.writeText) {
-                                                    navigator.clipboard.writeText(text).then(() => {
-                                                        const idElement = document.querySelector('.id-number');
-                                                        if (idElement) {
-                                                            const original = idElement.textContent;
-                                                            idElement.textContent = 'Copied!';
-                                                            idElement.style.background = 'rgba(40, 167, 69, 0.3)';
-                                                            setTimeout(() => {
-                                                                idElement.textContent = original;
-                                                                idElement.style.background = 'rgba(255,255,255,0.15)';
-                                                            }, 2000);
-                                                        }
-                                                    }).catch(() => {
-                                                        // Fallback for clipboard API failure
-                                                        const textArea = document.createElement('textarea');
-                                                        textArea.value = text;
-                                                        document.body.appendChild(textArea);
-                                                        textArea.select();
-                                                        document.execCommand('copy');
-                                                        document.body.removeChild(textArea);
-                                                        
-                                                        const idElement = document.querySelector('.id-number');
-                                                        if (idElement) {
-                                                            const original = idElement.textContent;
-                                                            idElement.textContent = 'Copied!';
-                                                            idElement.style.background = 'rgba(40, 167, 69, 0.3)';
-                                                            setTimeout(() => {
-                                                                idElement.textContent = original;
-                                                                idElement.style.background = 'rgba(255,255,255,0.15)';
-                                                            }, 2000);
-                                                        }
-                                                    });
-                                                } else {
-                                                    // Fallback for browsers without clipboard API
-                                                    const textArea = document.createElement('textarea');
-                                                    textArea.value = text;
-                                                    document.body.appendChild(textArea);
-                                                    textArea.select();
-                                                    document.execCommand('copy');
-                                                    document.body.removeChild(textArea);
-                                                    
-                                                    const idElement = document.querySelector('.id-number');
-                                                    if (idElement) {
-                                                        const original = idElement.textContent;
-                                                        idElement.textContent = 'Copied!';
-                                                        idElement.style.background = 'rgba(40, 167, 69, 0.3)';
-                                                        setTimeout(() => {
-                                                            idElement.textContent = original;
-                                                            idElement.style.background = 'rgba(255,255,255,0.15)';
-                                                        }, 2000);
-                                                    }
-                                                }
-                                            };
-                                            copyText(appointmentId);
-                                        }}
-                                    >
-                                        {appointmentId}
-                                    </span>
-                                </div>
-                                
-                                <div className="appointment-details">
-                                    <div className="detail-item">
-                                        <span className="detail-label">Service:</span>
-                                        <span className="detail-value">{selectedService?.name}</span>
-                                    </div>
-                                    <div className="detail-row">
-                                        <span className="icon">
-                                            <i className="fas fa-user-md"></i>
-                                        </span>
-                                        <div>
-                                            <span className="label">Specialist</span>
-                                            <span className="value">{selectedEmployee?.name}</span>
-                                        </div>
-                                    </div>
-                                    <div className="detail-item">
-                                        <span className="detail-label">Date & Time:</span>
-                                        <span className="detail-value">
-                                            {new Date(selectedDate).toLocaleDateString('en', { 
-                                                weekday: 'long', 
-                                                year: 'numeric', 
-                                                month: 'long', 
-                                                day: 'numeric' 
-                                            })} at {selectedTime}
-                                        </span>
-                                    </div>
-                                    <div className="detail-item">
-                                        <span className="detail-label">Total:</span>
-                                        <span className="detail-value">${parseFloat(selectedService?.price || 0).toFixed(2)}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        
-                            <div className="info-note">
-                                <i className="fas fa-info-circle"></i>
-                                Save your reference for future management.
-                            </div>
-                        
-                            <div className="success-actions">
-                                <button className="action-btn primary-btn" onClick={() => {
-                                    setStep(1);
-                                    setSelectedService(null);
-                                    setSelectedEmployee(null);
-                                    setSelectedDate('');
-                                    setSelectedTime('');
-                                    setFormData({ firstName: '', lastName: '', email: '', phone: '' });
-                                    setAppointmentId('');
-                                    setErrors({});
-                                }}>
-                                    <i className="fas fa-plus"></i>
-                                    Book Another
-                                </button>
-                                
-
-                            </div>
-                        
-
-                        </div>
-                    </div>
+                    <BookingSuccessPage
+                        appointmentId={appointmentId}
+                        selectedService={selectedService}
+                        selectedEmployee={selectedEmployee}
+                        selectedDate={selectedDate}
+                        selectedTime={selectedTime}
+                        formData={formData}
+                        onBookAnother={() => {
+                            setStep(1);
+                            setSelectedService(null);
+                            setSelectedEmployee(null);
+                            setSelectedDate('');
+                            setSelectedTime('');
+                            setFormData({ firstName: '', lastName: '', email: '', phone: '' });
+                            setAppointmentId('');
+                            setErrors({});
+                        }}
+                    />
                 )}
             </div>
         </div>

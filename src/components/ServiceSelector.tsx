@@ -1,45 +1,90 @@
-import React, { useEffect } from 'react';
-import { useBooking } from '../contexts/BookingContext';
-import { useAPI } from '../hooks/useAPI';
+import React from 'react';
 
-const ServiceSelector: React.FC = () => {
-  const { state, dispatch } = useBooking();
-  const { data: services, loading: servicesLoading, request } = useAPI<any[]>();
+interface Service {
+    id: number;
+    name: string;
+    description: string;
+    duration: number;
+    price: number;
+}
 
-  useEffect(() => {
-    request('appointease/v1/services');
-  }, [request]);
+interface ServiceSelectorProps {
+    services: Service[];
+    servicesLoading: boolean;
+    isOnline: boolean;
+    onServiceSelect: (service: Service) => void;
+    onRetry: () => void;
+    columns?: number;
+}
 
-  const handleServiceSelect = (service: any) => {
-    dispatch({ type: 'SET_SERVICE', payload: service });
-    dispatch({ type: 'SET_STEP', payload: 2 });
-  };
+const ServiceSelector: React.FC<ServiceSelectorProps> = ({
+    services,
+    servicesLoading,
+    isOnline,
+    onServiceSelect,
+    onRetry,
+    columns = 2
+}) => {
+    return (
+        <div className="appointease-step-content">
+            <div className="progress-bar">
+                <div className="progress-fill" style={{width: '20%'}}></div>
+            </div>
+            <h2>Choose Your Service</h2>
+            <p className="step-description">Select the service you'd like to book</p>
+            
+            {!isOnline && (
+                <div className="offline-banner">
+                    <i className="fas fa-wifi"></i>
+                    You are offline. Limited functionality available.
+                </div>
+            )}
 
-  if (servicesLoading) return (
-    <div className="loading-container">
-      <div className="loading-spinner"></div>
-      <p>Loading services...</p>
-    </div>
-  );
-
-  return (
-    <div className="service-selector">
-      <h3>Select a Service</h3>
-      <div className="services-grid">
-        {services?.map(service => (
-          <button
-            key={service.id}
-            className={`service-card ${state.selectedService?.id === service.id ? 'selected' : ''}`}
-            onClick={() => handleServiceSelect(service)}
-          >
-            <h4>{service.name}</h4>
-            <p>{service.duration} min</p>
-            <span className="price">${service.price}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
+            <div className="services-grid" style={{gridTemplateColumns: `repeat(${columns}, 1fr)`}} role="grid" aria-label="Available services">
+                {servicesLoading ? (
+                    Array.from({length: 4}).map((_, index) => (
+                        <div key={index} className="service-card skeleton skeleton-card" aria-hidden="true">
+                            <div className="skeleton-text short"></div>
+                            <div className="skeleton-text medium"></div>
+                            <div className="skeleton-text long"></div>
+                        </div>
+                    ))
+                ) : services.length === 0 ? (
+                    <div className="empty-state" role="status">
+                        <i className="fas fa-briefcase" aria-hidden="true"></i>
+                        <h3>No Services Available</h3>
+                        <p>Please try again later or contact support.</p>
+                        <button className="retry-btn" onClick={onRetry}>
+                            <i className="fas fa-redo"></i> Retry
+                        </button>
+                    </div>
+                ) : (
+                    services.map(service => (
+                        <div 
+                            key={service.id} 
+                            className="service-card" 
+                            onClick={() => onServiceSelect(service)}
+                            onKeyDown={(e) => e.key === 'Enter' && onServiceSelect(service)}
+                            tabIndex={0}
+                            role="button"
+                            aria-label={`Select ${service.name} service, ${service.duration} minutes, $${service.price}`}
+                        >
+                            <div className="service-icon" aria-hidden="true"><i className="ri-briefcase-line"></i></div>
+                            <div className="service-info">
+                                <h3>{service.name}</h3>
+                                <p>{service.description}</p>
+                                <div className="service-meta">
+                                    <span className="duration"><i className="ri-time-line" aria-hidden="true"></i> {service.duration} min</span>
+                                    <span className="price"><i className="ri-money-dollar-circle-line" aria-hidden="true"></i> ${service.price}</span>
+                                </div>
+                            </div>
+                            <div className="service-arrow" aria-hidden="true"><i className="ri-arrow-right-line"></i></div>
+                        </div>
+                    ))
+                )}
+            </div>
+        </div>
+    );
 };
 
 export default ServiceSelector;
