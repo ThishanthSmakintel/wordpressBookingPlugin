@@ -19,7 +19,8 @@
     "@wordpress/scripts": "^27.0.0",
     "@types/react": "^18.0.0",
     "@types/react-big-calendar": "^1.8.0",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "minimist": "^1.2.8"
   },
   "dependencies": {
     "@wordpress/block-editor": "^12.0.0",
