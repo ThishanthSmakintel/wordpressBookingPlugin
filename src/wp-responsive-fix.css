@@ -1,0 +1,81 @@
+/* WordPress Responsive Fix - Override conflicting custom CSS */
+
+/* Remove fixed dimensions that break WordPress responsive */
+.appointease-booking-container,
+.wp-block-appointease-booking-form {
+    width: 100% !important;
+    max-width: 100% !important;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    min-width: unset !important;
+}
+
+/* Fix WordPress block layout conflicts */
+.wp-block-group.appointease-booking {
+    contain: unset !important;
+    will-change: auto !important;
+}
+
+/* Override custom grid that conflicts with WordPress columns */
+.wp-block-columns.services-grid {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: var(--wp--style--block-gap, 2em) !important;
+}
+
+.wp-block-column.service-card {
+    flex-basis: 0 !important;
+    flex-grow: 1 !important;
+    min-width: 0 !important;
+}
+
+/* Fix WordPress responsive breakpoints */
+@media (max-width: 781px) {
+    .wp-block-columns.services-grid {
+        flex-direction: column !important;
+    }
+    
+    .wp-block-column.service-card {
+        flex-basis: auto !important;
+        width: 100% !important;
+    }
+}
+
+/* Remove conflicting container queries */
+@supports (container-type: inline-size) {
+    .appointments-grid {
+        container-type: unset !important;
+    }
+    
+    .appointment-card-enhanced {
+        container-type: unset !important;
+    }
+}
+
+/* Fix WordPress button conflicts */
+.wp-element-button {
+    font-family: inherit !important;
+    font-size: inherit !important;
+    line-height: inherit !important;
+}
+
+/* Ensure WordPress spacing works */
+.wp-block-group {
+    margin-block-start: var(--wp--preset--spacing--medium, 1.5rem) !important;
+    margin-block-end: var(--wp--preset--spacing--medium, 1.5rem) !important;
+}
+
+/* Fix WordPress text alignment */
+.has-text-align-center {
+    text-align: center !important;
+}
+
+/* Remove custom animations that conflict with WordPress */
+@media (prefers-reduced-motion: reduce) {
+    .appointease-booking *,
+    .wp-block-group * {
+        animation: none !important;
+        transition: none !important;
+    }
+}

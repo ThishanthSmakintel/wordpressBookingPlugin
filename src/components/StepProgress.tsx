@@ -12,14 +12,14 @@ const StepProgress: React.FC = () => {
     ];
 
     return (
-        <div className="appointease-steps">
+        <div className="appointease-steps wp-block-group is-layout-flex">
             {steps.map((step) => (
                 <div 
                     key={step.number}
-                    className={`step ${currentStep >= step.number ? 'active' : ''} ${currentStep > step.number ? 'completed' : ''}`}
+                    className={`step wp-block-group ${currentStep >= step.number ? 'active' : ''} ${currentStep > step.number ? 'completed' : ''}`}
                 >
-                    <span className="step-number">{step.number}</span>
-                    <span className="step-label">{step.label}</span>
+                    <span className="step-number wp-block-tag">{step.number}</span>
+                    <span className="step-label has-text-color">{step.label}</span>
                 </div>
             ))}
         </div>

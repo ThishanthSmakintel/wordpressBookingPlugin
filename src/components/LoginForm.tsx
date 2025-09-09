@@ -38,24 +38,26 @@ const LoginForm: React.FC<LoginFormProps> = ({
     sanitizeInput
 }) => {
     return (
-        <div className="appointease-booking">
-            <div className="appointease-booking-header">
-                <div className="appointease-logo">
+        <div className="wp-block-group appointease-booking">
+            <div className="wp-block-group appointease-booking-header is-layout-flex wp-block-group-is-layout-flex">
+                <div className="wp-block-site-logo appointease-logo">
                     <span className="logo-icon">A</span>
                 </div>
-                <button className="close-btn" onClick={onClose}>
-                    <i className="fas fa-times"></i>
-                </button>
+                <div className="wp-block-button">
+                    <button className="wp-element-button close-btn" onClick={onClose}>
+                        <i className="fas fa-times"></i>
+                    </button>
+                </div>
             </div>
-            <div className="appointease-booking-content">
-                <div className="login-container">
-                    <h2>Login to Your Account</h2>
-                    <p>Access all your appointments and book new ones</p>
+            <div className="wp-block-group appointease-booking-content">
+                <div className="wp-container login-container has-global-padding">
+                    <h2 className="wp-block-heading has-text-align-center">Login to Your Account</h2>
+                    <p className="has-text-align-center">Access all your appointments and book new ones</p>
                     
                     {!otpSent ? (
-                        <div className="login-form">
-                            <div className="form-group">
-                                <label>Email Address</label>
+                        <div className="wp-block-group login-form">
+                            <div className="wp-block-group form-group">
+                                <label className="has-text-color">Email Address</label>
                                 <input
                                     type="email"
                                     value={loginEmail}
@@ -71,32 +73,34 @@ const LoginForm: React.FC<LoginFormProps> = ({
                                 />
                             </div>
                             {errors.general && (
-                                <div className="error-message" style={{marginTop: '0.5rem', color: '#dc3545', fontSize: '0.875rem'}}>
+                                <div className="wp-block-paragraph error-message has-text-color" style={{marginTop: '0.5rem', color: '#dc3545', fontSize: '0.875rem'}}>
                                     {errors.general}
                                 </div>
                             )}
-                            <button className="send-otp-btn" onClick={onSendOTP} disabled={isLoadingOTP || !loginEmail}>
-                                {isLoadingOTP ? (
-                                    <>
-                                        <i className="fas fa-spinner fa-spin"></i>
-                                        Sending verification code...
-                                    </>
-                                ) : (
-                                    <>
-                                        <i className="fas fa-paper-plane"></i>
-                                        Send Verification Code
-                                    </>
-                                )}
-                            </button>
+                            <div className="wp-block-button">
+                                <button className="wp-element-button send-otp-btn" onClick={onSendOTP} disabled={isLoadingOTP || !loginEmail}>
+                                    {isLoadingOTP ? (
+                                        <>
+                                            <i className="fas fa-spinner fa-spin"></i>
+                                            Sending verification code...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <i className="fas fa-paper-plane"></i>
+                                            Send Verification Code
+                                        </>
+                                    )}
+                                </button>
+                            </div>
                         </div>
                     ) : (
-                        <div className="otp-verification">
-                            <div className="verification-card">
-                                <div className="verification-header">
+                        <div className="wp-block-group otp-verification">
+                            <div className="wp-block-group verification-card">
+                                <div className="wp-block-group verification-header has-text-align-center">
                                     <i className="fas fa-sign-in-alt" style={{fontSize: '2.5rem', color: '#1CBC9B', marginBottom: '1rem'}}></i>
-                                    <h3>Verify to Login</h3>
-                                    <p>We've sent a 6-digit verification code to:</p>
-                                    <div className="email-highlight">
+                                    <h3 className="wp-block-heading">Verify to Login</h3>
+                                    <p className="has-text-color">We've sent a 6-digit verification code to:</p>
+                                    <div className="wp-block-tag email-highlight">
                                         {loginEmail}
                                     </div>
                                 </div>
@@ -147,17 +151,21 @@ const LoginForm: React.FC<LoginFormProps> = ({
                                 </div>
                             </div>
                             
-                            <div className="form-actions">
-                                <button className="back-btn" onClick={onBack}>
-                                    <i className="fas fa-arrow-left"></i> Back
-                                </button>
-                                <button className="confirm-btn" onClick={onVerifyOTP} disabled={isLoadingLogin || loginIsBlocked || otpCode.length !== 6}>
-                                    {isLoadingLogin ? (
-                                        <><i className="fas fa-spinner fa-spin"></i> Verifying...</>
-                                    ) : (
-                                        <><i className="fas fa-shield-check"></i> Verify & Login</>
-                                    )}
-                                </button>
+                            <div className="wp-block-buttons form-actions is-layout-flex">
+                                <div className="wp-block-button is-style-outline">
+                                    <button className="wp-element-button back-btn" onClick={onBack}>
+                                        <i className="fas fa-arrow-left"></i> Back
+                                    </button>
+                                </div>
+                                <div className="wp-block-button">
+                                    <button className="wp-element-button confirm-btn" onClick={onVerifyOTP} disabled={isLoadingLogin || loginIsBlocked || otpCode.length !== 6}>
+                                        {isLoadingLogin ? (
+                                            <><i className="fas fa-spinner fa-spin"></i> Verifying...</>
+                                        ) : (
+                                            <><i className="fas fa-shield-check"></i> Verify & Login</>
+                                        )}
+                                    </button>
+                                </div>
                             </div>
                         </div>
                     )}

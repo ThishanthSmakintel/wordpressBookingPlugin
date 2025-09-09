@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import './frontend.css';
 import './reschedule.css';
 import './login.css';
+import './wp-responsive-fix.css';
 import Dashboard from './components/Dashboard';
 import LoginForm from './components/LoginForm';
 import ServiceSelector from './components/ServiceSelector';
@@ -1586,23 +1587,24 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
 
     return (
         <>
-        <div className="appointease-booking" role="main" aria-label="Appointment booking system" style={{overflow: 'visible', height: 'auto'}}>
+        <div className="appointease-booking-container">
+        <div className="appointease-booking wp-block-group" role="main" aria-label="Appointment booking system" style={{overflow: 'visible', height: 'auto'}}>
             <div ref={liveRegionRef} className="live-region" aria-live="polite" aria-atomic="true"></div>
             <ConnectionStatus />
-            <div className="appointease-booking-header">
-                <div className="appointease-logo">
+            <div className="appointease-booking-header wp-block-group is-layout-flex">
+                <div className="appointease-logo wp-block-site-logo">
                     <span className="logo-icon">A</span>
                 </div>
                 {isLoggedIn ? (
-                    <div className="user-menu">
-                        <button className="dashboard-btn" onClick={() => setShowDashboard(true)}>
+                    <div className="user-menu wp-block-buttons is-layout-flex">
+                        <button className="dashboard-btn wp-element-button" onClick={() => setShowDashboard(true)}>
                             <i className="fas fa-th-large"></i>
                             <div className="dashboard-btn-content">
                                 <span>My Appointments</span>
                                 <span className="dashboard-btn-email">{loginEmail}</span>
                             </div>
                         </button>
-                        <button className="logout-btn" onClick={async () => {
+                        <button className="logout-btn wp-element-button" onClick={async () => {
                             setIsLoggedIn(false);
                             setShowDashboard(false);
                             setLoginEmail('');
@@ -1616,8 +1618,8 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                         </button>
                     </div>
                 ) : (
-                    <div className="manage-appointment">
-                        <button className="login-btn" onClick={() => setShowLogin(true)}>
+                    <div className="manage-appointment wp-block-buttons">
+                        <button className="login-btn wp-element-button" onClick={() => setShowLogin(true)}>
                             <i className="fas fa-sign-in-alt"></i>
                             <strong>Existing Customer? Login Here</strong>
                         </button>
@@ -1625,7 +1627,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                 )}
             </div>
 
-            <div className="appointease-booking-content">
+            <div className="appointease-booking-content wp-block-group">
                 <StepProgress />
 
                 {step === 1 && (
@@ -1987,6 +1989,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                     </div>
                 </div>
             )}
+        </div>
         </>
     );
 });
