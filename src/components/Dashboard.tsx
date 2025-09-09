@@ -44,11 +44,11 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </div>
             </div>
             <div className="appointease-booking-content">
-                <div className="dashboard-container" ref={dashboardRef}>
-                    <div className="dashboard-header">
-                        <div className="dashboard-title-section">
+                <div className="dashboard-container has-global-padding" ref={dashboardRef}>
+                    <div className="dashboard-header wp-block-group">
+                        <div className="dashboard-title-section is-layout-flex wp-block-group-is-layout-flex">
                             <div className="dashboard-welcome">
-                                <h2>Welcome back!</h2>
+                                <h2 className="wp-block-heading">Welcome back!</h2>
                                 <div className="user-info">
                                     <div className="user-avatar">
                                         <i className="fas fa-user"></i>
@@ -129,7 +129,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 </button>
                             </div>
                         ) : (
-                            <div className="appointments-grid">
+                            <div className="appointments-grid wp-block-columns is-layout-grid">
                                 {appointments
                                     .slice((currentPage - 1) * appointmentsPerPage, currentPage * appointmentsPerPage)
                                     .map(appointment => {
