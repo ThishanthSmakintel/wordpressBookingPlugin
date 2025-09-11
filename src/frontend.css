@@ -1706,6 +1706,17 @@
     }
 }
 
+/* WordPress button font size fix */
+.wp-element-button {
+    font-size: 12px !important;
+    min-width: 100px !important;
+    white-space: nowrap !important;
+}
+
+.wp-element-button span {
+    font-size: 12px !important;
+}
+
 /* Print styles */
 @media print {
     .appointment-card {
