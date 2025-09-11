@@ -1717,6 +1717,44 @@
     font-size: 12px !important;
 }
 
+/* Reduce appointment card height */
+.wp-block-column.appointment-card-enhanced {
+    min-height: auto !important;
+    height: auto !important;
+}
+
+.wp-block-group.card-header,
+.wp-block-group.card-body,
+.wp-block-buttons.card-actions {
+    padding: 0.75rem !important;
+    margin: 0 !important;
+    min-height: auto !important;
+}
+
+.appointment-datetime {
+    padding: 0.5rem !important;
+    margin: 0.25rem 0 !important;
+}
+
+.service-info {
+    padding: 0.5rem !important;
+    margin: 0 !important;
+}
+
+.appointment-main-info {
+    margin-bottom: 0.25rem !important;
+}
+
+.wp-block-media-text {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+.wp-block-columns.date-info {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
 /* Print styles */
 @media print {
     .appointment-card {
@@ -3544,7 +3582,7 @@
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
     position: relative;
-    min-block-size: 200px;
+    min-block-size: 150px;
     display: flex;
     flex-direction: column;
     inline-size: 100%;
@@ -3694,7 +3732,7 @@
 }
 
 .card-header {
-    padding: 1rem;
+    padding: 0.75rem;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -3757,11 +3795,11 @@
 }
 
 .card-body {
-    padding: 0.75rem 1rem;
+    padding: 0.5rem 0.75rem;
     flex: 1;
     display: flex;
     flex-direction: column;
-    gap: 0.5rem;
+    gap: 0.25rem;
 }
 
 .appointment-main-info {
@@ -3887,7 +3925,7 @@
 }
 
 .card-actions {
-    padding: 0.75rem;
+    padding: 0.5rem;
     border-top: 1px solid #e9ecef;
     background: #f8f9fa;
     display: flex;
