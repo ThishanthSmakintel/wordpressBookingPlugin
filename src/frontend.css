@@ -1717,6 +1717,17 @@
     font-size: 12px !important;
 }
 
+/* Pagination button fix */
+.wp-block-buttons.pagination .wp-element-button {
+    white-space: nowrap !important;
+    min-width: 90px !important;
+    flex-shrink: 0 !important;
+}
+
+.wp-block-buttons.pagination {
+    flex-wrap: nowrap !important;
+}
+
 /* Reduce appointment card height */
 .wp-block-column.appointment-card-enhanced {
     min-height: auto !important;
@@ -4103,6 +4114,8 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    white-space: nowrap;
+    min-width: 80px;
 }
 
 .pagination-btn:hover:not(:disabled) {
