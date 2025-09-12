@@ -1650,6 +1650,73 @@
     font-size: 14px;
 }
 
+/* Dashboard Mobile Responsive */
+@media (max-width: 768px) {
+    .dashboard-title-section {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1.5rem;
+    }
+    
+    .dashboard-welcome {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 1rem;
+        width: 100%;
+    }
+    
+    .dashboard-stats {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    .stat-card {
+        min-width: 100px;
+        flex: 1;
+    }
+    
+    .dashboard-actions {
+        width: 100%;
+        justify-content: space-between;
+    }
+    
+    .new-appointment-btn {
+        min-width: auto;
+        flex: 1;
+    }
+}
+
+@media (max-width: 480px) {
+    .dashboard-stats {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    
+    .stat-card {
+        min-width: auto;
+        padding: 0.75rem 1rem;
+    }
+    
+    .stat-number {
+        font-size: 1.5rem;
+    }
+    
+    .stat-label {
+        font-size: 0.75rem;
+    }
+    
+    .dashboard-actions {
+        flex-direction: column;
+        gap: 0.75rem;
+    }
+    
+    .refresh-btn,
+    .new-appointment-btn {
+        width: 100%;
+        justify-content: center;
+    }
+}
+
 /* Mobile responsive updates */
 @media (max-width: 480px) {
     .id-number {
@@ -3052,33 +3119,87 @@
 .stat-card {
     background: white;
     padding: 1rem 1.25rem;
-    border-radius: 8px;
-    box-shadow: 0 1px 6px rgba(0,0,0,0.06);
-    border: 1px solid #e9ecef;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    border: 2px solid #e9ecef;
     text-align: center;
-    min-width: 90px;
-    transition: all 0.2s ease;
+    min-width: 120px;
+    transition: all 0.3s ease;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
 }
 
 .stat-card:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(28, 188, 155, 0.15);
     border-color: #1CBC9B;
+    background: linear-gradient(135deg, #ffffff 0%, #f0fff8 100%);
+}
+
+.stat-card.active {
+    border-color: #1CBC9B;
+    background: linear-gradient(135deg, #1CBC9B, #16a085);
+    color: white;
+    box-shadow: 0 8px 25px rgba(28, 188, 155, 0.3);
+}
+
+.stat-card.active .stat-number {
+    color: white;
+}
+
+.stat-card.active .stat-label {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.stat-card.active .stat-icon {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.stat-card:focus {
+    outline: 3px solid rgba(28, 188, 155, 0.3);
+    outline-offset: 2px;
+}
+
+.stat-card.clickable {
+    cursor: pointer;
 }
 
 .stat-number {
-    font-size: 1.8rem;
+    font-size: 2rem;
     font-weight: 700;
     color: #1CBC9B;
-    margin-bottom: 0.25rem;
+    margin: 0;
+    line-height: 1;
 }
 
 .stat-label {
-    font-size: 0.8rem;
-    color: #6c757d;
-    font-weight: 500;
+    font-size: 0.85rem;
+    color: #495057;
+    font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+    margin: 0;
+    line-height: 1.2;
+}
+
+.stat-icon {
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    font-size: 1rem;
+    color: rgba(28, 188, 155, 0.3);
+    transition: all 0.3s ease;
+}
+
+.stat-card:hover .stat-icon {
+    color: rgba(28, 188, 155, 0.6);
+    transform: scale(1.1);
 }
 
 .dashboard-actions {
@@ -3090,30 +3211,33 @@
 }
 
 .refresh-btn {
-    background: rgba(108, 117, 125, 0.08);
+    background: white;
     color: #495057;
-    border: 1px solid #e9ecef;
+    border: 2px solid #e9ecef;
     padding: 0.75rem 1rem;
     border-radius: 8px;
     cursor: pointer;
     font-size: 0.85rem;
     font-weight: 500;
-    transition: all 0.2s ease;
+    transition: all 0.3s ease;
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
 .refresh-btn:hover:not(:disabled) {
-    background: rgba(28, 188, 155, 0.1);
+    background: #1CBC9B;
     border-color: #1CBC9B;
-    color: #1CBC9B;
-    transform: translateY(-1px);
+    color: white;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(28, 188, 155, 0.3);
 }
 
 .refresh-btn:disabled {
     opacity: 0.6;
     cursor: not-allowed;
+    transform: none;
 }
 
 .refresh-btn .btn-text {
@@ -3122,6 +3246,11 @@
 
 .refresh-btn i.fa-spin {
     animation: spin 1s linear infinite;
+}
+
+.refresh-btn:focus {
+    outline: 3px solid rgba(28, 188, 155, 0.3);
+    outline-offset: 2px;
 }
 
 .new-appointment-btn {

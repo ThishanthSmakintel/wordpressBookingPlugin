@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Container, Row, Col, Card, Button, Badge } from 'react-bootstrap';
 import { useBookingStore } from '../store/bookingStore';
 import { sanitizeInput } from '../utils';
 
@@ -23,7 +24,21 @@ const Dashboard: React.FC<DashboardProps> = ({
 }) => {
     const { appointments, appointmentsLoading } = useBookingStore();
     const [currentPage, setCurrentPage] = useState(1);
+    const [selectedFilter, setSelectedFilter] = useState<'all' | 'upcoming' | 'completed'>('all');
     const appointmentsPerPage = 6;
+    
+    // Calculate stats correctly
+    const totalAppointments = appointments.length;
+    const upcomingAppointments = appointments.filter(apt => {
+        const aptDate = new Date(apt.date);
+        const today = new Date();
+        return aptDate > today && apt.status !== 'cancelled';
+    });
+    const completedAppointments = appointments.filter(apt => {
+        const aptDate = new Date(apt.date);
+        const today = new Date();
+        return aptDate <= today && apt.status !== 'cancelled';
+    });
     
     console.log('[Dashboard] Component rendered with:', {
         loginEmail,
@@ -44,104 +59,139 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </div>
             </div>
             <div className="wp-block-group appointease-booking-content">
-                <div className="wp-container dashboard-container has-global-padding" ref={dashboardRef}>
-                    <div className="wp-block-group dashboard-header">
-                        <div className="wp-block-columns dashboard-title-section is-layout-flex">
-                            <div className="wp-block-column dashboard-welcome">
-                                <h2 className="wp-block-heading has-text-align-left">Welcome back!</h2>
-                                <div className="wp-block-media-text user-info is-stacked-on-mobile">
-                                    <div className="wp-block-image user-avatar">
-                                        <i className="fas fa-user"></i>
+                <Container fluid className="dashboard-container" ref={dashboardRef}>
+                    <Card className="dashboard-header mb-4">
+                        <Card.Body className="p-3">
+                            <Row className="align-items-md-center g-3">
+                                {/* Welcome Section */}
+                                <Col xs={12} md={3}>
+                                    <div>
+                                        <h2 className="mb-1 h5">Welcome back!</h2>
+                                        <div className="d-flex align-items-center">
+                                            <div className="user-avatar me-2">
+                                                <i className="fas fa-user"></i>
+                                            </div>
+                                            <div>
+                                                <div className="user-email small fw-medium text-truncate">{loginEmail}</div>
+                                                <Badge bg="success" size="sm" className="user-status">
+                                                    <i className="fas fa-circle me-1" style={{fontSize: '0.6em'}}></i>
+                                                    Online
+                                                </Badge>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <div className="wp-block-media-text__content user-details">
-                                        <span className="has-text-color user-email">{loginEmail}</span>
-                                        <span className="wp-block-tag user-status">
-                                            <i className="fas fa-circle online-indicator"></i>
-                                            Online
-                                        </span>
+                                </Col>
+                                
+                                {/* Stats Section */}
+                                <Col xs={12} md={6}>
+                                    <Row className="g-2">
+                                        <Col xs={12} sm={4}>
+                                            <div className="stat-card text-center">
+                                                <div className="stat-number h6 mb-0">{totalAppointments}</div>
+                                                <div className="stat-label small text-muted">Total</div>
+                                            </div>
+                                        </Col>
+                                        <Col xs={12} sm={4}>
+                                            <div className="stat-card text-center">
+                                                <div className="stat-number h6 mb-0 text-primary">{upcomingAppointments.length}</div>
+                                                <div className="stat-label small text-muted">Upcoming</div>
+                                            </div>
+                                        </Col>
+                                        <Col xs={12} sm={4}>
+                                            <div className="stat-card text-center">
+                                                <div className="stat-number h6 mb-0 text-success">{completedAppointments.length}</div>
+                                                <div className="stat-label small text-muted">Completed</div>
+                                            </div>
+                                        </Col>
+                                    </Row>
+                                </Col>
+                                
+                                {/* Action Buttons */}
+                                <Col xs={12} md={3}>
+                                    <div className="d-flex flex-column flex-md-row gap-2">
+                                        <Button 
+                                            variant="outline-secondary" 
+                                            size="sm"
+                                            onClick={() => {
+                                                console.log('[Dashboard] Refresh clicked, current loading state:', appointmentsLoading);
+                                                onRefresh();
+                                            }} 
+                                            disabled={appointmentsLoading}
+                                            title="Refresh appointments"
+                                            className="flex-fill"
+                                        >
+                                            <i className={`fas fa-sync-alt ${appointmentsLoading ? 'fa-spin' : ''} me-1`}></i>
+                                            <span className="d-none d-lg-inline">{appointmentsLoading ? 'Refreshing...' : 'Refresh'}</span>
+                                        </Button>
+                                        <Button 
+                                            variant="primary" 
+                                            size="sm"
+                                            onClick={onNewAppointment}
+                                            className="flex-fill"
+                                        >
+                                            <i className="fas fa-plus me-1"></i>
+                                            <span className="d-none d-lg-inline">New</span>
+                                        </Button>
                                     </div>
-                                </div>
-                            </div>
-                            <div className="wp-block-columns dashboard-stats is-layout-grid">
-                                <div className="wp-block-column stat-card">
-                                    <div className="wp-block-heading stat-number">{appointments.length}</div>
-                                    <div className="has-small-font-size stat-label">Total Appointments</div>
-                                </div>
-                                <div className="wp-block-column stat-card">
-                                    <div className="wp-block-heading stat-number">
-                                        {appointments.filter(apt => apt.status === 'confirmed').length}
-                                    </div>
-                                    <div className="has-small-font-size stat-label">Active</div>
-                                </div>
-                                <div className="wp-block-column stat-card">
-                                    <div className="wp-block-heading stat-number">
-                                        {appointments.filter(apt => {
-                                            const aptDate = new Date(apt.date);
-                                            const today = new Date();
-                                            return aptDate > today && apt.status === 'confirmed';
-                                        }).length}
-                                    </div>
-                                    <div className="has-small-font-size stat-label">Upcoming</div>
-                                </div>
-                            </div>
-                        </div>
-                        <div className="wp-block-buttons dashboard-actions is-layout-flex">
-                            <div className="wp-block-button">
-                                <button className="wp-element-button refresh-btn" onClick={() => {
-                                    console.log('[Dashboard] Refresh clicked, current loading state:', appointmentsLoading);
-                                    onRefresh();
-                                }} disabled={appointmentsLoading}>
-                                    <i className={`fas fa-sync-alt ${appointmentsLoading ? 'fa-spin' : ''}`}></i>
-                                    <span className="btn-text">{appointmentsLoading ? 'Refreshing...' : 'Refresh'}</span>
-                                </button>
-                            </div>
-                            <div className="wp-block-button is-style-fill">
-                                <button className="wp-element-button new-appointment-btn" onClick={onNewAppointment}>
-                                    <i className="fas fa-plus"></i>
-                                    <div className="btn-content">
-                                        <span className="btn-title">New Appointment</span>
-                                        <span className="btn-desc">Book another appointment</span>
-                                    </div>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
+                                </Col>
+                            </Row>
+                        </Card.Body>
+                    </Card>
                     
-                    <div className="wp-block-group appointments-section">
-                        <div className="wp-block-group section-header is-layout-flex wp-block-group-is-layout-flex">
-                            <h3 className="wp-block-heading">Your Appointments</h3>
-                            <div className="wp-block-buttons view-options">
-                                <div className="wp-block-button is-style-outline">
-                                    <button className="wp-element-button view-btn active" title="Grid View">
-                                        <i className="fas fa-th-large"></i>
-                                    </button>
-                                </div>
-                                <div className="wp-block-button is-style-outline">
-                                    <button className="wp-element-button view-btn" title="List View">
-                                        <i className="fas fa-list"></i>
-                                    </button>
-                                </div>
+                    <div className="appointments-section">
+                        <div className="d-flex justify-content-between align-items-center mb-3">
+                            <h3 className="h5 mb-0">Your Appointments</h3>
+                            <div className="btn-group d-none d-md-flex" role="group">
+                                <Button variant="outline-secondary" size="sm" className="active" title="Grid View">
+                                    <i className="fas fa-th-large"></i>
+                                </Button>
+                                <Button variant="outline-secondary" size="sm" title="List View">
+                                    <i className="fas fa-list"></i>
+                                </Button>
                             </div>
                         </div>
                         
-                        {appointments.length === 0 ? (
-                            <div className="wp-block-group no-appointments has-text-align-center">
-                                <div className="wp-block-image empty-state-icon">
-                                    <i className="fas fa-calendar-times"></i>
-                                </div>
-                                <h4 className="wp-block-heading">No appointments yet</h4>
-                                <p className="has-text-color">You haven't booked any appointments. Start by booking your first one!</p>
-                                <div className="wp-block-button">
-                                    <button className="wp-element-button empty-state-btn" onClick={onNewAppointment}>
-                                        <i className="fas fa-plus"></i>
+                        {(() => {
+                            let filteredAppointments = appointments;
+                            if (selectedFilter === 'upcoming') {
+                                filteredAppointments = upcomingAppointments;
+                            } else if (selectedFilter === 'completed') {
+                                filteredAppointments = completedAppointments;
+                            }
+                            return filteredAppointments;
+                        })().length === 0 ? (
+                            <Card className="text-center p-5">
+                                <Card.Body>
+                                    <div className="empty-state-icon mb-3">
+                                        <i className="fas fa-calendar-times fa-3x text-muted"></i>
+                                    </div>
+                                    <h4>
+                                        {selectedFilter === 'all' ? 'No appointments yet' : 
+                                         selectedFilter === 'upcoming' ? 'No upcoming appointments' : 
+                                         'No completed appointments'}
+                                    </h4>
+                                    <p className="text-muted">
+                                        {selectedFilter === 'all' ? "You haven't booked any appointments. Start by booking your first one!" :
+                                         selectedFilter === 'upcoming' ? 'You have no upcoming appointments. Book a new one!' :
+                                         'You have no completed appointments yet.'}
+                                    </p>
+                                    <Button variant="primary" onClick={onNewAppointment}>
+                                        <i className="fas fa-plus me-2"></i>
                                         Book Your First Appointment
-                                    </button>
-                                </div>
-                            </div>
+                                    </Button>
+                                </Card.Body>
+                            </Card>
                         ) : (
-                            <div className="wp-block-columns appointments-grid is-layout-grid">
-                                {appointments
-                                    .slice((currentPage - 1) * appointmentsPerPage, currentPage * appointmentsPerPage)
+                            <Row className="g-2 g-md-3">
+                                {(() => {
+                                    let filteredAppointments = appointments;
+                                    if (selectedFilter === 'upcoming') {
+                                        filteredAppointments = upcomingAppointments;
+                                    } else if (selectedFilter === 'completed') {
+                                        filteredAppointments = completedAppointments;
+                                    }
+                                    return filteredAppointments.slice((currentPage - 1) * appointmentsPerPage, currentPage * appointmentsPerPage);
+                                })()
                                     .map(appointment => {
                                         const appointmentDate = new Date(appointment.date);
                                         const isUpcoming = appointmentDate > new Date() && appointment.status === 'confirmed';
@@ -149,134 +199,173 @@ const Dashboard: React.FC<DashboardProps> = ({
                                         const timeUntil = isUpcoming ? Math.ceil((appointmentDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : null;
                                         
                                         return (
-                                            <div key={appointment.id} className={`wp-block-column appointment-card-enhanced ${isUpcoming ? 'upcoming' : ''} ${isPast ? 'past' : ''}`}>
-                                                <div className="wp-block-group card-header is-layout-flex wp-block-group-is-layout-flex">
-                                                    <div className="wp-block-tag appointment-id-badge">
-                                                        <span className="id-text">{appointment.id}</span>
-                                                    </div>
-                                                    <span className={`wp-block-tag status-badge ${appointment.status}`}>
-                                                        {appointment.status === 'confirmed' && <><i className="fas fa-check-circle"></i> Confirmed</>}
-                                                        {appointment.status === 'cancelled' && <><i className="fas fa-times-circle"></i> Cancelled</>}
-                                                        {appointment.status === 'rescheduled' && <><i className="fas fa-calendar-alt"></i> Rescheduled</>}
-                                                        {appointment.status === 'created' && <><i className="fas fa-plus-circle"></i> Created</>}
-                                                    </span>
-                                                </div>
+                                            <Col key={appointment.id} xs={12} sm={6} lg={4} className="mb-2 mb-md-3">
+                                                <Card className={`appointment-card h-100 border-0 shadow-sm ${isUpcoming ? 'border-start border-success border-3' : ''} ${isPast ? 'opacity-75' : ''}`}>
+                                                <Card.Header className="d-flex justify-content-between align-items-center p-2 bg-light">
+                                                    <Badge bg="secondary" className="small">
+                                                        {appointment.id}
+                                                    </Badge>
+                                                    <Badge bg={appointment.status === 'confirmed' ? 'success' : appointment.status === 'cancelled' ? 'danger' : 'warning'} className="small">
+                                                        <i className={`fas ${
+                                                            appointment.status === 'confirmed' ? 'fa-check-circle' :
+                                                            appointment.status === 'cancelled' ? 'fa-times-circle' :
+                                                            appointment.status === 'rescheduled' ? 'fa-calendar-alt' :
+                                                            'fa-plus-circle'
+                                                        } me-1`}></i>
+                                                        <span className="d-none d-sm-inline">
+                                                            {appointment.status === 'confirmed' && 'Confirmed'}
+                                                            {appointment.status === 'cancelled' && 'Cancelled'}
+                                                            {appointment.status === 'rescheduled' && 'Rescheduled'}
+                                                            {appointment.status === 'created' && 'Created'}
+                                                        </span>
+                                                    </Badge>
+                                                </Card.Header>
                                                 
-                                                <div className="wp-block-group card-body">
-                                                    <div className="wp-block-media-text appointment-main-info">
-                                                        <div className="wp-block-media-text__content service-info">
-                                                            <h4 className="wp-block-heading service-name">
-                                                                <i className="fas fa-briefcase"></i>
-                                                                {sanitizeInput(appointment.service || 'General Consultation')}
-                                                            </h4>
-                                                            <div className="has-text-color staff-info">
-                                                                <i className="fas fa-user-md"></i>
-                                                                <span>with {sanitizeInput(appointment.staff || 'Dr. Smith')}</span>
-                                                            </div>
-                                                        </div>
+                                                <Card.Body className="p-2 p-md-3">
+                                                    <div className="mb-2">
+                                                        <h6 className="card-title d-flex align-items-center mb-1">
+                                                            <i className="fas fa-briefcase me-2 text-primary" style={{fontSize: '0.8rem'}}></i>
+                                                            <span className="text-truncate">{sanitizeInput(appointment.service || 'General Consultation')}</span>
+                                                        </h6>
+                                                        <p className="card-text text-muted small d-flex align-items-center mb-0">
+                                                            <i className="fas fa-user-md me-2" style={{fontSize: '0.7rem'}}></i>
+                                                            <span className="text-truncate">with {sanitizeInput(appointment.staff || 'Dr. Smith')}</span>
+                                                        </p>
                                                     </div>
                                                     
-                                                    <div className="wp-block-group appointment-datetime">
-                                                        <div className="wp-block-columns date-info is-layout-flex">
-                                                            <div className="wp-block-column date-primary">
-                                                                <i className="fas fa-calendar"></i>
-                                                                <span className="has-text-color date-text">
+                                                    <div className="appointment-datetime">
+                                                        <div className="d-flex flex-column gap-1 mb-2">
+                                                            <div className="d-flex align-items-center">
+                                                                <i className="fas fa-calendar me-2 text-primary" style={{fontSize: '0.7rem'}}></i>
+                                                                <small className="text-truncate">
                                                                     {appointmentDate.toLocaleDateString('en-US', { 
-                                                                        weekday: 'long', 
+                                                                        weekday: 'short', 
                                                                         month: 'short', 
-                                                                        day: 'numeric',
-                                                                        year: 'numeric'
+                                                                        day: 'numeric'
                                                                     })}
-                                                                </span>
+                                                                </small>
                                                             </div>
-                                                            <div className="wp-block-column time-info">
-                                                                <i className="fas fa-clock"></i>
-                                                                <span className="has-text-color time-text">
+                                                            <div className="d-flex align-items-center">
+                                                                <i className="fas fa-clock me-2 text-info" style={{fontSize: '0.7rem'}}></i>
+                                                                <small>
                                                                     {appointmentDate.toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit', hour12: true})}
-                                                                </span>
+                                                                </small>
                                                             </div>
                                                         </div>
                                                         {isUpcoming && timeUntil && (
-                                                            <div className="wp-block-tag countdown-badge">
-                                                                <i className="fas fa-hourglass-half"></i>
-                                                                {timeUntil === 1 ? 'Tomorrow' : `In ${timeUntil} days`}
-                                                            </div>
+                                                            <Badge bg="success" className="small">
+                                                                <i className="fas fa-hourglass-half me-1"></i>
+                                                                {timeUntil === 1 ? 'Tomorrow' : `${timeUntil}d`}
+                                                            </Badge>
                                                         )}
                                                         {isPast && appointment.status !== 'cancelled' && (
-                                                            <div className="wp-block-tag past-badge">
-                                                                <i className="fas fa-check"></i>
-                                                                Completed
-                                                            </div>
+                                                            <Badge bg="secondary" className="small">
+                                                                <i className="fas fa-check me-1"></i>
+                                                                Done
+                                                            </Badge>
                                                         )}
                                                     </div>
-                                                </div>
+                                                </Card.Body>
                                                 
-                                                <div className="wp-block-buttons card-actions is-layout-flex">
+                                                <Card.Footer className="p-2 bg-light">
                                                     {appointment.status !== 'cancelled' && !isPast && (
-                                                        <>
-                                                            <div className="wp-block-button is-style-outline">
-                                                                <button 
-                                                                    className="wp-element-button action-btn reschedule-btn" 
-                                                                    onClick={() => onReschedule(appointment)}
-                                                                    title="Reschedule this appointment"
-                                                                >
-                                                                    <i className="fas fa-calendar-alt"></i>
-                                                                    <span>Reschedule</span>
-                                                                </button>
-                                                            </div>
-                                                            <div className="wp-block-button is-style-outline">
-                                                                <button 
-                                                                    className="wp-element-button action-btn cancel-btn" 
-                                                                    onClick={() => onCancel(appointment)}
-                                                                    title="Cancel this appointment"
-                                                                >
-                                                                    <i className="fas fa-times"></i>
-                                                                    <span>Cancel</span>
-                                                                </button>
-                                                            </div>
-                                                        </>
-                                                    )}
-                                                    {(appointment.status === 'cancelled' || isPast) && (
-                                                        <div className="wp-block-group disabled-actions">
-                                                            <span className="has-text-color disabled-text">
-                                                                {appointment.status === 'cancelled' ? 'Cancelled' : 'Completed'}
-                                                            </span>
+                                                        <div className="d-flex gap-1">
+                                                            <Button 
+                                                                variant="outline-primary" 
+                                                                size="sm"
+                                                                onClick={() => onReschedule(appointment)}
+                                                                title="Reschedule this appointment"
+                                                                className="flex-fill"
+                                                            >
+                                                                <i className="fas fa-calendar-alt"></i>
+                                                                <span className="d-none d-sm-inline ms-1">Reschedule</span>
+                                                            </Button>
+                                                            <Button 
+                                                                variant="outline-danger" 
+                                                                size="sm"
+                                                                onClick={() => onCancel(appointment)}
+                                                                title="Cancel this appointment"
+                                                                className="flex-fill"
+                                                            >
+                                                                <i className="fas fa-times"></i>
+                                                                <span className="d-none d-sm-inline ms-1">Cancel</span>
+                                                            </Button>
                                                         </div>
                                                     )}
-                                                </div>
-                                            </div>
+                                                    {(appointment.status === 'cancelled' || isPast) && (
+                                                        <div className="text-center">
+                                                            <small className="text-muted fst-italic">
+                                                                {appointment.status === 'cancelled' ? 'Cancelled' : 'Completed'}
+                                                            </small>
+                                                        </div>
+                                                    )}
+                                                </Card.Footer>
+                                                </Card>
+                                            </Col>
                                         );
                                     })}
-                            </div>
+                            </Row>
                         )}
                     </div>
                     
-                    {appointments.length > appointmentsPerPage && (
-                        <div className="wp-block-buttons pagination is-layout-flex wp-block-buttons-is-layout-flex">
-                            <div className="wp-block-button is-style-outline">
-                                <button 
-                                    className="wp-element-button pagination-btn" 
-                                    onClick={() => setCurrentPage(Math.max(currentPage - 1, 1))}
-                                    disabled={currentPage === 1}
-                                >
-                                    <i className="fas fa-chevron-left"></i> Previous
-                                </button>
-                            </div>
-                            <span className="wp-block-paragraph pagination-info has-text-align-center">
-                                Page {currentPage} of {Math.ceil(appointments.length / appointmentsPerPage)}
+                    {(() => {
+                        let filteredAppointments = appointments;
+                        if (selectedFilter === 'upcoming') {
+                            filteredAppointments = upcomingAppointments;
+                        } else if (selectedFilter === 'completed') {
+                            filteredAppointments = completedAppointments;
+                        }
+                        return filteredAppointments.length > appointmentsPerPage;
+                    })() && (
+                        <div className="d-flex justify-content-center align-items-center mt-3 gap-2">
+                            <Button 
+                                variant="outline-primary"
+                                size="sm"
+                                onClick={() => setCurrentPage(Math.max(currentPage - 1, 1))}
+                                disabled={currentPage === 1}
+                            >
+                                <i className="fas fa-chevron-left"></i>
+                                <span className="d-none d-sm-inline ms-1">Previous</span>
+                            </Button>
+                            <span className="text-muted small px-2">
+                                {currentPage} / {(() => {
+                                    let filteredAppointments = appointments;
+                                    if (selectedFilter === 'upcoming') {
+                                        filteredAppointments = upcomingAppointments;
+                                    } else if (selectedFilter === 'completed') {
+                                        filteredAppointments = completedAppointments;
+                                    }
+                                    return Math.ceil(filteredAppointments.length / appointmentsPerPage);
+                                })()}
                             </span>
-                            <div className="wp-block-button is-style-outline">
-                                <button 
-                                    className="wp-element-button pagination-btn" 
-                                    onClick={() => setCurrentPage(Math.min(currentPage + 1, Math.ceil(appointments.length / appointmentsPerPage)))}
-                                    disabled={currentPage === Math.ceil(appointments.length / appointmentsPerPage)}
-                                >
-                                    Next <i className="fas fa-chevron-right"></i>
-                                </button>
-                            </div>
+                            <Button 
+                                variant="outline-primary"
+                                size="sm"
+                                onClick={() => {
+                                    let filteredAppointments = appointments;
+                                    if (selectedFilter === 'upcoming') {
+                                        filteredAppointments = upcomingAppointments;
+                                    } else if (selectedFilter === 'completed') {
+                                        filteredAppointments = completedAppointments;
+                                    }
+                                    setCurrentPage(Math.min(currentPage + 1, Math.ceil(filteredAppointments.length / appointmentsPerPage)));
+                                }}
+                                disabled={(() => {
+                                    let filteredAppointments = appointments;
+                                    if (selectedFilter === 'upcoming') {
+                                        filteredAppointments = upcomingAppointments;
+                                    } else if (selectedFilter === 'completed') {
+                                        filteredAppointments = completedAppointments;
+                                    }
+                                    return currentPage === Math.ceil(filteredAppointments.length / appointmentsPerPage);
+                                })()}
+                            >
+                                <span className="d-none d-sm-inline me-1">Next</span>
+                                <i className="fas fa-chevron-right"></i>
+                            </Button>
                         </div>
                     )}
-                </div>
+                </Container>
             </div>
         </div>
     );
