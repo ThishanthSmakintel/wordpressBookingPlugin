@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Container, Row, Col, Card, Button, Badge } from 'react-bootstrap';
 import { useBookingStore } from '../store/bookingStore';
 import { sanitizeInput } from '../utils';
@@ -27,18 +27,36 @@ const Dashboard: React.FC<DashboardProps> = ({
     const [selectedFilter, setSelectedFilter] = useState<'all' | 'upcoming' | 'completed'>('all');
     const appointmentsPerPage = 6;
     
-    // Calculate stats correctly
-    const totalAppointments = appointments.length;
-    const upcomingAppointments = appointments.filter(apt => {
-        const aptDate = new Date(apt.date);
+    // Memoized calculations for better performance
+    const { upcomingAppointments, completedAppointments, filteredAppointments, totalPages } = useMemo(() => {
         const today = new Date();
-        return aptDate > today && apt.status !== 'cancelled';
-    });
-    const completedAppointments = appointments.filter(apt => {
-        const aptDate = new Date(apt.date);
-        const today = new Date();
-        return aptDate <= today && apt.status !== 'cancelled';
-    });
+        const upcoming = appointments.filter(apt => {
+            const aptDate = new Date(apt.date);
+            return aptDate > today && apt.status !== 'cancelled';
+        });
+        const completed = appointments.filter(apt => {
+            const aptDate = new Date(apt.date);
+            return aptDate <= today && apt.status !== 'cancelled';
+        });
+        
+        let filtered = appointments;
+        if (selectedFilter === 'upcoming') {
+            filtered = upcoming;
+        } else if (selectedFilter === 'completed') {
+            filtered = completed;
+        }
+        
+        return {
+            upcomingAppointments: upcoming,
+            completedAppointments: completed,
+            filteredAppointments: filtered,
+            totalPages: Math.ceil(filtered.length / appointmentsPerPage)
+        };
+    }, [appointments, selectedFilter, appointmentsPerPage]);
+    
+    const paginatedAppointments = useMemo(() => {
+        return filteredAppointments.slice((currentPage - 1) * appointmentsPerPage, currentPage * appointmentsPerPage);
+    }, [filteredAppointments, currentPage, appointmentsPerPage]);
     
     console.log('[Dashboard] Component rendered with:', {
         loginEmail,
@@ -59,7 +77,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 </div>
             </div>
             <div className="wp-block-group appointease-booking-content">
-                <Container fluid className="dashboard-container" ref={dashboardRef}>
+                <Container className="dashboard-container" ref={dashboardRef}>
                     <Card className="dashboard-header mb-4">
                         <Card.Body className="p-3">
                             <Row className="align-items-md-center g-3">
@@ -68,15 +86,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                                     <div>
                                         <h2 className="mb-1 h5">Welcome back!</h2>
                                         <div className="d-flex align-items-center">
-                                            <div className="user-avatar me-2">
-                                                <i className="fas fa-user"></i>
-                                            </div>
                                             <div>
                                                 <div className="user-email small fw-medium text-truncate">{loginEmail}</div>
-                                                <Badge bg="success" size="sm" className="user-status">
-                                                    <i className="fas fa-circle me-1" style={{fontSize: '0.6em'}}></i>
-                                                    Online
-                                                </Badge>
+                                    
                                             </div>
                                         </div>
                                     </div>
@@ -87,7 +99,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                     <Row className="g-2">
                                         <Col xs={12} sm={4}>
                                             <div className="stat-card text-center">
-                                                <div className="stat-number h6 mb-0">{totalAppointments}</div>
+                                                <div className="stat-number h6 mb-0">{appointments.length}</div>
                                                 <div className="stat-label small text-muted">Total</div>
                                             </div>
                                         </Col>
@@ -151,15 +163,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </div>
                         </div>
                         
-                        {(() => {
-                            let filteredAppointments = appointments;
-                            if (selectedFilter === 'upcoming') {
-                                filteredAppointments = upcomingAppointments;
-                            } else if (selectedFilter === 'completed') {
-                                filteredAppointments = completedAppointments;
-                            }
-                            return filteredAppointments;
-                        })().length === 0 ? (
+                        {filteredAppointments.length === 0 ? (
                             <Card className="text-center p-5">
                                 <Card.Body>
                                     <div className="empty-state-icon mb-3">
@@ -183,16 +187,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </Card>
                         ) : (
                             <Row className="g-2 g-md-3">
-                                {(() => {
-                                    let filteredAppointments = appointments;
-                                    if (selectedFilter === 'upcoming') {
-                                        filteredAppointments = upcomingAppointments;
-                                    } else if (selectedFilter === 'completed') {
-                                        filteredAppointments = completedAppointments;
-                                    }
-                                    return filteredAppointments.slice((currentPage - 1) * appointmentsPerPage, currentPage * appointmentsPerPage);
-                                })()
-                                    .map(appointment => {
+                                {paginatedAppointments.map(appointment => {
                                         const appointmentDate = new Date(appointment.date);
                                         const isUpcoming = appointmentDate > new Date() && appointment.status === 'confirmed';
                                         const isPast = appointmentDate < new Date();
@@ -200,8 +195,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                                         
                                         return (
                                             <Col key={appointment.id} xs={12} sm={6} lg={4} className="mb-2 mb-md-3">
-                                                <Card className={`appointment-card h-100 border-0 shadow-sm ${isUpcoming ? 'border-start border-success border-3' : ''} ${isPast ? 'opacity-75' : ''}`}>
-                                                <Card.Header className="d-flex justify-content-between align-items-center p-2 bg-light">
+                                                <Card className={`appointment-card h-100 border shadow ${isUpcoming ? 'border-start border-success border-3' : ''} ${isPast ? 'opacity-75 border-secondary' : ''}`}>
+                                                <Card.Header className="d-flex justify-content-between align-items-center p-3 bg-light">
                                                     <Badge bg="secondary" className="small">
                                                         {appointment.id}
                                                     </Badge>
@@ -221,7 +216,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                                     </Badge>
                                                 </Card.Header>
                                                 
-                                                <Card.Body className="p-2 p-md-3">
+                                                <Card.Body className="p-3">
                                                     <div className="mb-2">
                                                         <h6 className="card-title d-flex align-items-center mb-1">
                                                             <i className="fas fa-briefcase me-2 text-primary" style={{fontSize: '0.8rem'}}></i>
@@ -267,25 +262,23 @@ const Dashboard: React.FC<DashboardProps> = ({
                                                     </div>
                                                 </Card.Body>
                                                 
-                                                <Card.Footer className="p-2 bg-light">
+                                                <Card.Footer className="p-3 bg-light">
                                                     {appointment.status !== 'cancelled' && !isPast && (
-                                                        <div className="d-flex gap-1">
+                                                        <div className="d-grid gap-2 d-md-flex">
                                                             <Button 
-                                                                variant="outline-primary" 
+                                                                variant="primary" 
                                                                 size="sm"
                                                                 onClick={() => onReschedule(appointment)}
                                                                 title="Reschedule this appointment"
-                                                                className="flex-fill"
                                                             >
                                                                 <i className="fas fa-calendar-alt"></i>
                                                                 <span className="d-none d-sm-inline ms-1">Reschedule</span>
                                                             </Button>
                                                             <Button 
-                                                                variant="outline-danger" 
+                                                                variant="danger" 
                                                                 size="sm"
                                                                 onClick={() => onCancel(appointment)}
                                                                 title="Cancel this appointment"
-                                                                className="flex-fill"
                                                             >
                                                                 <i className="fas fa-times"></i>
                                                                 <span className="d-none d-sm-inline ms-1">Cancel</span>
@@ -308,15 +301,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                         )}
                     </div>
                     
-                    {(() => {
-                        let filteredAppointments = appointments;
-                        if (selectedFilter === 'upcoming') {
-                            filteredAppointments = upcomingAppointments;
-                        } else if (selectedFilter === 'completed') {
-                            filteredAppointments = completedAppointments;
-                        }
-                        return filteredAppointments.length > appointmentsPerPage;
-                    })() && (
+                    {filteredAppointments.length > appointmentsPerPage && (
                         <div className="d-flex justify-content-center align-items-center mt-3 gap-2">
                             <Button 
                                 variant="outline-primary"
@@ -328,37 +313,13 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 <span className="d-none d-sm-inline ms-1">Previous</span>
                             </Button>
                             <span className="text-muted small px-2">
-                                {currentPage} / {(() => {
-                                    let filteredAppointments = appointments;
-                                    if (selectedFilter === 'upcoming') {
-                                        filteredAppointments = upcomingAppointments;
-                                    } else if (selectedFilter === 'completed') {
-                                        filteredAppointments = completedAppointments;
-                                    }
-                                    return Math.ceil(filteredAppointments.length / appointmentsPerPage);
-                                })()}
+                                {currentPage} / {totalPages}
                             </span>
                             <Button 
                                 variant="outline-primary"
                                 size="sm"
-                                onClick={() => {
-                                    let filteredAppointments = appointments;
-                                    if (selectedFilter === 'upcoming') {
-                                        filteredAppointments = upcomingAppointments;
-                                    } else if (selectedFilter === 'completed') {
-                                        filteredAppointments = completedAppointments;
-                                    }
-                                    setCurrentPage(Math.min(currentPage + 1, Math.ceil(filteredAppointments.length / appointmentsPerPage)));
-                                }}
-                                disabled={(() => {
-                                    let filteredAppointments = appointments;
-                                    if (selectedFilter === 'upcoming') {
-                                        filteredAppointments = upcomingAppointments;
-                                    } else if (selectedFilter === 'completed') {
-                                        filteredAppointments = completedAppointments;
-                                    }
-                                    return currentPage === Math.ceil(filteredAppointments.length / appointmentsPerPage);
-                                })()}
+                                onClick={() => setCurrentPage(Math.min(currentPage + 1, totalPages))}
+                                disabled={currentPage === totalPages}
                             >
                                 <span className="d-none d-sm-inline me-1">Next</span>
                                 <i className="fas fa-chevron-right"></i>
