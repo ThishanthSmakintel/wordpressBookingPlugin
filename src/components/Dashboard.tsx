@@ -70,57 +70,105 @@ const Dashboard: React.FC<DashboardProps> = ({
     });
     return (
         <div className="wp-block-group appointease-booking">
-            <div className="wp-block-group appointease-booking-header is-layout-flex wp-block-group-is-layout-flex">
-                <div className="wp-block-site-logo appointease-logo">
-                    <span className="logo-icon">A</span>
+            {/* Single Cohesive Header */}
+            <div style={{
+                backgroundColor: '#5344F4',
+                padding: '16px 24px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+            }}>
+                {/* Left: Logo */}
+                <div className="d-flex align-items-center">
+                    <span style={{
+                        backgroundColor: 'white',
+                        color: '#5344F4',
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '20px',
+                        fontWeight: 'bold',
+                        marginRight: '16px'
+                    }}>A</span>
                 </div>
-                <div className="wp-block-navigation user-menu">
-                    <button className="wp-element-button logout-btn" onClick={onLogout}>
+                
+                {/* Center: Welcome Message */}
+                <div style={{
+                    color: 'white',
+                    fontSize: '16px',
+                    fontWeight: '500'
+                }}>
+                    Welcome back, {loginEmail}
+                </div>
+                
+                {/* Right: Actions */}
+                <div className="d-flex align-items-center gap-2">
+                    <button 
+                        onClick={onLogout}
+                        title="Logout"
+                        style={{
+                            backgroundColor: 'transparent',
+                            border: 'none',
+                            color: 'white',
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}
+                        onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(255,255,255,0.1)'}
+                        onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                    >
                         <i className="fas fa-sign-out-alt"></i>
                     </button>
+                    <button 
+                        onClick={() => {
+                            console.log('[Dashboard] Refresh clicked, current loading state:', appointmentsLoading);
+                            onRefresh();
+                        }} 
+                        disabled={appointmentsLoading}
+                        title="Refresh appointments"
+                        style={{
+                            backgroundColor: 'transparent',
+                            border: 'none',
+                            color: 'white',
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center'
+                        }}
+                        onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(255,255,255,0.1)'}
+                        onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
+                    >
+                        <i className={`fas fa-sync-alt ${appointmentsLoading ? 'fa-spin' : ''}`}></i>
+                    </button>
+                    <Button 
+                        onClick={onNewAppointment}
+                        style={{
+                            backgroundColor: '#28a745',
+                            border: 'none',
+                            borderRadius: '6px',
+                            padding: '8px 16px',
+                            fontWeight: '600',
+                            fontSize: '14px',
+                            color: 'white'
+                        }}
+                    >
+                        <i className="fas fa-plus me-2"></i>
+                        New Appointment
+                    </Button>
                 </div>
             </div>
-            <div className="wp-block-group appointease-booking-content">
-                <Container className="dashboard-container" ref={dashboardRef}>
-                    <Card className="dashboard-header mb-4">
-                        <Card.Body className="p-3">
-                            <div className="d-flex align-items-center justify-content-between flex-wrap gap-4">
-                                {/* Welcome Section */}
-                                <div className="welcome-section">
-                                    <h2 className="mb-1 fw-bold" style={{fontSize: '1.5rem', color: '#1f2937'}}>Welcome back!</h2>
-                                    <div className="text-muted" style={{fontSize: '0.85rem'}}>{loginEmail}</div>
-                                </div>
-                                
-                                {/* Action Buttons */}
-                                <div className="d-flex gap-3 align-items-center">
-                                    <Button 
-                                        variant="light" 
-                                        size="sm"
-                                        onClick={() => {
-                                            console.log('[Dashboard] Refresh clicked, current loading state:', appointmentsLoading);
-                                            onRefresh();
-                                        }} 
-                                        disabled={appointmentsLoading}
-                                        title="Refresh appointments"
-                                        className="rounded-circle d-flex align-items-center justify-content-center"
-                                        style={{width: '40px', height: '40px', border: '1px solid #e5e7eb'}}
-                                    >
-                                        <i className={`fas fa-sync-alt ${appointmentsLoading ? 'fa-spin' : ''}`} style={{fontSize: '0.9rem'}}></i>
-                                    </Button>
-                                    <Button 
-                                        variant="primary" 
-                                        size="sm"
-                                        onClick={onNewAppointment}
-                                        className="fw-medium"
-                                        style={{borderRadius: '8px', padding: '0.5rem 1rem'}}
-                                    >
-                                        <i className="fas fa-plus me-2"></i>
-                                        New Appointment
-                                    </Button>
-                                </div>
-                            </div>
-                        </Card.Body>
-                    </Card>
+            
+            <div className="dashboard-container" ref={dashboardRef} style={{padding: '24px'}}>
                     
                     <div className="appointments-section">
                         <div className="d-flex justify-content-between align-items-center mb-3">
@@ -371,7 +419,6 @@ const Dashboard: React.FC<DashboardProps> = ({
                             </Button>
                         </div>
                     )}
-                </Container>
             </div>
         </div>
     );

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useBookingStore } from '../store/bookingStore';
 
 interface Service {
@@ -18,68 +18,197 @@ const ServiceSelector: React.FC<ServiceSelectorProps> = ({
     onRetry,
     columns = 2
 }) => {
-    const { services, servicesLoading, isOnline, setSelectedService, setStep } = useBookingStore();
+    const { services, servicesLoading, isOnline, selectedService, setSelectedService, setStep } = useBookingStore();
+    const [tempSelected, setTempSelected] = useState<Service | null>(selectedService);
     
     const handleServiceSelect = (service: Service) => {
-        setSelectedService(service);
-        setStep(2);
+        setTempSelected(service);
     };
+    
+    const handleNext = () => {
+        if (tempSelected) {
+            setSelectedService(tempSelected);
+            setStep(2);
+        }
+    };
+    
     return (
-        <div className="appointease-step-content wp-block-group">
-            <div className="progress-bar wp-block-progress">
-                <div className="progress-fill" style={{width: '20%'}}></div>
-            </div>
-            <h2 className="wp-block-heading has-text-align-center">Choose Your Service</h2>
-            <p className="step-description wp-block-paragraph has-text-align-center">Select the service you'd like to book</p>
+        <div className="appointease-step-content">
+            <h2 style={{fontSize: '2rem', fontWeight: '700', textAlign: 'center', marginBottom: '2rem', color: '#1f2937'}}>Choose Your Service</h2>
             
             {!isOnline && (
-                <div className="offline-banner wp-block-group has-background">
-                    <i className="fas fa-wifi"></i>
+                <div style={{backgroundColor: '#fef3c7', border: '1px solid #f59e0b', borderRadius: '8px', padding: '12px', marginBottom: '24px', textAlign: 'center'}}>
+                    <i className="fas fa-wifi" style={{marginRight: '8px'}}></i>
                     You are offline. Limited functionality available.
                 </div>
             )}
 
-            <div className="services-grid wp-block-columns is-layout-grid" style={{gridTemplateColumns: `repeat(${columns}, 1fr)`}} role="grid" aria-label="Available services">
+            <div style={{maxWidth: '600px', margin: '0 auto'}}>
                 {servicesLoading ? (
-                    Array.from({length: 4}).map((_, index) => (
-                        <div key={index} className="service-card skeleton skeleton-card" aria-hidden="true">
-                            <div className="skeleton-text short"></div>
-                            <div className="skeleton-text medium"></div>
-                            <div className="skeleton-text long"></div>
+                    Array.from({length: 2}).map((_, index) => (
+                        <div key={index} style={{
+                            backgroundColor: '#f3f4f6',
+                            borderRadius: '12px',
+                            padding: '24px',
+                            marginBottom: '16px',
+                            height: '120px',
+                            animation: 'pulse 2s infinite'
+                        }}>
+                            <div style={{backgroundColor: '#e5e7eb', height: '20px', borderRadius: '4px', marginBottom: '12px', width: '60%'}}></div>
+                            <div style={{backgroundColor: '#e5e7eb', height: '16px', borderRadius: '4px', marginBottom: '8px', width: '80%'}}></div>
+                            <div style={{backgroundColor: '#e5e7eb', height: '16px', borderRadius: '4px', width: '40%'}}></div>
                         </div>
                     ))
                 ) : services.length === 0 ? (
-                    <div className="empty-state wp-block-group has-text-align-center" role="status">
-                        <i className="fas fa-briefcase" aria-hidden="true"></i>
-                        <h3 className="wp-block-heading">No Services Available</h3>
-                        <p className="wp-block-paragraph">Please try again later or contact support.</p>
-                        <button className="retry-btn wp-element-button" onClick={onRetry}>
-                            <i className="fas fa-redo"></i> Retry
+                    <div style={{textAlign: 'center', padding: '48px'}}>
+                        <i className="fas fa-briefcase" style={{fontSize: '3rem', color: '#9ca3af', marginBottom: '16px'}}></i>
+                        <h3 style={{color: '#374151', marginBottom: '8px'}}>No Services Available</h3>
+                        <p style={{color: '#6b7280', marginBottom: '24px'}}>Please try again later or contact support.</p>
+                        <button 
+                            onClick={onRetry}
+                            style={{
+                                backgroundColor: '#3b82f6',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '8px',
+                                padding: '12px 24px',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            <i className="fas fa-redo" style={{marginRight: '8px'}}></i> Retry
                         </button>
                     </div>
                 ) : (
-                    services.map(service => (
-                        <div 
-                            key={service.id} 
-                            className="service-card wp-block-column" 
-                            onClick={() => handleServiceSelect(service)}
-                            onKeyDown={(e) => e.key === 'Enter' && handleServiceSelect(service)}
-                            tabIndex={0}
-                            role="button"
-                            aria-label={`Select ${service.name} service, ${service.duration} minutes, $${service.price}`}
-                        >
-                            <div className="service-icon wp-block-image" aria-hidden="true"><i className="ri-briefcase-line"></i></div>
-                            <div className="service-info wp-block-group">
-                                <h3 className="wp-block-heading">{service.name}</h3>
-                                <p className="wp-block-paragraph">{service.description}</p>
-                                <div className="service-meta wp-block-group is-layout-flex">
-                                    <span className="duration wp-block-tag"><i className="ri-time-line" aria-hidden="true"></i> {service.duration} min</span>
-                                    <span className="price wp-block-tag"><i className="ri-money-dollar-circle-line" aria-hidden="true"></i> ${service.price}</span>
+                    <>
+                        {services.map(service => {
+                            const isSelected = tempSelected?.id === service.id;
+                            return (
+                                <div 
+                                    key={service.id}
+                                    onClick={() => handleServiceSelect(service)}
+                                    style={{
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        padding: '24px',
+                                        marginBottom: '16px',
+                                        backgroundColor: 'white',
+                                        border: isSelected ? '3px solid #10b981' : '2px solid #e5e7eb',
+                                        borderRadius: '12px',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.2s ease',
+                                        boxShadow: isSelected ? '0 4px 12px rgba(16, 185, 129, 0.15)' : '0 2px 4px rgba(0, 0, 0, 0.05)'
+                                    }}
+                                    onMouseEnter={(e) => {
+                                        if (!isSelected) {
+                                            e.currentTarget.style.borderColor = '#d1d5db';
+                                            e.currentTarget.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.1)';
+                                        }
+                                    }}
+                                    onMouseLeave={(e) => {
+                                        if (!isSelected) {
+                                            e.currentTarget.style.borderColor = '#e5e7eb';
+                                            e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
+                                        }
+                                    }}
+                                >
+                                    {/* Radio Button */}
+                                    <div style={{
+                                        width: '24px',
+                                        height: '24px',
+                                        borderRadius: '50%',
+                                        border: '2px solid #d1d5db',
+                                        marginRight: '20px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        backgroundColor: isSelected ? '#10b981' : 'white',
+                                        borderColor: isSelected ? '#10b981' : '#d1d5db'
+                                    }}>
+                                        {isSelected && (
+                                            <div style={{
+                                                width: '8px',
+                                                height: '8px',
+                                                borderRadius: '50%',
+                                                backgroundColor: 'white'
+                                            }}></div>
+                                        )}
+                                    </div>
+                                    
+                                    {/* Service Content */}
+                                    <div style={{flex: '1'}}>
+                                        <h3 style={{
+                                            fontSize: '1.25rem',
+                                            fontWeight: '600',
+                                            color: '#1f2937',
+                                            marginBottom: '8px'
+                                        }}>
+                                            {service.name}
+                                        </h3>
+                                        <p style={{
+                                            color: '#6b7280',
+                                            marginBottom: '12px',
+                                            fontSize: '0.95rem'
+                                        }}>
+                                            {service.description}
+                                        </p>
+                                        <div style={{display: 'flex', gap: '16px'}}>
+                                            <span style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                fontSize: '0.875rem',
+                                                color: '#374151'
+                                            }}>
+                                                <i className="fas fa-clock" style={{marginRight: '6px', color: '#6b7280'}}></i>
+                                                {service.duration} min
+                                            </span>
+                                            <span style={{
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                fontSize: '0.875rem',
+                                                color: '#374151',
+                                                fontWeight: '600'
+                                            }}>
+                                                <i className="fas fa-dollar-sign" style={{marginRight: '6px', color: '#6b7280'}}></i>
+                                                ${service.price}
+                                            </span>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                            <div className="service-arrow wp-block-image" aria-hidden="true"><i className="ri-arrow-right-line"></i></div>
+                            );
+                        })}
+                        
+                        {/* Next Button */}
+                        <div style={{textAlign: 'center', marginTop: '32px'}}>
+                            <button 
+                                onClick={handleNext}
+                                disabled={!tempSelected}
+                                style={{
+                                    backgroundColor: tempSelected ? '#10b981' : '#d1d5db',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '12px',
+                                    padding: '16px 32px',
+                                    fontSize: '1.1rem',
+                                    fontWeight: '600',
+                                    cursor: tempSelected ? 'pointer' : 'not-allowed',
+                                    transition: 'all 0.2s ease',
+                                    minWidth: '200px'
+                                }}
+                                onMouseEnter={(e) => {
+                                    if (tempSelected) {
+                                        e.currentTarget.style.backgroundColor = '#059669';
+                                    }
+                                }}
+                                onMouseLeave={(e) => {
+                                    if (tempSelected) {
+                                        e.currentTarget.style.backgroundColor = '#10b981';
+                                    }
+                                }}
+                            >
+                                Next: Choose Employee →
+                            </button>
                         </div>
-                    ))
+                    </>
                 )}
             </div>
         </div>

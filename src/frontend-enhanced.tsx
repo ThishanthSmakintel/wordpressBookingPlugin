@@ -611,8 +611,8 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
             newErrors.firstName = 'Name must be at least 2 characters';
         } else if (sanitizedFirstName.length > 50) {
             newErrors.firstName = 'Name must be less than 50 characters';
-        } else if (!/^[a-zA-Z\s'-]+$/.test(sanitizedFirstName)) {
-            newErrors.firstName = 'Name can only contain letters, spaces, hyphens, and apostrophes';
+        } else if (!/^[a-zA-Z0-9\s'.-]+$/.test(sanitizedFirstName)) {
+            newErrors.firstName = 'Name can only contain letters, numbers, spaces, hyphens, periods, and apostrophes';
         }
         
         const sanitizedEmail = sanitizeInput(formData.email);
@@ -1618,18 +1618,29 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                             <i className="fas fa-sign-out-alt"></i>
                         </button>
                     </div>
-                ) : (
-                    <div className="manage-appointment wp-block-buttons">
-                        <button className="login-btn wp-element-button" onClick={() => setShowLogin(true)}>
-                            <i className="fas fa-sign-in-alt"></i>
-                            <strong>Existing Customer? Login Here</strong>
-                        </button>
-                    </div>
-                )}
+                ) : null}
             </div>
+            
+            {!isLoggedIn && (
+                <div style={{textAlign: 'center', padding: '8px 0', borderBottom: '1px solid #e5e7eb'}}>
+                    <button 
+                        onClick={() => setShowLogin(true)}
+                        style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#3b82f6',
+                            textDecoration: 'underline',
+                            cursor: 'pointer',
+                            fontSize: '0.9rem'
+                        }}
+                    >
+                        Existing Customer? Login Here
+                    </button>
+                </div>
+            )}
 
             <div className="appointease-booking-content wp-block-group">
-                <StepProgress />
+                {step <= 5 && <StepProgress />}
 
                 {step === 1 && (
                     <ServiceSelector
