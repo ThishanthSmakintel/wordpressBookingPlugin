@@ -127,7 +127,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                             <h3 className="h5 mb-0">Your Appointments</h3>
                             <div className="btn-group d-none d-md-flex" role="group">
                                 <Button 
-                                    variant={viewMode === 'cards' ? 'secondary' : 'outline-secondary'} 
+                                    variant={viewMode === 'cards' ? 'primary' : 'secondary'} 
                                     size="sm" 
                                     onClick={() => setViewMode('cards')}
                                     title="Card View"
@@ -135,7 +135,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                     <i className="fas fa-th-large"></i>
                                 </Button>
                                 <Button 
-                                    variant={viewMode === 'list' ? 'secondary' : 'outline-secondary'} 
+                                    variant={viewMode === 'list' ? 'primary' : 'secondary'} 
                                     size="sm" 
                                     onClick={() => setViewMode('list')}
                                     title="List View"
@@ -168,41 +168,67 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 </Card.Body>
                             </Card>
                         ) : viewMode === 'list' ? (
-                            <div className="list-view">
+                            <div className="list-view" style={{backgroundColor: 'white', borderRadius: '8px', border: '1px solid #dee2e6'}}>
                                 {paginatedAppointments.map((appointment, index) => {
                                     const appointmentDate = new Date(appointment.date);
                                     const isUpcoming = appointmentDate > new Date() && appointment.status === 'confirmed';
                                     const isPast = appointmentDate < new Date();
                                     
                                     return (
-                                        <div key={appointment.id} className="d-flex align-items-center p-3 border-bottom" style={{backgroundColor: 'white'}}>
-                                            <div className="me-3">
-                                                <Badge bg={isUpcoming ? 'primary' : 'secondary'} className="small">
-                                                    {isUpcoming ? 'UP' : 'DONE'}
+                                        <div key={appointment.id} className="p-3" style={{borderBottom: index < paginatedAppointments.length - 1 ? '1px solid #f8f9fa' : 'none'}}>
+                                            <div className="d-flex justify-content-between align-items-center mb-2">
+                                                <div className="d-flex align-items-center">
+                                                    <Badge bg="secondary" className="small me-2">
+                                                        {appointment.id}
+                                                    </Badge>
+                                                    <div className="fw-bold d-flex align-items-center" style={{color: isPast ? '#6c757d' : '#212529'}}>
+                                                        <i className="fas fa-briefcase me-2 text-primary" style={{fontSize: '0.8rem'}}></i>
+                                                        {sanitizeInput(appointment.service || 'General Consultation')}
+                                                    </div>
+                                                </div>
+                                                <Badge bg={appointment.status === 'confirmed' ? 'success' : appointment.status === 'cancelled' ? 'danger' : 'warning'} className="small">
+                                                    <i className={`fas ${
+                                                        appointment.status === 'confirmed' ? 'fa-check-circle' :
+                                                        appointment.status === 'cancelled' ? 'fa-times-circle' :
+                                                        appointment.status === 'rescheduled' ? 'fa-calendar-alt' :
+                                                        'fa-plus-circle'
+                                                    } me-1`}></i>
+                                                    <span className="d-none d-sm-inline">
+                                                        {appointment.status === 'confirmed' && 'Confirmed'}
+                                                        {appointment.status === 'cancelled' && 'Cancelled'}
+                                                        {appointment.status === 'rescheduled' && 'Rescheduled'}
+                                                        {appointment.status === 'created' && 'Created'}
+                                                    </span>
                                                 </Badge>
                                             </div>
-                                            <div className="flex-grow-1">
-                                                <div className="fw-bold" style={{color: isPast ? '#6c757d' : '#212529'}}>
-                                                    {sanitizeInput(appointment.service || 'General Consultation')}
+                                            <div className="d-flex justify-content-between align-items-center">
+                                                <div className="d-flex align-items-center text-muted small">
+                                                    <i className="fas fa-calendar me-2" style={{fontSize: '0.7rem'}}></i>
+                                                    <span className="me-3">
+                                                        {appointmentDate.toLocaleDateString('en-US', { 
+                                                            weekday: 'short',
+                                                            month: 'short', 
+                                                            day: 'numeric'
+                                                        })}
+                                                    </span>
+                                                    <i className="fas fa-clock me-2" style={{fontSize: '0.7rem'}}></i>
+                                                    <span className="me-3">
+                                                        {appointmentDate.toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit', hour12: true})}
+                                                    </span>
+                                                    <i className="fas fa-user-md me-2" style={{fontSize: '0.7rem'}}></i>
+                                                    <span>{sanitizeInput(appointment.staff || 'Dr. Smith')}</span>
                                                 </div>
-                                                <small className="text-muted">
-                                                    {appointmentDate.toLocaleDateString('en-US', { 
-                                                        month: 'short', 
-                                                        day: 'numeric',
-                                                        year: 'numeric'
-                                                    })} at {appointmentDate.toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit', hour12: true})} • {sanitizeInput(appointment.staff || 'Dr. Smith')}
-                                                </small>
+                                                <div className="d-flex gap-1">
+                                                    <Button variant="success" size="sm" disabled={isPast} onClick={() => onReschedule(appointment)} style={{fontSize: '0.7rem', padding: '0.25rem 0.5rem'}}>
+                                                        <i className="fas fa-calendar-alt"></i>
+                                                        <span className="d-none d-lg-inline ms-1">Reschedule</span>
+                                                    </Button>
+                                                    <Button variant="danger" size="sm" disabled={isPast} onClick={() => onCancel(appointment)} style={{fontSize: '0.7rem', padding: '0.25rem 0.5rem'}}>
+                                                        <i className="fas fa-times"></i>
+                                                        <span className="d-none d-lg-inline ms-1">Cancel</span>
+                                                    </Button>
+                                                </div>
                                             </div>
-                                            {!isPast && appointment.status !== 'cancelled' && (
-                                                <div className="d-flex gap-2">
-                                                    <Button variant="outline-danger" size="sm" onClick={() => onCancel(appointment)}>
-                                                        Cancel
-                                                    </Button>
-                                                    <Button variant="primary" size="sm" onClick={() => onReschedule(appointment)}>
-                                                        Reschedule
-                                                    </Button>
-                                                </div>
-                                            )}
                                         </div>
                                     );
                                 })}
@@ -285,39 +311,32 @@ const Dashboard: React.FC<DashboardProps> = ({
                                                 </Card.Body>
                                                 
                                                 <Card.Footer className="p-3 bg-light">
-                                                    {appointment.status !== 'cancelled' && !isPast && (
-                                                        <div className="d-flex gap-1">
-                                                            <Button 
-                                                                variant="primary" 
-                                                                size="sm"
-                                                                onClick={() => onReschedule(appointment)}
-                                                                title="Reschedule this appointment"
-                                                                className="flex-fill"
-                                                                style={{fontSize: '0.7rem', padding: '0.25rem 0.5rem'}}
-                                                            >
-                                                                <i className="fas fa-calendar-alt"></i>
-                                                                <span className="d-none d-lg-inline ms-1">Reschedule</span>
-                                                            </Button>
-                                                            <Button 
-                                                                variant="danger" 
-                                                                size="sm"
-                                                                onClick={() => onCancel(appointment)}
-                                                                title="Cancel this appointment"
-                                                                className="flex-fill"
-                                                                style={{fontSize: '0.7rem', padding: '0.25rem 0.5rem'}}
-                                                            >
-                                                                <i className="fas fa-times"></i>
-                                                                <span className="d-none d-lg-inline ms-1">Cancel</span>
-                                                            </Button>
-                                                        </div>
-                                                    )}
-                                                    {(appointment.status === 'cancelled' || isPast) && (
-                                                        <div className="text-center">
-                                                            <small className="text-muted fst-italic">
-                                                                {appointment.status === 'cancelled' ? 'Cancelled' : 'Completed'}
-                                                            </small>
-                                                        </div>
-                                                    )}
+                                                    <div className="d-flex gap-1">
+                                                        <Button 
+                                                            variant="success" 
+                                                            size="sm"
+                                                            disabled={isPast}
+                                                            onClick={() => onReschedule(appointment)}
+                                                            title="Reschedule this appointment"
+                                                            className="flex-fill"
+                                                            style={{fontSize: '0.7rem', padding: '0.25rem 0.5rem'}}
+                                                        >
+                                                            <i className="fas fa-calendar-alt"></i>
+                                                            <span className="d-none d-lg-inline ms-1">Reschedule</span>
+                                                        </Button>
+                                                        <Button 
+                                                            variant="danger" 
+                                                            size="sm"
+                                                            disabled={isPast}
+                                                            onClick={() => onCancel(appointment)}
+                                                            title="Cancel this appointment"
+                                                            className="flex-fill"
+                                                            style={{fontSize: '0.7rem', padding: '0.25rem 0.5rem'}}
+                                                        >
+                                                            <i className="fas fa-times"></i>
+                                                            <span className="d-none d-lg-inline ms-1">Cancel</span>
+                                                        </Button>
+                                                    </div>
                                                 </Card.Footer>
                                                 </Card>
                                             </Col>
