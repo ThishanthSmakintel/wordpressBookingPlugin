@@ -195,7 +195,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                         
                                         return (
                                             <Col key={appointment.id} xs={12} sm={6} md={4} lg={3} className="mb-2 mb-md-3 d-flex">
-                                                <Card className={`appointment-card border shadow-sm d-flex flex-column ${isUpcoming ? 'border-start border-success border-3' : ''} ${isPast ? 'opacity-75 border-secondary' : ''}`} style={{height: '360px', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', border: '1px solid #dee2e6'}}>
+                                                <Card className={`appointment-card border shadow-sm d-flex flex-column h-100 ${isUpcoming ? 'border-start border-success border-3' : ''} ${isPast ? 'opacity-75 border-secondary' : ''}`} style={{boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', border: '1px solid #dee2e6'}}>
                                                 <Card.Header className="d-flex justify-content-between align-items-center p-3 bg-light">
                                                     <Badge bg="secondary" className="small">
                                                         {appointment.id}
@@ -264,7 +264,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                                 
                                                 <Card.Footer className="p-3 bg-light">
                                                     {appointment.status !== 'cancelled' && !isPast && (
-                                                        <div className="d-grid gap-2 d-md-flex">
+                                                        <div className="d-flex gap-2">
                                                             <Button 
                                                                 variant="primary" 
                                                                 size="sm"

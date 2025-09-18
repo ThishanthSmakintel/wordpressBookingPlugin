@@ -52,6 +52,24 @@
     min-height: 60px;
 }
 
+/* WordPress Gutenberg flexbox header support */
+.wp-block-group.appointease-booking-header.is-layout-flex,
+.wp-block-group.appointease-booking-header.wp-block-group-is-layout-flex {
+    display: flex !important;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 1rem;
+}
+
+.wp-block-group.appointease-booking-header .wp-block-site-logo {
+    flex-shrink: 0;
+}
+
+.wp-block-group.appointease-booking-header .wp-block-navigation {
+    flex-shrink: 0;
+}
+
 .appointease-logo {
     display: flex;
     align-items: center;
