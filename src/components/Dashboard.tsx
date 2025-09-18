@@ -80,73 +80,40 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <Container className="dashboard-container" ref={dashboardRef}>
                     <Card className="dashboard-header mb-4">
                         <Card.Body className="p-3">
-                            <Row className="align-items-md-center g-3">
+                            <div className="d-flex align-items-center justify-content-between flex-wrap gap-4">
                                 {/* Welcome Section */}
-                                <Col xs={12} md={3}>
-                                    <div>
-                                        <h2 className="mb-1 h5">Welcome back!</h2>
-                                        <div className="d-flex align-items-center">
-                                            <div>
-                                                <div className="user-email small fw-medium text-truncate">{loginEmail}</div>
-                                    
-                                            </div>
-                                        </div>
-                                    </div>
-                                </Col>
-                                
-                                {/* Stats Section */}
-                                <Col xs={12} md={6}>
-                                    <Row className="g-2">
-                                        <Col xs={12} sm={4}>
-                                            <div className="stat-card text-center">
-                                                <div className="stat-number h6 mb-0">{appointments.length}</div>
-                                                <div className="stat-label small text-muted">Total</div>
-                                            </div>
-                                        </Col>
-                                        <Col xs={12} sm={4}>
-                                            <div className="stat-card text-center">
-                                                <div className="stat-number h6 mb-0 text-primary">{upcomingAppointments.length}</div>
-                                                <div className="stat-label small text-muted">Upcoming</div>
-                                            </div>
-                                        </Col>
-                                        <Col xs={12} sm={4}>
-                                            <div className="stat-card text-center">
-                                                <div className="stat-number h6 mb-0 text-success">{completedAppointments.length}</div>
-                                                <div className="stat-label small text-muted">Completed</div>
-                                            </div>
-                                        </Col>
-                                    </Row>
-                                </Col>
+                                <div className="welcome-section">
+                                    <h2 className="mb-1 fw-bold" style={{fontSize: '1.5rem', color: '#1f2937'}}>Welcome back!</h2>
+                                </div>
                                 
                                 {/* Action Buttons */}
-                                <Col xs={12} md={3}>
-                                    <div className="d-flex flex-column flex-md-row gap-2">
-                                        <Button 
-                                            variant="outline-secondary" 
-                                            size="sm"
-                                            onClick={() => {
-                                                console.log('[Dashboard] Refresh clicked, current loading state:', appointmentsLoading);
-                                                onRefresh();
-                                            }} 
-                                            disabled={appointmentsLoading}
-                                            title="Refresh appointments"
-                                            className="flex-fill"
-                                        >
-                                            <i className={`fas fa-sync-alt ${appointmentsLoading ? 'fa-spin' : ''} me-1`}></i>
-                                            <span className="d-none d-lg-inline">{appointmentsLoading ? 'Refreshing...' : 'Refresh'}</span>
-                                        </Button>
-                                        <Button 
-                                            variant="primary" 
-                                            size="sm"
-                                            onClick={onNewAppointment}
-                                            className="flex-fill"
-                                        >
-                                            <i className="fas fa-plus me-1"></i>
-                                            <span className="d-none d-lg-inline">New</span>
-                                        </Button>
-                                    </div>
-                                </Col>
-                            </Row>
+                                <div className="d-flex gap-3 align-items-center">
+                                    <Button 
+                                        variant="light" 
+                                        size="sm"
+                                        onClick={() => {
+                                            console.log('[Dashboard] Refresh clicked, current loading state:', appointmentsLoading);
+                                            onRefresh();
+                                        }} 
+                                        disabled={appointmentsLoading}
+                                        title="Refresh appointments"
+                                        className="rounded-circle d-flex align-items-center justify-content-center"
+                                        style={{width: '40px', height: '40px', border: '1px solid #e5e7eb'}}
+                                    >
+                                        <i className={`fas fa-sync-alt ${appointmentsLoading ? 'fa-spin' : ''}`} style={{fontSize: '0.9rem'}}></i>
+                                    </Button>
+                                    <Button 
+                                        variant="primary" 
+                                        size="sm"
+                                        onClick={onNewAppointment}
+                                        className="fw-medium"
+                                        style={{borderRadius: '8px', padding: '0.5rem 1rem'}}
+                                    >
+                                        <i className="fas fa-plus me-2"></i>
+                                        New Appointment
+                                    </Button>
+                                </div>
+                            </div>
                         </Card.Body>
                     </Card>
                     
@@ -194,7 +161,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                         const timeUntil = isUpcoming ? Math.ceil((appointmentDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : null;
                                         
                                         return (
-                                            <Col key={appointment.id} xs={12} sm={6} md={4} lg={3} className="mb-2 mb-md-3 d-flex">
+                                            <Col key={appointment.id} xs={12} md={6} className="mb-2 mb-md-3 d-flex">
                                                 <Card className={`appointment-card border shadow-sm d-flex flex-column h-100 ${isUpcoming ? 'border-start border-success border-3' : ''} ${isPast ? 'opacity-75 border-secondary' : ''}`} style={{boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', border: '1px solid #dee2e6'}}>
                                                 <Card.Header className="d-flex justify-content-between align-items-center p-3 bg-light">
                                                     <Badge bg="secondary" className="small">
@@ -264,24 +231,28 @@ const Dashboard: React.FC<DashboardProps> = ({
                                                 
                                                 <Card.Footer className="p-3 bg-light">
                                                     {appointment.status !== 'cancelled' && !isPast && (
-                                                        <div className="d-flex gap-2">
+                                                        <div className="d-flex gap-1">
                                                             <Button 
                                                                 variant="primary" 
                                                                 size="sm"
                                                                 onClick={() => onReschedule(appointment)}
                                                                 title="Reschedule this appointment"
+                                                                className="flex-fill"
+                                                                style={{fontSize: '0.7rem', padding: '0.25rem 0.5rem'}}
                                                             >
                                                                 <i className="fas fa-calendar-alt"></i>
-                                                                <span className="d-inline ms-1">Reschedule</span>
+                                                                <span className="d-none d-lg-inline ms-1">Reschedule</span>
                                                             </Button>
                                                             <Button 
                                                                 variant="danger" 
                                                                 size="sm"
                                                                 onClick={() => onCancel(appointment)}
                                                                 title="Cancel this appointment"
+                                                                className="flex-fill"
+                                                                style={{fontSize: '0.7rem', padding: '0.25rem 0.5rem'}}
                                                             >
                                                                 <i className="fas fa-times"></i>
-                                                                <span className="d-inline ms-1">Cancel</span>
+                                                                <span className="d-none d-lg-inline ms-1">Cancel</span>
                                                             </Button>
                                                         </div>
                                                     )}
