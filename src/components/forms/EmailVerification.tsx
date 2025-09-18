@@ -1,6 +1,7 @@
 import React from 'react';
-import { useBookingStore } from '../store/bookingStore';
-import { sanitizeInput } from '../utils';
+import { FormErrors } from '../../types';
+import { useBookingStore } from '../../store/bookingStore';
+import { sanitizeInput } from '../../utils';
 
 interface EmailVerificationProps {
     emailOtp: string;

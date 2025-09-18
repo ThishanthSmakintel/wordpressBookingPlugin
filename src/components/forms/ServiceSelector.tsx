@@ -1,13 +1,6 @@
 import React, { useState } from 'react';
-import { useBookingStore } from '../store/bookingStore';
-
-interface Service {
-    id: number;
-    name: string;
-    description: string;
-    duration: number;
-    price: number;
-}
+import { useBookingStore } from '../../store/bookingStore';
+import { Service } from '../../types';
 
 interface ServiceSelectorProps {
     onRetry: () => void;

@@ -1,5 +1,5 @@
 import React from 'react';
-import { useBookingStore } from '../store/bookingStore';
+import { useBookingStore } from '../../store/bookingStore';
 
 const ConnectionStatus: React.FC = () => {
     const { isOnline } = useBookingStore();

@@ -1,7 +1,8 @@
 import React, { useState, useMemo } from 'react';
 import { Container, Row, Col, Card, Button, Badge } from 'react-bootstrap';
-import { useBookingStore } from '../store/bookingStore';
-import { sanitizeInput } from '../utils';
+import { useBookingStore } from '../../store/bookingStore';
+import { sanitizeInput } from '../../utils';
+import { Appointment } from '../../types';
 
 interface DashboardProps {
     loginEmail: string;
@@ -9,8 +10,8 @@ interface DashboardProps {
     onRefresh: () => void;
     onNewAppointment: () => void;
     onLogout: () => void;
-    onReschedule: (appointment: any) => void;
-    onCancel: (appointment: any) => void;
+    onReschedule: (appointment: Appointment) => void;
+    onCancel: (appointment: Appointment) => void;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({

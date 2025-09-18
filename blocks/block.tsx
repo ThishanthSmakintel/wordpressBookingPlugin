@@ -4,7 +4,7 @@ import { useBlockProps, InspectorControls } from '@wordpress/block-editor';
 import { PanelBody, RangeControl } from '@wordpress/components';
 import { useEffect } from '@wordpress/element';
 import './editor.scss';
-import '../src/frontend.css';
+import '../src/assets/styles/frontend.css';
 
 registerBlockType('appointease/booking-form', {
     apiVersion: 2,

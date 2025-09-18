@@ -1,6 +1,7 @@
 import React from 'react';
-import { useBookingStore } from '../store/bookingStore';
-import { sanitizeInput } from '../utils';
+import { useBookingStore } from '../../store/bookingStore';
+import { sanitizeInput } from '../../utils';
+import { FormData, FormErrors } from '../../types';
 
 interface CustomerInfoFormProps {
     isLoggedIn: boolean;

@@ -1,4 +1,5 @@
 import React from 'react';
+import { FormErrors } from '../../types';
 
 interface LoginFormProps {
     loginEmail: string;
@@ -9,7 +10,7 @@ interface LoginFormProps {
     loginOtpExpiry: number;
     loginResendCooldown: number;
     loginIsBlocked: boolean;
-    errors: any;
+    errors: FormErrors;
     onClose: () => void;
     onEmailChange: (email: string) => void;
     onOtpChange: (otp: string) => void;

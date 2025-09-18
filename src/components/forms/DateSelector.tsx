@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useBookingStore } from '../store/bookingStore';
+import { useBookingStore } from '../../store/bookingStore';
 
 const DateSelector: React.FC = () => {
     const { selectedDate, setSelectedDate, setStep } = useBookingStore();

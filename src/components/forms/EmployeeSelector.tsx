@@ -1,13 +1,6 @@
 import React, { useState } from 'react';
-import { useBookingStore } from '../store/bookingStore';
-
-interface Employee {
-    id: number;
-    name: string;
-    avatar: string;
-    rating: number;
-    reviews: number;
-}
+import { useBookingStore } from '../../store/bookingStore';
+import { Employee } from '../../types';
 
 interface EmployeeSelectorProps {
     onRetry: () => void;

@@ -1,37 +1,5 @@
 import { create } from 'zustand';
-
-interface FormData {
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone: string;
-}
-
-interface Service {
-    id: number;
-    name: string;
-    price: number;
-    duration: number;
-    description?: string;
-}
-
-interface Employee {
-    id: number;
-    name: string;
-    avatar: string;
-    rating?: number;
-    reviews?: number;
-}
-
-interface Appointment {
-    id: string;
-    service: string;
-    staff: string;
-    date: string;
-    status: string;
-    name: string;
-    email: string;
-}
+import { Service, Employee, Appointment, FormData, FormErrors } from '../types';
 
 interface BookingState {
     step: number;
@@ -48,7 +16,7 @@ interface BookingState {
     appointmentsLoading: boolean;
     isSubmitting: boolean;
     isOnline: boolean;
-    errors: Record<string, string>;
+    errors: FormErrors;
     apiLoading: boolean;
     apiError: string | null;
     
@@ -66,7 +34,7 @@ interface BookingState {
     setAppointmentsLoading: (loading: boolean) => void;
     setIsSubmitting: (submitting: boolean) => void;
     setIsOnline: (online: boolean) => void;
-    setErrors: (errors: Record<string, string>) => void;
+    setErrors: (errors: FormErrors) => void;
     setApiLoading: (loading: boolean) => void;
     setApiError: (error: string | null) => void;
     clearError: (field: string) => void;
