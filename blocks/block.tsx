@@ -67,11 +67,12 @@ registerBlockType('appointease/booking-form', {
                                 <div className="appointease-booking-header">
                                     <div className="appointease-logo">
                                         <span className="logo-icon">A</span>
-                                        <span className="logo-text">AppointEase</span>
                                     </div>
                                     <div className="manage-appointment">
-                                        <input type="text" placeholder="APT-2024-XXXXXX" />
-                                        <button>Manage</button>
+                                        <button className="login-btn">
+                                            <i className="fas fa-sign-in-alt"></i>
+                                            <strong>Existing Customer? Login Here</strong>
+                                        </button>
                                     </div>
                                 </div>
                                 <div className="appointease-booking-content">

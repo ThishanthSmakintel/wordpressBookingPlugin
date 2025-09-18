@@ -1657,7 +1657,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
 
                 {step === 5 && (
                     <div className="appointease-step-content">
-                        {isRescheduling ? (
+                        {isRescheduling && (
                             <>
                                 <div className="reschedule-banner">
                                     <i className="fas fa-calendar-alt"></i>
@@ -1665,11 +1665,6 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                                 </div>
                                 <h2>Confirm New Time</h2>
                                 <p className="step-description">Review your new appointment details</p>
-                            </>
-                        ) : (
-                            <>
-                                <h2>Almost Done!</h2>
-                                <p className="step-description">Please provide your contact information</p>
                             </>
                         )}
                         {!isRescheduling && !isLoggedIn && !showEmailVerification && (
@@ -1896,7 +1891,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                             </p>
                         
                             <div className="success-actions">
-                                <button className="action-btn primary-btn" onClick={() => {
+                                <button className="action-btn primary-btn" style={{padding: '12px 24px', margin: '20px'}} onClick={() => {
                                     setStep(1);
                                     setSelectedService(null);
                                     setSelectedEmployee(null);

@@ -33,10 +33,10 @@ const CustomerInfoForm: React.FC<CustomerInfoFormProps> = ({
     } = useBookingStore();
     return (
         <div className="appointease-step-content">
-            <h2>Almost Done!</h2>
-            <p className="step-description">Please provide your contact information</p>
-            
-            <form onSubmit={onSubmit} className="customer-form" noValidate>
+            <div className="card shadow-sm" style={{border: '1px solid #dee2e6', borderRadius: '8px', padding: '24px'}}>
+                <h2>Almost Done!</h2>
+                <p className="step-description">Please provide your contact information</p>
+                <form onSubmit={onSubmit} className="customer-form" noValidate>
                 <div className="form-row">
                     <div className="form-group">
                         <label htmlFor="email">Email *</label>
@@ -191,7 +191,8 @@ const CustomerInfoForm: React.FC<CustomerInfoFormProps> = ({
                 <div id="booking-status" className="sr-only" aria-live="polite" aria-atomic="true">
                     {isSubmitting ? 'Booking your appointment, please wait...' : ''}
                 </div>
-            </form>
+                </form>
+            </div>
         </div>
     );
 };

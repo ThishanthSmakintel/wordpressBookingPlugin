@@ -32,12 +32,13 @@
     font-family: inherit;
     background: var(--card-bg);
     color: var(--text-primary);
-    border-radius: 12px;
+    border-radius: 8px;
     overflow: hidden;
     height: auto;
     max-width: 100%;
-    box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
     contain: layout;
+    border: 1px solid #e0e0e0;
 }
 
 .appointease-booking-header {
@@ -168,13 +169,13 @@
 
 .service-card {
     background: var(--card-bg);
-    border: 2px solid var(--card-border);
-    border-radius: 12px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
     padding: 20px;
     cursor: pointer;
     transition: all 0.3s ease;
     text-align: center;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     font-family: inherit;
     font-size: inherit;
     color: var(--text-primary);
@@ -233,13 +234,13 @@
 
 .employee-card {
     background: var(--card-bg);
-    border: 2px solid var(--card-border);
-    border-radius: 12px;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
     padding: 25px;
     cursor: pointer;
     transition: all 0.3s ease;
     text-align: center;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     font-family: inherit;
     font-size: inherit;
     color: var(--text-primary);
@@ -939,13 +940,13 @@
 
 /* Enhanced Appointment Card Styles */
 .appointment-card {
-    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%);
-    border-radius: 20px;
+    background: #ffffff;
+    border-radius: 8px;
     padding: 0;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     margin: 20px auto;
     max-width: 480px;
-    border: 1px solid rgba(28, 188, 155, 0.1);
+    border: 1px solid #e0e0e0;
     overflow: hidden;
     position: relative;
     transition: all 0.3s ease;
@@ -1330,7 +1331,8 @@
 }
 
 .action-btn {
-    padding: 15px 30px;
+    padding: 15px 30px !important;
+    margin: 20px !important;
     border-radius: 12px;
     font-size: 16px;
     font-weight: 600;
@@ -1717,6 +1719,19 @@
     }
 }
 
+/* Mobile Card Centering */
+@media (max-width: 575px) {
+    .align-items-stretch .d-flex {
+        justify-content: center !important;
+    }
+    
+    .appointment-card {
+        max-width: 350px !important;
+        width: 100% !important;
+        height: 380px !important;
+    }
+}
+
 /* Mobile responsive updates */
 @media (max-width: 480px) {
     .id-number {
@@ -1862,6 +1877,8 @@
     overflow: hidden;
     height: auto;
     box-sizing: border-box;
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
     
     /* Inherit WordPress theme colors */
     --wp-color-primary: var(--wp--preset--color--primary, #1CBC9B);
@@ -3005,6 +3022,33 @@
         box-shadow: none;
         border: 1px solid #000;
     }
+}
+
+/* Dashboard UI Fixes */
+.dashboard-container {
+    padding: 1rem;
+    max-width: 100%;
+}
+
+.dashboard-header {
+    border-radius: 8px;
+    border: 1px solid #e0e0e0;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    background: #ffffff;
+}
+
+.stat-card {
+    background: #f8f9fa;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    padding: 0.75rem;
+    margin: 0.25rem 0;
+}
+
+.appointments-section h3 {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #2c3e50;
 }
 
 /* Enhanced Dashboard Styles */

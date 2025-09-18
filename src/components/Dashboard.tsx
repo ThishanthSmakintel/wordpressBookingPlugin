@@ -186,7 +186,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 </Card.Body>
                             </Card>
                         ) : (
-                            <Row className="g-2 g-md-3">
+                            <Row className="g-2 g-md-3 align-items-stretch">
                                 {paginatedAppointments.map(appointment => {
                                         const appointmentDate = new Date(appointment.date);
                                         const isUpcoming = appointmentDate > new Date() && appointment.status === 'confirmed';
@@ -194,8 +194,8 @@ const Dashboard: React.FC<DashboardProps> = ({
                                         const timeUntil = isUpcoming ? Math.ceil((appointmentDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : null;
                                         
                                         return (
-                                            <Col key={appointment.id} xs={12} sm={6} lg={4} className="mb-2 mb-md-3">
-                                                <Card className={`appointment-card h-100 border shadow ${isUpcoming ? 'border-start border-success border-3' : ''} ${isPast ? 'opacity-75 border-secondary' : ''}`}>
+                                            <Col key={appointment.id} xs={12} sm={6} md={4} lg={3} className="mb-2 mb-md-3 d-flex">
+                                                <Card className={`appointment-card border shadow-sm d-flex flex-column ${isUpcoming ? 'border-start border-success border-3' : ''} ${isPast ? 'opacity-75 border-secondary' : ''}`} style={{height: '360px', boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', border: '1px solid #dee2e6'}}>
                                                 <Card.Header className="d-flex justify-content-between align-items-center p-3 bg-light">
                                                     <Badge bg="secondary" className="small">
                                                         {appointment.id}
@@ -216,7 +216,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                                     </Badge>
                                                 </Card.Header>
                                                 
-                                                <Card.Body className="p-3">
+                                                <Card.Body className="p-3 flex-grow-1">
                                                     <div className="mb-2">
                                                         <h6 className="card-title d-flex align-items-center mb-1">
                                                             <i className="fas fa-briefcase me-2 text-primary" style={{fontSize: '0.8rem'}}></i>
@@ -272,7 +272,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                                                 title="Reschedule this appointment"
                                                             >
                                                                 <i className="fas fa-calendar-alt"></i>
-                                                                <span className="d-none d-sm-inline ms-1">Reschedule</span>
+                                                                <span className="d-inline ms-1">Reschedule</span>
                                                             </Button>
                                                             <Button 
                                                                 variant="danger" 
@@ -281,7 +281,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                                                 title="Cancel this appointment"
                                                             >
                                                                 <i className="fas fa-times"></i>
-                                                                <span className="d-none d-sm-inline ms-1">Cancel</span>
+                                                                <span className="d-inline ms-1">Cancel</span>
                                                             </Button>
                                                         </div>
                                                     )}

@@ -95,7 +95,7 @@ const HeartbeatBookingForm: React.FC = () => {
 
   return (
     <div className="heartbeat-booking-form">
-      <h3>Your Details</h3>
+
       
       <div className="booking-summary">
         <p><strong>Service:</strong> {selectedService?.name}</p>

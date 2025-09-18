@@ -1,17 +1,40 @@
-/* Editor preview styles */
+/* Editor preview styles - Enhanced to match frontend */
 .editor-note {
-    background: #f0f8ff;
-    border: 1px solid #b3d9ff;
-    border-radius: 6px;
-    padding: 15px;
+    background: linear-gradient(135deg, #f0f8ff 0%, #e6f3ff 100%);
+    border: 2px solid #1CBC9B;
+    border-radius: 12px;
+    padding: 20px;
     margin-top: 30px;
     text-align: center;
+    box-shadow: 0 4px 15px rgba(28, 188, 155, 0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+.editor-note::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, #1CBC9B, #16a085, #20c997);
 }
 
 .editor-note p {
     margin: 0;
-    color: #0066cc;
-    font-size: 14px;
+    color: #1CBC9B;
+    font-size: 16px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.editor-note p::before {
+    content: '⚡';
+    font-size: 18px;
 }
 
 .editor-loading {
@@ -33,4 +56,335 @@
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+}
+
+/* Additional button consistency fixes */
+.wp-block-appointease-booking-form button {
+    font-family: inherit !important;
+    box-sizing: border-box !important;
+}
+
+.wp-block-appointease-booking-form input {
+    font-family: inherit !important;
+    box-sizing: border-box !important;
+}
+
+/* Prevent WordPress theme overrides */
+.appointease-booking * {
+    box-sizing: border-box !important;
+}
+
+.appointease-booking button,
+.appointease-booking input {
+    font-family: inherit !important;
+    font-size: inherit !important;
+}
+
+/* Editor-specific button overrides to match frontend exactly */
+.block-editor-block-list__layout .manage-appointment button,
+.editor-styles-wrapper .manage-appointment button {
+    padding: 8px 16px !important;
+    background: #007cba !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 4px !important;
+    cursor: pointer !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+    transition: all 0.2s ease !important;
+    margin: 0 !important;
+    min-width: auto !important;
+    height: auto !important;
+    line-height: 1.4 !important;
+    box-sizing: border-box !important;
+}
+
+.block-editor-block-list__layout .manage-appointment button:hover,
+.editor-styles-wrapper .manage-appointment button:hover {
+    background: #005a87 !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+}
+
+.block-editor-block-list__layout .manage-appointment input,
+.editor-styles-wrapper .manage-appointment input {
+    padding: 8px 12px !important;
+    border: 1px solid #ddd !important;
+    border-radius: 4px !important;
+    font-size: 14px !important;
+    min-width: 140px !important;
+    flex-shrink: 0 !important;
+    margin: 0 !important;
+    height: auto !important;
+    line-height: 1.4 !important;
+    box-sizing: border-box !important;
+}
+
+.block-editor-block-list__layout .manage-appointment,
+.editor-styles-wrapper .manage-appointment {
+    display: flex !important;
+    gap: 10px !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+    flex-shrink: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* Match frontend button styles */
+.manage-appointment button {
+    padding: 8px 16px !important;
+    background: #007cba !important;
+    color: white !important;
+    border: none !important;
+    border-radius: 4px !important;
+    cursor: pointer !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    white-space: nowrap !important;
+    flex-shrink: 0 !important;
+    transition: all 0.2s ease !important;
+    margin: 0 !important;
+    min-width: auto !important;
+    height: auto !important;
+    line-height: 1.4 !important;
+}
+
+.manage-appointment button:hover {
+    background: #005a87 !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+}
+
+.manage-appointment input {
+    padding: 8px 12px !important;
+    border: 1px solid #ddd !important;
+    border-radius: 4px !important;
+    font-size: 14px !important;
+    min-width: 140px !important;
+    flex-shrink: 0 !important;
+    margin: 0 !important;
+    height: auto !important;
+    line-height: 1.4 !important;
+}
+
+.manage-appointment {
+    display: flex !important;
+    gap: 10px !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+    flex-shrink: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+}
+
+/* Ensure consistent spacing in editor */
+.appointease-booking-header {
+    padding: 20px 30px !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+    min-height: 60px !important;
+    margin: 0 !important;
+}
+
+/* Dashboard UI Fixes */
+.dashboard-container {
+    padding: 1rem !important;
+    max-width: 100% !important;
+}
+
+.dashboard-header {
+    border-radius: 8px !important;
+    border: 1px solid #e0e0e0 !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+}
+
+.stat-card {
+    background: #f8f9fa !important;
+    border: 1px solid #e0e0e0 !important;
+    border-radius: 6px !important;
+    padding: 0.75rem !important;
+    margin: 0.25rem 0 !important;
+}
+
+.appointment-card {
+    border-radius: 8px !important;
+    border: 1px solid #e0e0e0 !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1) !important;
+}
+
+.appointments-section h3 {
+    font-size: 1.1rem !important;
+    font-weight: 600 !important;
+    color: #2c3e50 !important;
+}
+
+/* Enhanced Dashboard Styles for Editor */
+.block-editor-block-list__layout .dashboard-container,
+.editor-styles-wrapper .dashboard-container {
+    padding: 1.5rem !important;
+    width: 100% !important;
+    margin: 0 !important;
+}
+
+.block-editor-block-list__layout .dashboard-header,
+.editor-styles-wrapper .dashboard-header {
+    background: linear-gradient(135deg, #ffffff 0%, #f8f9fa 100%) !important;
+    border-radius: 12px !important;
+    padding: 1.5rem !important;
+    margin-bottom: 1.5rem !important;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.06) !important;
+    border: 1px solid rgba(28, 188, 155, 0.08) !important;
+    position: relative !important;
+    overflow: hidden !important;
+}
+
+.block-editor-block-list__layout .dashboard-header::before,
+.editor-styles-wrapper .dashboard-header::before {
+    content: '' !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: 4px !important;
+    background: linear-gradient(90deg, #1CBC9B, #16a085, #20c997) !important;
+}
+
+/* Enhanced Card Styles for Editor */
+.block-editor-block-list__layout .appointment-card,
+.editor-styles-wrapper .appointment-card {
+    background: #ffffff !important;
+    border: 1px solid #e5e7eb !important;
+    border-radius: 12px !important;
+    overflow: hidden !important;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1) !important;
+    transition: transform 0.2s ease, box-shadow 0.2s ease !important;
+    position: relative !important;
+    height: 280px !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+
+.block-editor-block-list__layout .appointment-card:hover,
+.editor-styles-wrapper .appointment-card:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.15) !important;
+    border-color: #1CBC9B !important;
+}
+
+/* Action Button Styles for Editor */
+.block-editor-block-list__layout .action-btn,
+.editor-styles-wrapper .action-btn {
+    padding: 15px 30px !important;
+    margin: 20px !important;
+    border-radius: 12px !important;
+    font-size: 16px !important;
+    font-weight: 600 !important;
+    cursor: pointer !important;
+    transition: all 0.3s ease !important;
+    text-decoration: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    border: none !important;
+    min-width: 160px !important;
+    justify-content: center !important;
+}
+
+.block-editor-block-list__layout .primary-btn,
+.editor-styles-wrapper .primary-btn {
+    background: linear-gradient(135deg, #1CBC9B, #16a085) !important;
+    color: white !important;
+    box-shadow: 0 4px 15px rgba(28, 188, 155, 0.3) !important;
+}
+
+.block-editor-block-list__layout .primary-btn:hover,
+.editor-styles-wrapper .primary-btn:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 8px 25px rgba(28, 188, 155, 0.4) !important;
+}
+
+/* Login Button Styles for Editor */
+.block-editor-block-list__layout .login-btn,
+.editor-styles-wrapper .login-btn {
+    background: rgba(255,255,255,0.2) !important;
+    color: white !important;
+    border: 1px solid rgba(255,255,255,0.3) !important;
+    padding: 8px 16px !important;
+    border-radius: 6px !important;
+    cursor: pointer !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+    transition: all 0.2s ease !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 8px !important;
+    backdrop-filter: blur(10px) !important;
+    margin: 0 !important;
+    min-width: auto !important;
+    height: auto !important;
+    line-height: 1.4 !important;
+}
+
+.block-editor-block-list__layout .login-btn:hover,
+.editor-styles-wrapper .login-btn:hover {
+    background: rgba(255,255,255,0.3) !important;
+    border-color: rgba(255,255,255,0.5) !important;
+    transform: translateY(-1px) !important;
+}
+
+.block-editor-block-list__layout .login-btn strong,
+.editor-styles-wrapper .login-btn strong {
+    font-weight: 600 !important;
+    font-size: 14px !important;
+}
+
+/* Mobile responsive adjustments for editor */
+@media (max-width: 768px) {
+    .appointease-booking-header {
+        padding: 12px 16px !important;
+        flex-direction: column !important;
+        gap: 12px !important;
+        text-align: center !important;
+        min-height: auto !important;
+    }
+    
+    .manage-appointment {
+        justify-content: center !important;
+        flex-wrap: wrap !important;
+        gap: 8px !important;
+    }
+    
+    .manage-appointment input {
+        min-width: 120px !important;
+        font-size: 13px !important;
+    }
+    
+    .manage-appointment button {
+        padding: 7px 12px !important;
+        font-size: 13px !important;
+    }
+    
+    .block-editor-block-list__layout .manage-appointment button,
+    .editor-styles-wrapper .manage-appointment button {
+        padding: 7px 12px !important;
+        font-size: 13px !important;
+    }
+    
+    .block-editor-block-list__layout .manage-appointment input,
+    .editor-styles-wrapper .manage-appointment input {
+        min-width: 120px !important;
+        font-size: 13px !important;
+        padding: 7px 10px !important;
+    }
+    
+    .block-editor-block-list__layout .appointment-card,
+    .editor-styles-wrapper .appointment-card {
+        height: auto !important;
+        min-height: 200px !important;
+    }
 }
