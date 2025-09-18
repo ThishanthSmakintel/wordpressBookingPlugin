@@ -25,6 +25,7 @@ const Dashboard: React.FC<DashboardProps> = ({
     const { appointments, appointmentsLoading } = useBookingStore();
     const [currentPage, setCurrentPage] = useState(1);
     const [selectedFilter, setSelectedFilter] = useState<'all' | 'upcoming' | 'completed'>('all');
+    const [viewMode, setViewMode] = useState<'list' | 'cards'>('list');
     const appointmentsPerPage = 6;
     
     // Memoized calculations for better performance
@@ -45,6 +46,9 @@ const Dashboard: React.FC<DashboardProps> = ({
         } else if (selectedFilter === 'completed') {
             filtered = completed;
         }
+        
+        // Sort by date (newest first)
+        filtered = filtered.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
         
         return {
             upcomingAppointments: upcoming,
@@ -84,6 +88,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                                 {/* Welcome Section */}
                                 <div className="welcome-section">
                                     <h2 className="mb-1 fw-bold" style={{fontSize: '1.5rem', color: '#1f2937'}}>Welcome back!</h2>
+                                    <div className="text-muted" style={{fontSize: '0.85rem'}}>{loginEmail}</div>
                                 </div>
                                 
                                 {/* Action Buttons */}
@@ -121,10 +126,20 @@ const Dashboard: React.FC<DashboardProps> = ({
                         <div className="d-flex justify-content-between align-items-center mb-3">
                             <h3 className="h5 mb-0">Your Appointments</h3>
                             <div className="btn-group d-none d-md-flex" role="group">
-                                <Button variant="outline-secondary" size="sm" className="active" title="Grid View">
+                                <Button 
+                                    variant={viewMode === 'cards' ? 'secondary' : 'outline-secondary'} 
+                                    size="sm" 
+                                    onClick={() => setViewMode('cards')}
+                                    title="Card View"
+                                >
                                     <i className="fas fa-th-large"></i>
                                 </Button>
-                                <Button variant="outline-secondary" size="sm" title="List View">
+                                <Button 
+                                    variant={viewMode === 'list' ? 'secondary' : 'outline-secondary'} 
+                                    size="sm" 
+                                    onClick={() => setViewMode('list')}
+                                    title="List View"
+                                >
                                     <i className="fas fa-list"></i>
                                 </Button>
                             </div>
@@ -152,6 +167,46 @@ const Dashboard: React.FC<DashboardProps> = ({
                                     </Button>
                                 </Card.Body>
                             </Card>
+                        ) : viewMode === 'list' ? (
+                            <div className="list-view">
+                                {paginatedAppointments.map((appointment, index) => {
+                                    const appointmentDate = new Date(appointment.date);
+                                    const isUpcoming = appointmentDate > new Date() && appointment.status === 'confirmed';
+                                    const isPast = appointmentDate < new Date();
+                                    
+                                    return (
+                                        <div key={appointment.id} className="d-flex align-items-center p-3 border-bottom" style={{backgroundColor: 'white'}}>
+                                            <div className="me-3">
+                                                <Badge bg={isUpcoming ? 'primary' : 'secondary'} className="small">
+                                                    {isUpcoming ? 'UP' : 'DONE'}
+                                                </Badge>
+                                            </div>
+                                            <div className="flex-grow-1">
+                                                <div className="fw-bold" style={{color: isPast ? '#6c757d' : '#212529'}}>
+                                                    {sanitizeInput(appointment.service || 'General Consultation')}
+                                                </div>
+                                                <small className="text-muted">
+                                                    {appointmentDate.toLocaleDateString('en-US', { 
+                                                        month: 'short', 
+                                                        day: 'numeric',
+                                                        year: 'numeric'
+                                                    })} at {appointmentDate.toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit', hour12: true})} • {sanitizeInput(appointment.staff || 'Dr. Smith')}
+                                                </small>
+                                            </div>
+                                            {!isPast && appointment.status !== 'cancelled' && (
+                                                <div className="d-flex gap-2">
+                                                    <Button variant="outline-danger" size="sm" onClick={() => onCancel(appointment)}>
+                                                        Cancel
+                                                    </Button>
+                                                    <Button variant="primary" size="sm" onClick={() => onReschedule(appointment)}>
+                                                        Reschedule
+                                                    </Button>
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
                         ) : (
                             <Row className="g-2 g-md-3 align-items-stretch">
                                 {paginatedAppointments.map(appointment => {
