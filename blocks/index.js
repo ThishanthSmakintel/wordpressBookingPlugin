@@ -1,2 +1,2 @@
 import './block.tsx';
-import './style.scss';
+import '../src/assets/styles/editor/index.scss';

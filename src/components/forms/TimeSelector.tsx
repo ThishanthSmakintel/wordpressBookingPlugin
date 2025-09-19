@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useBookingStore } from '../../store/bookingStore';
+import { TIME_SLOTS } from '../../constants';
 
 interface TimeSelectorProps {
     unavailableSlots: string[];

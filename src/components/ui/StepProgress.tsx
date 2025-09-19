@@ -1,5 +1,6 @@
 import React from 'react';
 import { useBookingStore } from '../../store/bookingStore';
+import { STEPS } from '../../constants';
 
 const StepProgress: React.FC = () => {
     const { step: currentStep } = useBookingStore();

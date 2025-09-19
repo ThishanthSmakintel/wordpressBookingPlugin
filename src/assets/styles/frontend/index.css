@@ -1,0 +1,13 @@
+/* Frontend Styles - Main Entry Point */
+@import './frontend.css';
+@import './login.css';
+@import './reschedule.css';
+@import './wp-responsive-fix.css';
+
+/* Component Styles */
+@import '../components/appointment-card.css';
+@import '../components/appointment-dates.css';
+@import '../components/appointment-header.css';
+@import '../components/booking-components.css';
+@import '../components/loading-states.css';
+@import '../components/specialist-icon.css';

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useBookingStore } from '../../store/bookingStore';
+import { BUSINESS_HOURS } from '../../constants';
 
 const DateSelector: React.FC = () => {
     const { selectedDate, setSelectedDate, setStep } = useBookingStore();
@@ -43,7 +44,7 @@ const DateSelector: React.FC = () => {
                     marginBottom: '32px'
                 }}>
                     {generateCalendar().map((date, index) => {
-                        const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                        const isWeekend = BUSINESS_HOURS.closedDays.includes(date.getDay());
                         const isPast = date < new Date(new Date().setHours(0,0,0,0));
                         const isDisabled = isWeekend || isPast;
                         const dateString = date.toISOString().split('T')[0];

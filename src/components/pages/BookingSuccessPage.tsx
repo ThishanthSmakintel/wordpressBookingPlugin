@@ -1,5 +1,7 @@
 import React from 'react';
 import { useBookingStore } from '../../store/bookingStore';
+import { sanitizeInput } from '../../utils';
+import { Service, Employee } from '../../types';
 
 interface BookingSuccessPageProps {
     appointmentId: string;

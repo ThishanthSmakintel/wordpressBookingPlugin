@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import './assets/styles/frontend.css';
-import './assets/styles/reschedule.css';
-import './assets/styles/login.css';
-import './assets/styles/wp-responsive-fix.css';
+import './assets/styles/frontend/index.css';
 import Dashboard from './components/pages/Dashboard';
 import LoginForm from './components/forms/LoginForm';
 import ServiceSelector from './components/forms/ServiceSelector';
@@ -18,24 +15,9 @@ import StepProgress from './components/ui/StepProgress';
 import ConnectionStatus from './components/ui/ConnectionStatus';
 import { sanitizeInput, sanitizeLogInput, generateStrongId, timeSlots, businessHours } from './utils';
 import { useBookingStore } from './store/bookingStore';
-
-interface FormData {
-    firstName: string;
-    lastName: string;
-    email: string;
-    phone: string;
-}
-
-interface FormErrors {
-    firstName?: string;
-    lastName?: string;
-    email?: string;
-    phone?: string;
-    service?: string;
-    employee?: string;
-    date?: string;
-    time?: string;
-}
+import { Service, Employee, Appointment, FormData, FormErrors } from './types';
+import { STEPS, COLORS } from './constants';
+import { apiService } from './services/api';
 
 declare global {
     interface Window {
@@ -1618,26 +1600,36 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                             <i className="fas fa-sign-out-alt"></i>
                         </button>
                     </div>
-                ) : null}
-            </div>
-            
-            {!isLoggedIn && (
-                <div style={{textAlign: 'center', padding: '8px 0', borderBottom: '1px solid #e5e7eb'}}>
+                ) : (
                     <button 
                         onClick={() => setShowLogin(true)}
                         style={{
-                            background: 'none',
+                            background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
                             border: 'none',
-                            color: '#3b82f6',
-                            textDecoration: 'underline',
+                            color: 'white',
+                            padding: '10px 20px',
+                            borderRadius: '8px',
                             cursor: 'pointer',
-                            fontSize: '0.9rem'
+                            fontSize: '0.9rem',
+                            fontWeight: '500',
+                            boxShadow: '0 2px 4px rgba(59, 130, 246, 0.2)',
+                            transition: 'all 0.2s ease'
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.transform = 'translateY(-1px)';
+                            e.currentTarget.style.boxShadow = '0 4px 8px rgba(59, 130, 246, 0.3)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.transform = 'translateY(0)';
+                            e.currentTarget.style.boxShadow = '0 2px 4px rgba(59, 130, 246, 0.2)';
                         }}
                     >
+                        <i className="fas fa-sign-in-alt" style={{marginRight: '8px'}}></i>
                         Existing Customer? Login Here
                     </button>
-                </div>
-            )}
+                )}
+            </div>
+
 
             <div className="appointease-booking-content wp-block-group">
                 {step <= 5 && <StepProgress />}

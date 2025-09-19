@@ -1,3 +1,5 @@
+import { TIME_SLOTS, BUSINESS_HOURS } from '../constants';
+
 // Input sanitization
 export const sanitizeInput = (input: string): string => {
     return input.replace(/[<>"'&]/g, (char) => {
@@ -24,8 +26,6 @@ export const generateStrongId = (): string => {
     return `APT-${year}-${result}`;
 };
 
-// Time slots
-export const timeSlots = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'];
-
-// Business hours
-export const businessHours = { start: '09:00', end: '17:00', closedDays: [0, 6] };
+// Re-export constants for backward compatibility
+export const timeSlots = TIME_SLOTS;
+export const businessHours = BUSINESS_HOURS;
