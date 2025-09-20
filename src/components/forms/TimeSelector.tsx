@@ -16,6 +16,14 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
     const { selectedDate, selectedTime, selectedService, setSelectedTime, setStep } = useBookingStore();
     const [tempSelected, setTempSelected] = useState<string>(selectedTime || '');
     
+    // Debug logging
+    console.log('[TimeSelector] Props received:', {
+        unavailableSlots,
+        timezone,
+        bookingDetails,
+        selectedDate
+    });
+    
     const handleTimeSelect = (time: string) => {
         if (unavailableSlots !== 'all' && (!Array.isArray(unavailableSlots) || !unavailableSlots.includes(time))) {
             setTempSelected(time);
@@ -36,27 +44,11 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
     const [timeSlots, setTimeSlots] = useState<string[]>([]);
     const [isLoadingSlots, setIsLoadingSlots] = useState(true);
     
-    // Load time slots from API
+    // Load time slots - use default slots immediately
     useEffect(() => {
-        const loadTimeSlots = async () => {
-            try {
-                const response = await fetch('/wp-json/appointease/v1/time-slots');
-                if (response.ok) {
-                    const data = await response.json();
-                    setTimeSlots(data.time_slots || []);
-                } else {
-                    // Fallback to default slots
-                    setTimeSlots(['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30']);
-                }
-            } catch (error) {
-                // Fallback to default slots
-                setTimeSlots(['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30']);
-            } finally {
-                setIsLoadingSlots(false);
-            }
-        };
-        
-        loadTimeSlots();
+        const defaultSlots = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'];
+        setTimeSlots(defaultSlots);
+        setIsLoadingSlots(false);
     }, []);
 
     return (

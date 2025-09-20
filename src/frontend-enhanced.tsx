@@ -438,7 +438,12 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
         return () => clearInterval(interval);
     }, [isLoggedIn, showDashboard]);
     
-
+    // Ensure availability is checked when reaching step 4
+    useEffect(() => {
+        if (step === 4 && selectedDate && selectedEmployee) {
+            checkAvailability(selectedDate, selectedEmployee.id);
+        }
+    }, [step, selectedDate, selectedEmployee]);
     
     // Live region announcements for screen readers
     const announceToScreenReader = useCallback((message: string) => {
@@ -562,7 +567,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
         setStep(3);
     };
 
-    const handleDateSelect = (date: string) => {
+    const handleDateSelect = async (date: string) => {
         if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
             setErrors({date: 'Invalid date format'});
             return;
@@ -588,7 +593,8 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
         setErrors({});
         
         if (selectedEmployee) {
-            checkAvailability(date, selectedEmployee.id);
+            // Ensure availability is checked before moving to time selection
+            await checkAvailability(date, selectedEmployee.id);
         }
         setStep(4);
     };
@@ -1710,7 +1716,12 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                 const timeSlotsRes = await fetch(`${window.bookingAPI.root}appointease/v1/time-slots`);
                 if (timeSlotsRes.ok) {
                     const timeSlotsData = await timeSlotsRes.json();
-                    setDebugTimeSlots(timeSlotsData.time_slots || []);
+                    const slots = timeSlotsData.time_slots && timeSlotsData.time_slots.length > 0 
+                        ? timeSlotsData.time_slots 
+                        : ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'];
+                    setDebugTimeSlots(slots);
+                } else {
+                    setDebugTimeSlots(['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30']);
                 }
                 
                 // Check availability for current selection

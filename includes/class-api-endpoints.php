@@ -857,6 +857,11 @@ class Booking_API_Endpoints {
             ? $options['time_slots'] 
             : $default_slots;
             
+        // Ensure we always return the default slots if nothing is configured
+        if (empty($time_slots)) {
+            $time_slots = $default_slots;
+        }
+            
         return rest_ensure_response(array(
             'time_slots' => $time_slots,
             'slot_duration' => isset($options['slot_duration']) ? intval($options['slot_duration']) : 30
