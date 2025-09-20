@@ -13,10 +13,33 @@ export const BookingHeader: React.FC<BookingHeaderProps> = ({
     onDashboard, 
     onLogout 
 }) => {
+    const [currentTime, setCurrentTime] = React.useState(new Date());
+    
+    React.useEffect(() => {
+        const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+        return () => clearInterval(timer);
+    }, []);
+    
     return (
         <div className="appointease-booking-header wp-block-group is-layout-flex">
             <div className="appointease-logo wp-block-site-logo">
                 <span className="logo-icon">A</span>
+                <div className="current-time" style={{
+                    fontSize: '0.85rem',
+                    color: '#666',
+                    marginTop: '4px',
+                    fontWeight: '400'
+                }}>
+                    {currentTime.toLocaleDateString('en-US', { 
+                        weekday: 'short', 
+                        month: 'short', 
+                        day: 'numeric' 
+                    })} • {currentTime.toLocaleTimeString('en-US', { 
+                        hour: '2-digit', 
+                        minute: '2-digit',
+                        hour12: true 
+                    })}
+                </div>
             </div>
             {bookingState.isLoggedIn ? (
                 <div className="user-menu wp-block-buttons is-layout-flex">

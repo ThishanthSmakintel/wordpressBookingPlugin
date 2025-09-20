@@ -208,14 +208,7 @@ class Booking_Plugin {
         
         wp_enqueue_style('remixicon-editor', 'https://cdn.jsdelivr.net/npm/remixicon@4.0.0/fonts/remixicon.css', array(), '4.0.0');
         
-        // Enqueue color support script
-        wp_enqueue_script(
-            'booking-color-support',
-            BOOKING_PLUGIN_URL . 'src/color-support.js',
-            array('wp-data', 'wp-blocks'),
-            BOOKING_PLUGIN_VERSION,
-            true
-        );
+
         
         // Set script translations
         wp_set_script_translations('booking-plugin-blocks', 'booking-plugin');
@@ -248,14 +241,7 @@ class Booking_Plugin {
             $frontend_asset_data['version']
         );
         
-        // Enqueue reschedule functionality
-        wp_enqueue_script(
-            'booking-reschedule',
-            BOOKING_PLUGIN_URL . 'public/reschedule.js',
-            array('booking-frontend'),
-            BOOKING_PLUGIN_VERSION,
-            true
-        );
+
         
 
         wp_localize_script('booking-frontend', 'bookingAPI', array(
