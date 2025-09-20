@@ -1705,24 +1705,11 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                     setDebugStaff(staffData || []);
                 }
                 
-                // Fetch working days
-                const workingDaysRes = await fetch(`${window.bookingAPI.root}appointease/v1/debug/working-days`);
-                if (workingDaysRes.ok) {
-                    const workingDaysData = await workingDaysRes.json();
-                    setWorkingDays(workingDaysData.working_days || []);
-                }
+                // Use default working days (no API endpoint exists)
+                setWorkingDays(['1', '2', '3', '4', '5']); // Monday-Friday
                 
-                // Fetch time slots
-                const timeSlotsRes = await fetch(`${window.bookingAPI.root}appointease/v1/time-slots`);
-                if (timeSlotsRes.ok) {
-                    const timeSlotsData = await timeSlotsRes.json();
-                    const slots = timeSlotsData.time_slots && timeSlotsData.time_slots.length > 0 
-                        ? timeSlotsData.time_slots 
-                        : ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'];
-                    setDebugTimeSlots(slots);
-                } else {
-                    setDebugTimeSlots(['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30']);
-                }
+                // Use default time slots (no API endpoint exists)
+                setDebugTimeSlots(['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30']);
                 
                 // Check availability for current selection
                 if (selectedEmployee && selectedDate) {

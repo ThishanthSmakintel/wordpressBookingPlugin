@@ -95,17 +95,19 @@ const DateSelector: React.FC<DateSelectorProps> = ({ isReschedule = false }) => 
         const employeeId = typeof selectedEmployee === 'object' ? selectedEmployee.id : selectedEmployee;
         if (!employeeId) return;
         
+        const dates = generateCalendar;
+        
         // Set all dates to loading initially
         const newStatuses = new Map<string, DateStatus>();
-        generateCalendar.forEach(date => {
-            const dateString = date.toISOString().split('T')[0];
+        dates.forEach(date => {
+            const dateString = formatDateString(date);
             newStatuses.set(dateString, { isAvailable: false, isLoading: true });
         });
         setDateStatuses(newStatuses);
         
         // Check each date
         const checkDates = async () => {
-            for (const date of generateCalendar) {
+            for (const date of dates) {
                 const dateString = formatDateString(date);
                 
                 try {
@@ -119,24 +121,11 @@ const DateSelector: React.FC<DateSelectorProps> = ({ isReschedule = false }) => 
                     
                     setDateStatuses(prev => {
                         const updated = new Map(prev);
-                        const newStatus = {
+                        updated.set(dateString, {
                             isAvailable,
                             reason: isAvailable ? undefined : reason,
                             isLoading: false
-                        };
-                        updated.set(dateString, newStatus);
-                        
-                        // Debug weekend dates specifically
-                        const dayOfWeek = new Date(dateString).getDay();
-                        if (dayOfWeek === 0 || dayOfWeek === 6) {
-                            console.log(`[DateSelector] WEEKEND UPDATE ${dateString}:`, {
-                                dayOfWeek,
-                                response,
-                                newStatus,
-                                mapSize: updated.size
-                            });
-                        }
-                        
+                        });
                         return updated;
                     });
                 } catch (error) {
@@ -154,24 +143,11 @@ const DateSelector: React.FC<DateSelectorProps> = ({ isReschedule = false }) => 
         };
         
         checkDates();
-    }, [selectedEmployee, currentMonth, generateCalendar, refreshTrigger]);
+    }, [selectedEmployee, currentMonth, refreshTrigger]);
 
     const renderDateStatus = (dateString: string, date: Date) => {
         const status = dateStatuses.get(dateString);
         const isPast = date < new Date(new Date().setHours(0,0,0,0));
-        
-        // Debug log for weekend dates
-        const dayOfWeek = date.getDay();
-        if (dayOfWeek === 0 || dayOfWeek === 6) {
-            console.log(`[renderDateStatus] ${dateString} (${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dayOfWeek]}):`, {
-                status,
-                isPast,
-                hasStatus: !!status,
-                isLoading: status?.isLoading,
-                isAvailable: status?.isAvailable,
-                reason: status?.reason
-            });
-        }
         
         if (isPast) {
             return (

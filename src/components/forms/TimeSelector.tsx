@@ -143,18 +143,6 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                                 }}>
                                     {isUnavailable ? 'Booked' : 'Available'}
                                 </div>
-                                {isUnavailable && bookingDetails[time] && (
-                                    <div style={{
-                                        fontSize: '0.5rem',
-                                        color: '#666',
-                                        marginTop: '4px',
-                                        textAlign: 'center',
-                                        lineHeight: '1.2'
-                                    }}>
-                                        <div>By: {bookingDetails[time].customer_name}</div>
-                                        <div>ID: {bookingDetails[time].booking_id}</div>
-                                    </div>
-                                )}
                             </div>
                         );
                     })}
