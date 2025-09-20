@@ -2,7 +2,7 @@ import React from 'react';
 import { useBookingStore } from '../../store/bookingStore';
 import { STEPS } from '../../constants';
 
-const StepProgress: React.FC = () => {
+const StepProgress: React.FC = React.memo(() => {
     const { step: currentStep } = useBookingStore();
     const steps = [
         { number: 1, label: 'Service' },
@@ -73,6 +73,6 @@ const StepProgress: React.FC = () => {
             ))}
         </div>
     );
-};
+});
 
 export default StepProgress;

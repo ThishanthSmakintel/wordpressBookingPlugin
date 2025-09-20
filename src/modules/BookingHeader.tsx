@@ -7,7 +7,7 @@ interface BookingHeaderProps {
     onLogout: () => void;
 }
 
-export const BookingHeader: React.FC<BookingHeaderProps> = ({ 
+export const BookingHeader: React.FC<BookingHeaderProps> = React.memo(({ 
     bookingState, 
     onLogin, 
     onDashboard, 
@@ -86,4 +86,4 @@ export const BookingHeader: React.FC<BookingHeaderProps> = ({
             )}
         </div>
     );
-};
+});

@@ -49,8 +49,8 @@ declare global {
     }
 }
 
-const BookingApp = React.forwardRef<any, any>((props, ref) => {
-    // ✅ Store hooks
+const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
+    // ✅ Zustand store - single source of truth
     const {
         step, selectedService, selectedEmployee, selectedDate, selectedTime, formData,
         services, employees, appointments, servicesLoading, employeesLoading, appointmentsLoading, 
@@ -61,7 +61,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
         setErrors, setServerDate, clearError
     } = useBookingStore();
     
-    // ✅ Custom hooks for state management
+    // ✅ Custom hooks for additional state
     const bookingState = useBookingState();
     const debugState = useDebugState();
     
@@ -658,7 +658,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
             </div>
         </>
     );
-});
+}));
 
 // Initialize app
 window.BookingApp = null;

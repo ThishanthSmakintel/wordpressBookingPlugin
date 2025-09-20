@@ -7,7 +7,7 @@ interface ServiceSelectorProps {
     columns?: number;
 }
 
-const ServiceSelector: React.FC<ServiceSelectorProps> = ({
+const ServiceSelector: React.FC<ServiceSelectorProps> = React.memo(({
     onRetry,
     columns = 2
 }) => {
@@ -206,6 +206,6 @@ const ServiceSelector: React.FC<ServiceSelectorProps> = ({
             </div>
         </div>
     );
-};
+});
 
 export default ServiceSelector;
