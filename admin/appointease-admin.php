@@ -1151,13 +1151,14 @@ class AppointEase_Admin {
                 <div class="ae-card">
                     <h3>Working Days</h3>
                     <div class="form-group">
-                        <label><input type="checkbox" name="appointease_options[working_days][]" value="1" <?php checked(in_array('1', isset($options['working_days']) ? $options['working_days'] : ['1','2','3','4','5'])); ?>> Monday</label>
-                        <label><input type="checkbox" name="appointease_options[working_days][]" value="2" <?php checked(in_array('2', isset($options['working_days']) ? $options['working_days'] : ['1','2','3','4','5'])); ?>> Tuesday</label>
-                        <label><input type="checkbox" name="appointease_options[working_days][]" value="3" <?php checked(in_array('3', isset($options['working_days']) ? $options['working_days'] : ['1','2','3','4','5'])); ?>> Wednesday</label>
-                        <label><input type="checkbox" name="appointease_options[working_days][]" value="4" <?php checked(in_array('4', isset($options['working_days']) ? $options['working_days'] : ['1','2','3','4','5'])); ?>> Thursday</label>
-                        <label><input type="checkbox" name="appointease_options[working_days][]" value="5" <?php checked(in_array('5', isset($options['working_days']) ? $options['working_days'] : ['1','2','3','4','5'])); ?>> Friday</label>
-                        <label><input type="checkbox" name="appointease_options[working_days][]" value="6" <?php checked(in_array('6', isset($options['working_days']) ? $options['working_days'] : [])); ?>> Saturday</label>
-                        <label><input type="checkbox" name="appointease_options[working_days][]" value="0" <?php checked(in_array('0', isset($options['working_days']) ? $options['working_days'] : [])); ?>> Sunday</label>
+                        <?php $working_days = isset($options['working_days']) && is_array($options['working_days']) ? $options['working_days'] : ['1','2','3','4','5']; ?>
+                        <label><input type="checkbox" name="appointease_options[working_days][]" value="1" <?php checked(in_array('1', $working_days)); ?>> Monday</label>
+                        <label><input type="checkbox" name="appointease_options[working_days][]" value="2" <?php checked(in_array('2', $working_days)); ?>> Tuesday</label>
+                        <label><input type="checkbox" name="appointease_options[working_days][]" value="3" <?php checked(in_array('3', $working_days)); ?>> Wednesday</label>
+                        <label><input type="checkbox" name="appointease_options[working_days][]" value="4" <?php checked(in_array('4', $working_days)); ?>> Thursday</label>
+                        <label><input type="checkbox" name="appointease_options[working_days][]" value="5" <?php checked(in_array('5', $working_days)); ?>> Friday</label>
+                        <label><input type="checkbox" name="appointease_options[working_days][]" value="6" <?php checked(in_array('6', $working_days)); ?>> Saturday</label>
+                        <label><input type="checkbox" name="appointease_options[working_days][]" value="0" <?php checked(in_array('0', $working_days)); ?>> Sunday</label>
                     </div>
                 </div>
                 

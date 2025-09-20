@@ -231,7 +231,7 @@ class Booking_Plugin {
         
         wp_enqueue_script('toastify', 'https://unpkg.com/toastify-js@1.12.0/src/toastify.js', array(), '1.12.0', true);
         wp_enqueue_style('toastify-css', 'https://unpkg.com/toastify-js@1.12.0/src/toastify.css', array(), '1.12.0');
-        wp_enqueue_style('remixicon', 'https://cdn.jsdelivr.net/npm/remixicon@4.0.0/fonts/remixicon.css', array(), '4.0.0');
+        wp_enqueue_style('fontawesome', 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css', array(), '6.4.0');
         
         wp_enqueue_script(
             'booking-frontend',
@@ -244,7 +244,7 @@ class Booking_Plugin {
         wp_enqueue_style(
             'booking-frontend-css',
             BOOKING_PLUGIN_URL . 'build/frontend.css',
-            ['remixicon'],
+            ['fontawesome'],
             $frontend_asset_data['version']
         );
         

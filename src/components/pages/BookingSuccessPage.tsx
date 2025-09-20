@@ -76,9 +76,14 @@ const BookingSuccessPage: React.FC<BookingSuccessPageProps> = ({
                 </div>
                 
                 <h1 className="success-title">Booking Confirmed!</h1>
-                <p className="success-subtitle">
-                    Your appointment has been successfully booked. We've sent a confirmation email to <strong>{formData?.email}</strong>.
-                </p>
+                <div className="success-subtitle">
+                    <p>Your appointment has been successfully booked.</p>
+                    <p>We've sent a confirmation email to:</p>
+                    <div className="email-display">
+                        <i className="fas fa-envelope"></i>
+                        <strong>{formData?.email}</strong>
+                    </div>
+                </div>
             
                 <div className="appointment-card">
                     <div className="appointment-id">
@@ -97,14 +102,9 @@ const BookingSuccessPage: React.FC<BookingSuccessPageProps> = ({
                             <span className="detail-label">Service:</span>
                             <span className="detail-value">{selectedService?.name}</span>
                         </div>
-                        <div className="detail-row">
-                            <span className="icon">
-                                <i className="fas fa-user-md"></i>
-                            </span>
-                            <div>
-                                <span className="label">Specialist</span>
-                                <span className="value">{selectedEmployee?.name}</span>
-                            </div>
+                        <div className="detail-item">
+                            <span className="detail-label">Specialist:</span>
+                            <span className="detail-value">{selectedEmployee?.name}</span>
                         </div>
                         <div className="detail-item">
                             <span className="detail-label">Date & Time:</span>

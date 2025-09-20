@@ -1,5 +1,10 @@
 import { Service, Employee, Appointment } from '../types';
 
+interface AvailabilityResponse {
+  unavailable: string[] | 'all';
+  reason?: string;
+}
+
 class ApiService {
   private baseUrl: string;
   private nonce: string;
@@ -70,6 +75,22 @@ class ApiService {
       body: JSON.stringify({ new_date: newDate }),
     });
   }
+
+  async checkAvailability(data: { date: string; employee_id: number }): Promise<AvailabilityResponse> {
+    return this.request<AvailabilityResponse>('booking/v1/availability', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
 }
 
 export const apiService = new ApiService();
+
+// Export individual functions for easier imports
+export const getServices = () => apiService.getServices();
+export const getEmployees = () => apiService.getEmployees();
+export const getUserAppointments = (email: string) => apiService.getUserAppointments(email);
+export const createAppointment = (data: any) => apiService.createAppointment(data);
+export const cancelAppointment = (id: string) => apiService.cancelAppointment(id);
+export const rescheduleAppointment = (id: string, newDate: string) => apiService.rescheduleAppointment(id, newDate);
+export const checkAvailability = (data: { date: string; employee_id: number }): Promise<AvailabilityResponse> => apiService.checkAvailability(data);

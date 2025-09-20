@@ -1,21 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useBookingStore } from '../../store/bookingStore';
 import { TIME_SLOTS } from '../../constants';
 
 interface TimeSelectorProps {
-    unavailableSlots: string[];
+    unavailableSlots: string[] | 'all';
     timezone: string;
+    bookingDetails?: Record<string, any>;
 }
 
 const TimeSelector: React.FC<TimeSelectorProps> = ({
     unavailableSlots,
-    timezone
+    timezone,
+    bookingDetails = {}
 }) => {
     const { selectedDate, selectedTime, selectedService, setSelectedTime, setStep } = useBookingStore();
     const [tempSelected, setTempSelected] = useState<string>(selectedTime || '');
     
     const handleTimeSelect = (time: string) => {
-        if (!unavailableSlots.includes(time)) {
+        if (unavailableSlots !== 'all' && (!Array.isArray(unavailableSlots) || !unavailableSlots.includes(time))) {
             setTempSelected(time);
         }
     };
@@ -31,7 +33,31 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
         setStep(3);
     };
     
-    const timeSlots = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'];
+    const [timeSlots, setTimeSlots] = useState<string[]>([]);
+    const [isLoadingSlots, setIsLoadingSlots] = useState(true);
+    
+    // Load time slots from API
+    useEffect(() => {
+        const loadTimeSlots = async () => {
+            try {
+                const response = await fetch('/wp-json/appointease/v1/time-slots');
+                if (response.ok) {
+                    const data = await response.json();
+                    setTimeSlots(data.time_slots || []);
+                } else {
+                    // Fallback to default slots
+                    setTimeSlots(['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30']);
+                }
+            } catch (error) {
+                // Fallback to default slots
+                setTimeSlots(['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30']);
+            } finally {
+                setIsLoadingSlots(false);
+            }
+        };
+        
+        loadTimeSlots();
+    }, []);
 
     return (
         <div className="appointease-step-content">
@@ -57,14 +83,19 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
             </div>
             
             <div style={{maxWidth: '600px', margin: '0 auto'}}>
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-                    gap: '16px',
-                    marginBottom: '32px'
-                }}>
+                {isLoadingSlots ? (
+                    <div style={{textAlign: 'center', padding: '40px'}}>
+                        <div style={{fontSize: '16px', color: '#666'}}>Loading available times...</div>
+                    </div>
+                ) : (
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+                        gap: '16px',
+                        marginBottom: '32px'
+                    }}>
                     {timeSlots.map(time => {
-                        const isUnavailable = unavailableSlots.includes(time);
+                        const isUnavailable = unavailableSlots === 'all' || (Array.isArray(unavailableSlots) && unavailableSlots.includes(time));
                         const serviceDuration = selectedService?.duration || 30;
                         const isSelected = tempSelected === time;
                         
@@ -118,12 +149,25 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                                     textTransform: 'uppercase',
                                     letterSpacing: '0.05em'
                                 }}>
-                                    {isUnavailable ? 'Unavailable' : 'Available'}
+                                    {isUnavailable ? 'Booked' : 'Available'}
                                 </div>
+                                {isUnavailable && bookingDetails[time] && (
+                                    <div style={{
+                                        fontSize: '0.5rem',
+                                        color: '#666',
+                                        marginTop: '4px',
+                                        textAlign: 'center',
+                                        lineHeight: '1.2'
+                                    }}>
+                                        <div>By: {bookingDetails[time].customer_name}</div>
+                                        <div>ID: {bookingDetails[time].booking_id}</div>
+                                    </div>
+                                )}
                             </div>
                         );
                     })}
-                </div>
+                    </div>
+                )}
                 
                 {/* Action Buttons */}
                 <div style={{display: 'flex', justifyContent: 'space-between'}}>

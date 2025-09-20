@@ -19,6 +19,8 @@ interface BookingState {
     errors: FormErrors;
     apiLoading: boolean;
     apiError: string | null;
+    serverDate: string | null;
+    refreshTrigger: number;
     
     setStep: (step: number) => void;
     setSelectedService: (service: Service | null) => void;
@@ -37,12 +39,14 @@ interface BookingState {
     setErrors: (errors: FormErrors) => void;
     setApiLoading: (loading: boolean) => void;
     setApiError: (error: string | null) => void;
+    setServerDate: (date: string | null) => void;
+    triggerRefresh: () => void;
     clearError: (field: string) => void;
     reset: () => void;
 }
 
 export const useBookingStore = create<BookingState>((set, get) => ({
-    step: 1,
+    step: 0,
     selectedService: null,
     selectedEmployee: null,
     selectedDate: '',
@@ -59,6 +63,8 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     errors: {},
     apiLoading: false,
     apiError: null,
+    serverDate: null,
+    refreshTrigger: 0,
     
     setStep: (step) => set({ step }),
     setSelectedService: (selectedService) => set({ selectedService }),
@@ -77,6 +83,8 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     setErrors: (errors) => set({ errors }),
     setApiLoading: (apiLoading) => set({ apiLoading }),
     setApiError: (apiError) => set({ apiError }),
+    setServerDate: (serverDate) => set({ serverDate }),
+    triggerRefresh: () => set((state) => ({ refreshTrigger: state.refreshTrigger + 1 })),
     clearError: (field) => set((state) => {
         const newErrors = { ...state.errors };
         delete newErrors[field];

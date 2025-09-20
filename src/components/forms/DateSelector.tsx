@@ -1,10 +1,45 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useBookingStore } from '../../store/bookingStore';
-import { BUSINESS_HOURS } from '../../constants';
+import { checkAvailability } from '../../services/api';
 
-const DateSelector: React.FC = () => {
-    const { selectedDate, setSelectedDate, setStep } = useBookingStore();
+// Date utility functions
+const createDate = (year: number, month: number, day: number) => {
+    const date = new Date(year, month, day);
+    // Ensure we're working with local dates, not UTC
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+};
+
+const formatDateString = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
+
+// Ensure Remix Icons is loaded
+if (!document.querySelector('link[href*="remixicon"]')) {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://cdn.jsdelivr.net/npm/remixicon@4.0.0/fonts/remixicon.css';
+    link.crossOrigin = 'anonymous';
+    document.head.appendChild(link);
+}
+
+interface DateSelectorProps {
+    isReschedule?: boolean;
+}
+
+interface DateStatus {
+    isAvailable: boolean;
+    reason?: string;
+    isLoading: boolean;
+}
+
+const DateSelector: React.FC<DateSelectorProps> = ({ isReschedule = false }) => {
+    const { selectedDate, setSelectedDate, setStep, selectedEmployee, serverDate, refreshTrigger } = useBookingStore();
     const [tempSelected, setTempSelected] = useState<string>(selectedDate || '');
+    const [dateStatuses, setDateStatuses] = useState<Map<string, DateStatus>>(new Map());
+    const [currentMonth, setCurrentMonth] = useState(0);
     
     const handleDateSelect = (date: string) => {
         setTempSelected(date);
@@ -21,20 +56,210 @@ const DateSelector: React.FC = () => {
         setStep(2);
     };
     
-    const generateCalendar = () => {
-        const today = new Date();
+    const generateCalendar = useMemo(() => {
+        const serverToday = serverDate ? new Date(serverDate) : new Date('2025-09-20');
+        const targetYear = serverToday.getFullYear();
+        const targetMonth = serverToday.getMonth() + currentMonth;
+        
+        // Get the last day of the target month
+        const lastDay = new Date(targetYear, targetMonth + 1, 0).getDate();
         const days = [];
-        for (let i = 0; i < 14; i++) {
-            const date = new Date(today);
-            date.setDate(today.getDate() + i);
+        
+        // For current month, start from today; for future months, start from day 1
+        const startDay = currentMonth === 0 ? Math.max(serverToday.getDate(), 1) : 1;
+        
+        for (let day = startDay; day <= lastDay; day++) {
+            const date = createDate(targetYear, targetMonth, day);
             days.push(date);
         }
+        
         return days;
+    }, [serverDate, currentMonth]);
+    
+    const getMonthName = () => {
+        const date = serverDate ? new Date(serverDate) : new Date('2025-09-20');
+        date.setMonth(date.getMonth() + currentMonth);
+        return date.toLocaleDateString('en', { month: 'long', year: 'numeric' });
+    };
+    
+    const canGoNext = () => currentMonth < 3;
+    const canGoPrev = () => currentMonth > 0;
+    
+    // Check availability for all dates when employee, month, or refresh trigger changes
+    useEffect(() => {
+        if (!selectedEmployee) {
+            setDateStatuses(new Map());
+            return;
+        }
+        
+        const employeeId = typeof selectedEmployee === 'object' ? selectedEmployee.id : selectedEmployee;
+        if (!employeeId) return;
+        
+        // Set all dates to loading initially
+        const newStatuses = new Map<string, DateStatus>();
+        generateCalendar.forEach(date => {
+            const dateString = date.toISOString().split('T')[0];
+            newStatuses.set(dateString, { isAvailable: false, isLoading: true });
+        });
+        setDateStatuses(newStatuses);
+        
+        // Check each date
+        const checkDates = async () => {
+            for (const date of generateCalendar) {
+                const dateString = formatDateString(date);
+                
+                try {
+                    const response = await checkAvailability({
+                        date: dateString,
+                        employee_id: employeeId
+                    });
+                    
+                    const isAvailable = response.unavailable !== 'all';
+                    const reason = response.reason;
+                    
+                    setDateStatuses(prev => {
+                        const updated = new Map(prev);
+                        const newStatus = {
+                            isAvailable,
+                            reason: isAvailable ? undefined : reason,
+                            isLoading: false
+                        };
+                        updated.set(dateString, newStatus);
+                        
+                        // Debug weekend dates specifically
+                        const dayOfWeek = new Date(dateString).getDay();
+                        if (dayOfWeek === 0 || dayOfWeek === 6) {
+                            console.log(`[DateSelector] WEEKEND UPDATE ${dateString}:`, {
+                                dayOfWeek,
+                                response,
+                                newStatus,
+                                mapSize: updated.size
+                            });
+                        }
+                        
+                        return updated;
+                    });
+                } catch (error) {
+                    setDateStatuses(prev => {
+                        const updated = new Map(prev);
+                        updated.set(dateString, {
+                            isAvailable: false,
+                            reason: 'error',
+                            isLoading: false
+                        });
+                        return updated;
+                    });
+                }
+            }
+        };
+        
+        checkDates();
+    }, [selectedEmployee, currentMonth, generateCalendar, refreshTrigger]);
+
+    const renderDateStatus = (dateString: string, date: Date) => {
+        const status = dateStatuses.get(dateString);
+        const isPast = date < new Date(new Date().setHours(0,0,0,0));
+        
+        // Debug log for weekend dates
+        const dayOfWeek = date.getDay();
+        if (dayOfWeek === 0 || dayOfWeek === 6) {
+            console.log(`[renderDateStatus] ${dateString} (${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][dayOfWeek]}):`, {
+                status,
+                isPast,
+                hasStatus: !!status,
+                isLoading: status?.isLoading,
+                isAvailable: status?.isAvailable,
+                reason: status?.reason
+            });
+        }
+        
+        if (isPast) {
+            return (
+                <div style={{ fontSize: '0.625rem', color: '#6c757d', marginTop: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
+                    <span>🕐</span><span>Past</span>
+                </div>
+            );
+        }
+        
+        if (!status || status.isLoading) {
+            return (
+                <div style={{ fontSize: '0.625rem', color: '#6b7280', marginTop: '4px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
+                    <span>⏳</span><span>Checking...</span>
+                </div>
+            );
+        }
+        
+        if (status.isAvailable) {
+            return (
+                <div style={{ fontSize: '0.7rem', color: '#10b981', marginTop: '4px', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
+                    <span>✅</span><span>Available</span>
+                </div>
+            );
+        }
+        
+        // Unavailable - show reason
+        const getReasonDisplay = (reason?: string) => {
+            switch (reason) {
+                case 'non_working_day': return { icon: '❌', text: 'Non-working day' };
+                case 'blackout_date': return { icon: '🚫', text: 'Holiday' };
+                case 'too_far_advance': return { icon: '📅', text: 'Too far ahead' };
+                case 'past_date': return { icon: '🕐', text: 'Past date' };
+                case 'error': return { icon: '⚠️', text: 'Error' };
+                default: return { icon: '❌', text: 'Closed' };
+            }
+        };
+        
+        const { icon, text } = getReasonDisplay(status.reason);
+        return (
+            <div style={{ fontSize: '0.625rem', color: '#ef4444', marginTop: '4px', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
+                <span>{icon}</span><span>{text}</span>
+            </div>
+        );
     };
 
     return (
         <div className="appointease-step-content">
-            <h2 style={{fontSize: '2rem', fontWeight: '700', textAlign: 'center', marginBottom: '2rem', color: '#1f2937'}}>Pick Your Date</h2>
+            <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '2rem', gap: '20px'}}>
+                <button 
+                    onClick={() => setCurrentMonth(currentMonth - 1)}
+                    disabled={!canGoPrev()}
+                    style={{
+                        backgroundColor: canGoPrev() ? '#f3f4f6' : '#e5e7eb',
+                        border: 'none',
+                        borderRadius: '8px',
+                        padding: '12px',
+                        cursor: canGoPrev() ? 'pointer' : 'not-allowed',
+                        opacity: canGoPrev() ? 1 : 0.5,
+                        fontSize: '1.2rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                    }}
+                >
+                    <i className="ri-arrow-left-s-line"></i>
+                </button>
+                <h2 style={{fontSize: '2rem', fontWeight: '700', color: '#1f2937', margin: 0}}>
+                    {getMonthName()}
+                </h2>
+                <button 
+                    onClick={() => setCurrentMonth(currentMonth + 1)}
+                    disabled={!canGoNext()}
+                    style={{
+                        backgroundColor: canGoNext() ? '#f3f4f6' : '#e5e7eb',
+                        border: 'none',
+                        borderRadius: '8px',
+                        padding: '12px',
+                        cursor: canGoNext() ? 'pointer' : 'not-allowed',
+                        opacity: canGoNext() ? 1 : 0.5,
+                        fontSize: '1.2rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                    }}
+                >
+                    <i className="ri-arrow-right-s-line"></i>
+                </button>
+            </div>
             
             <div style={{maxWidth: '800px', margin: '0 auto'}}>
                 <div style={{
@@ -43,11 +268,11 @@ const DateSelector: React.FC = () => {
                     gap: '16px',
                     marginBottom: '32px'
                 }}>
-                    {generateCalendar().map((date, index) => {
-                        const isWeekend = BUSINESS_HOURS.closedDays.includes(date.getDay());
+                    {generateCalendar.map((date: Date, index: number) => {
+                        const dateString = formatDateString(date);
+                        const status = dateStatuses.get(dateString);
                         const isPast = date < new Date(new Date().setHours(0,0,0,0));
-                        const isDisabled = isWeekend || isPast;
-                        const dateString = date.toISOString().split('T')[0];
+                        const isDisabled = isPast || (status && !status.isAvailable && !status.isLoading);
                         const isSelected = tempSelected === dateString;
                         
                         return (
@@ -64,18 +289,6 @@ const DateSelector: React.FC = () => {
                                     transition: 'all 0.2s ease',
                                     opacity: isDisabled ? 0.5 : 1,
                                     boxShadow: isSelected ? '0 4px 12px rgba(16, 185, 129, 0.15)' : '0 2px 4px rgba(0, 0, 0, 0.05)'
-                                }}
-                                onMouseEnter={(e) => {
-                                    if (!isDisabled && !isSelected) {
-                                        e.currentTarget.style.borderColor = '#d1d5db';
-                                        e.currentTarget.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.1)';
-                                    }
-                                }}
-                                onMouseLeave={(e) => {
-                                    if (!isDisabled && !isSelected) {
-                                        e.currentTarget.style.borderColor = '#e5e7eb';
-                                        e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
-                                    }
                                 }}
                             >
                                 <div style={{
@@ -102,22 +315,12 @@ const DateSelector: React.FC = () => {
                                 }}>
                                     {date.toLocaleDateString('en', { month: 'short' })}
                                 </div>
-                                {isDisabled && (
-                                    <div style={{
-                                        fontSize: '0.625rem',
-                                        color: '#ef4444',
-                                        marginTop: '4px',
-                                        fontWeight: '500'
-                                    }}>
-                                        {isWeekend ? 'Closed' : 'Past'}
-                                    </div>
-                                )}
+                                {renderDateStatus(dateString, date)}
                             </div>
                         );
                     })}
                 </div>
                 
-                {/* Action Buttons */}
                 <div style={{display: 'flex', justifyContent: 'space-between'}}>
                     <button 
                         onClick={handleBack}
@@ -129,10 +332,13 @@ const DateSelector: React.FC = () => {
                             padding: '12px 24px',
                             cursor: 'pointer',
                             fontSize: '1rem',
-                            fontWeight: '500'
+                            fontWeight: '500',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px'
                         }}
                     >
-                        ← Back
+                        <i className="ri-arrow-left-line"></i> Back
                     </button>
                     <button 
                         onClick={handleNext}
@@ -146,10 +352,13 @@ const DateSelector: React.FC = () => {
                             fontSize: '1.1rem',
                             fontWeight: '600',
                             cursor: tempSelected ? 'pointer' : 'not-allowed',
-                            transition: 'all 0.2s ease'
+                            transition: 'all 0.2s ease',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px'
                         }}
                     >
-                        Next: Choose Time →
+                        Next: Choose Time <i className="ri-arrow-right-line"></i>
                     </button>
                 </div>
             </div>

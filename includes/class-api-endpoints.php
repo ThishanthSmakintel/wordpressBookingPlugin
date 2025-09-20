@@ -63,6 +63,13 @@ class Booking_API_Endpoints {
             'permission_callback' => array($this, 'public_permission')
         ));
         
+        // Add appointease/v1 availability route
+        register_rest_route('appointease/v1', '/availability', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'check_availability'),
+            'permission_callback' => array($this, 'public_permission')
+        ));
+        
         // User appointments endpoint (keeping both namespaces for backward compatibility)
         register_rest_route('appointease/v1', '/user-appointments', array(
             'methods' => 'POST',
@@ -81,6 +88,13 @@ class Booking_API_Endpoints {
         register_rest_route('appointease/v1', '/debug/appointments', array(
             'methods' => 'GET',
             'callback' => array($this, 'debug_appointments'),
+            'permission_callback' => array($this, 'public_permission')
+        ));
+        
+        // Clear all appointments endpoint for testing
+        register_rest_route('appointease/v1', '/clear-appointments', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'clear_all_appointments'),
             'permission_callback' => array($this, 'public_permission')
         ));
         
@@ -121,6 +135,48 @@ class Booking_API_Endpoints {
         register_rest_route('appointease/v1', '/verify-otp', array(
             'methods' => 'POST',
             'callback' => array($this, 'verify_otp_and_create_session'),
+            'permission_callback' => '__return_true'
+        ));
+        
+        // Debug working days endpoint
+        register_rest_route('appointease/v1', '/debug/working-days', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'debug_working_days'),
+            'permission_callback' => '__return_true'
+        ));
+        
+        // Fix working days endpoint
+        register_rest_route('appointease/v1', '/fix-working-days', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'fix_working_days'),
+            'permission_callback' => '__return_true'
+        ));
+        
+        // Server date endpoint for time sync
+        register_rest_route('appointease/v1', '/server-date', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_server_date'),
+            'permission_callback' => '__return_true'
+        ));
+        
+        // Time slots endpoint
+        register_rest_route('appointease/v1', '/time-slots', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_time_slots'),
+            'permission_callback' => '__return_true'
+        ));
+        
+        // Business hours endpoint
+        register_rest_route('appointease/v1', '/business-hours', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_business_hours'),
+            'permission_callback' => '__return_true'
+        ));
+        
+        // Check specific slot booking status
+        register_rest_route('appointease/v1', '/check-slot', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'check_slot_booking'),
             'permission_callback' => '__return_true'
         ));
     }
@@ -165,18 +221,109 @@ class Booking_API_Endpoints {
             return new WP_Error('invalid_date', 'Invalid date format', array('status' => 400));
         }
         
+        // Load options at the beginning
+        $options = get_option('appointease_options', array());
+        $unavailable_times = array();
+        
+        // Debug: Log the loaded options
+        error_log("[AppointEase] Loaded options: " . print_r($options, true));
+        
+        // Check if date is in the past
+        $today = date('Y-m-d');
+        if ($date < $today) {
+            return rest_ensure_response(array('unavailable' => 'all', 'reason' => 'past_date'));
+        }
+        
+        // Check if date is too far in advance
+        $advance_booking_days = isset($options['advance_booking']) ? intval($options['advance_booking']) : 30;
+        $max_date = strtotime("+{$advance_booking_days} days");
+        if (strtotime($date) > $max_date) {
+            return rest_ensure_response(array('unavailable' => 'all', 'reason' => 'too_far_advance'));
+        }
+        
+        // Check working days - get from database with proper fallback
+        $working_days = ['1','2','3','4','5']; // Default: Monday-Friday
+        if (isset($options['working_days'])) {
+            if (is_array($options['working_days']) && !empty($options['working_days'])) {
+                $working_days = $options['working_days'];
+            } elseif (is_string($options['working_days']) && !empty($options['working_days'])) {
+                // Handle comma-separated string
+                $working_days = explode(',', $options['working_days']);
+                $working_days = array_map('trim', $working_days);
+            }
+        }
+        $day_of_week = date('w', strtotime($date)); // 0 = Sunday, 1 = Monday, etc.
+        
+        // Debug logging
+        error_log("[AppointEase] Date: $date, Day of week: $day_of_week, Working days: " . print_r($working_days, true));
+        error_log("[AppointEase] Options working_days value: " . print_r($options['working_days'] ?? 'NOT SET', true));
+        error_log("[AppointEase] Is array check: " . (is_array($options['working_days'] ?? null) ? 'YES' : 'NO'));
+        
+        if (!in_array((string)$day_of_week, $working_days)) {
+            error_log("[AppointEase] Day $day_of_week not in working days, returning non_working_day");
+            return rest_ensure_response(array('unavailable' => 'all', 'reason' => 'non_working_day'));
+        }
+        
+        error_log("[AppointEase] Day $day_of_week is a working day, continuing...");
+        
+        // Check blackout dates
+        $blackout_table = $wpdb->prefix . 'appointease_blackout_dates';
+        $blackout_count = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$blackout_table} WHERE %s BETWEEN start_date AND end_date",
+            $date
+        ));
+        
+        if ($blackout_count > 0) {
+            return rest_ensure_response(array('unavailable' => 'all', 'reason' => 'blackout_date'));
+        }
+        
         // Check existing appointments for this staff member on this date
         $appointments_table = $wpdb->prefix . 'appointments';
-        $booked_times = $wpdb->get_col($wpdb->prepare(
-            "SELECT TIME_FORMAT(appointment_date, '%%H:%%i') as time_slot FROM {$appointments_table} WHERE employee_id = %d AND DATE(appointment_date) = %s AND status = 'confirmed'",
+        $booked_appointments = $wpdb->get_results($wpdb->prepare(
+            "SELECT TIME_FORMAT(appointment_date, '%%H:%%i') as time_slot, name, email, status, strong_id, id, appointment_date FROM {$appointments_table} WHERE employee_id = %d AND DATE(appointment_date) = %s AND status IN ('confirmed', 'created')",
             $employee_id, $date
         ));
+        
+        // Enhanced debug logging
+        error_log("[AppointEase] SQL Query: SELECT TIME_FORMAT(appointment_date, '%H:%i') as time_slot, name, email, status, strong_id, id, appointment_date FROM {$appointments_table} WHERE employee_id = {$employee_id} AND DATE(appointment_date) = '{$date}' AND status IN ('confirmed', 'created')");
+        error_log("[AppointEase] Raw query result: " . print_r($booked_appointments, true));
+        
+        $booked_times = array();
+        $booking_details = array();
+        
+        foreach ($booked_appointments as $appointment) {
+            $time_slot = $appointment->time_slot;
+            $booked_times[] = $time_slot;
+            $booking_details[$time_slot] = array(
+                'customer_name' => $appointment->name,
+                'customer_email' => $appointment->email,
+                'status' => $appointment->status,
+                'booking_id' => $appointment->strong_id ?: $appointment->id,
+                'booked_at' => $time_slot
+            );
+        }
+        
+        // Enhanced debug logging
+        error_log("[AppointEase] Checking availability for date: $date, employee: $employee_id");
+        error_log("[AppointEase] Found booked times: " . print_r($booked_times, true));
+        error_log("[AppointEase] Booking details: " . print_r($booking_details, true));
+        error_log("[AppointEase] Total appointments found: " . count($booked_appointments));
+        
+        // Additional debug: Check if there are ANY appointments for this employee
+        $all_employee_appointments = $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$appointments_table} WHERE employee_id = %d",
+            $employee_id
+        ));
+        error_log("[AppointEase] All appointments for employee {$employee_id}: " . print_r($all_employee_appointments, true));
         
         if ($wpdb->last_error) {
             return new WP_Error('db_error', 'Database error occurred', array('status' => 500));
         }
         
-        return rest_ensure_response(array('unavailable' => $booked_times));
+        return rest_ensure_response(array(
+            'unavailable' => $booked_times,
+            'booking_details' => $booking_details
+        ));
     }
     
     public function create_appointment($request) {
@@ -429,34 +576,55 @@ class Booking_API_Endpoints {
     }
     
     public function debug_appointments($request) {
-        // Restrict debug endpoint to admin users only
-        if (!current_user_can('manage_options')) {
-            return new WP_Error('forbidden', 'Access denied', array('status' => 403));
-        }
-        
         global $wpdb;
         $table = $wpdb->prefix . 'appointments';
         
+        // Get all appointments with full details
         $appointments = $wpdb->get_results(
-            "SELECT id, strong_id, name, appointment_date, status FROM {$table} ORDER BY id DESC LIMIT 20"
+            "SELECT * FROM {$table} ORDER BY appointment_date DESC"
         );
         
         if ($wpdb->last_error) {
             return new WP_Error('db_error', 'Database error occurred', array('status' => 500));
         }
         
-        $total_count = $wpdb->get_var("SELECT COUNT(*) FROM {$table}");
-        $null_strong_ids = $wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE strong_id IS NULL");
+        // Get counts by status
+        $status_counts = $wpdb->get_results(
+            "SELECT status, COUNT(*) as count FROM {$table} GROUP BY status"
+        );
         
-        if ($wpdb->last_error) {
-            return new WP_Error('db_error', 'Database error occurred', array('status' => 500));
-        }
+        // Get appointments by employee
+        $employee_counts = $wpdb->get_results(
+            "SELECT employee_id, COUNT(*) as count FROM {$table} GROUP BY employee_id"
+        );
+        
+        // Get recent appointments (last 7 days)
+        $recent_appointments = $wpdb->get_results(
+            "SELECT * FROM {$table} WHERE appointment_date >= DATE_SUB(NOW(), INTERVAL 7 DAY) ORDER BY appointment_date DESC"
+        );
+        
+        // Get upcoming appointments (next 30 days)
+        $upcoming_appointments = $wpdb->get_results(
+            "SELECT * FROM {$table} WHERE appointment_date >= NOW() AND appointment_date <= DATE_ADD(NOW(), INTERVAL 30 DAY) ORDER BY appointment_date ASC"
+        );
+        
+        $total_count = $wpdb->get_var("SELECT COUNT(*) FROM {$table}");
+        $null_strong_ids = $wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE strong_id IS NULL OR strong_id = ''");
         
         return rest_ensure_response(array(
             'table_name' => $table,
-            'appointments' => $appointments,
-            'total_count' => $total_count,
-            'null_strong_ids' => $null_strong_ids
+            'server_time' => date('Y-m-d H:i:s'),
+            'total_count' => intval($total_count),
+            'null_strong_ids' => intval($null_strong_ids),
+            'status_counts' => $status_counts,
+            'employee_counts' => $employee_counts,
+            'all_appointments' => $appointments,
+            'recent_appointments' => $recent_appointments,
+            'upcoming_appointments' => $upcoming_appointments,
+            'database_info' => array(
+                'table_exists' => $wpdb->get_var("SHOW TABLES LIKE '{$table}'") === $table,
+                'table_structure' => $wpdb->get_results("DESCRIBE {$table}")
+            )
         ));
     }
     
@@ -608,5 +776,142 @@ class Booking_API_Endpoints {
         $session_manager->clearSession();
         
         return rest_ensure_response(array('success' => true));
+    }
+    
+    public function clear_all_appointments($request) {
+        global $wpdb;
+        $table = $wpdb->prefix . 'appointments';
+        
+        $result = $wpdb->query("TRUNCATE TABLE {$table}");
+        
+        if ($result === false) {
+            return new WP_Error('clear_failed', 'Failed to clear appointments', array('status' => 500));
+        }
+        
+        return rest_ensure_response(array(
+            'success' => true,
+            'message' => 'All appointments cleared successfully'
+        ));
+    }
+    
+    public function debug_working_days($request) {
+        $options = get_option('appointease_options', array());
+        $working_days = isset($options['working_days']) && is_array($options['working_days']) && !empty($options['working_days']) 
+            ? $options['working_days'] 
+            : ['1','2','3','4','5']; // Default: Monday-Friday
+        
+        return rest_ensure_response(array(
+            'working_days' => $working_days,
+            'all_options' => $options,
+            'server_date' => date('Y-m-d'),
+            'server_time' => date('Y-m-d H:i:s'),
+            'timezone' => date_default_timezone_get(),
+            'day_names' => array(
+                '0' => 'Sunday',
+                '1' => 'Monday', 
+                '2' => 'Tuesday',
+                '3' => 'Wednesday',
+                '4' => 'Thursday',
+                '5' => 'Friday',
+                '6' => 'Saturday'
+            )
+        ));
+    }
+    
+    public function fix_working_days($request) {
+        $options = get_option('appointease_options', array());
+        $options['working_days'] = ['1','2','3','4','5']; // Monday-Friday only
+        $result = update_option('appointease_options', $options);
+        
+        // Clear any caches
+        wp_cache_delete('appointease_options', 'options');
+        
+        return rest_ensure_response(array(
+            'success' => true,
+            'message' => 'Working days fixed to Monday-Friday only',
+            'working_days' => $options['working_days'],
+            'update_result' => $result
+        ));
+    }
+    
+    public function get_server_date($request) {
+        return rest_ensure_response(array(
+            'server_date' => date('Y-m-d'),
+            'server_time' => date('Y-m-d H:i:s'),
+            'server_timestamp' => time(),
+            'timezone' => date_default_timezone_get(),
+            'utc_offset' => date('P')
+        ));
+    }
+    
+    public function get_time_slots($request) {
+        $options = get_option('appointease_options', array());
+        
+        // Default time slots if not configured
+        $default_slots = array(
+            '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+            '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'
+        );
+        
+        $time_slots = isset($options['time_slots']) && !empty($options['time_slots']) 
+            ? $options['time_slots'] 
+            : $default_slots;
+            
+        return rest_ensure_response(array(
+            'time_slots' => $time_slots,
+            'slot_duration' => isset($options['slot_duration']) ? intval($options['slot_duration']) : 30
+        ));
+    }
+    
+    public function get_business_hours($request) {
+        $options = get_option('appointease_options', array());
+        
+        return rest_ensure_response(array(
+            'working_days' => isset($options['working_days']) && !empty($options['working_days']) 
+                ? $options['working_days'] 
+                : array('1','2','3','4','5'),
+            'start_time' => isset($options['start_time']) ? $options['start_time'] : '09:00',
+            'end_time' => isset($options['end_time']) ? $options['end_time'] : '17:00',
+            'lunch_start' => isset($options['lunch_start']) ? $options['lunch_start'] : '12:00',
+            'lunch_end' => isset($options['lunch_end']) ? $options['lunch_end'] : '14:00'
+        ));
+    }
+    
+    public function check_slot_booking($request) {
+        global $wpdb;
+        $params = $request->get_json_params();
+        
+        if (!isset($params['date'], $params['time'], $params['employee_id'])) {
+            return new WP_Error('missing_params', 'Date, time and employee ID are required', array('status' => 400));
+        }
+        
+        $date = sanitize_text_field($params['date']);
+        $time = sanitize_text_field($params['time']);
+        $employee_id = intval($params['employee_id']);
+        
+        $datetime = $date . ' ' . $time . ':00';
+        
+        $appointments_table = $wpdb->prefix . 'appointments';
+        $booking = $wpdb->get_row($wpdb->prepare(
+            "SELECT id, strong_id, name, email, status FROM {$appointments_table} WHERE employee_id = %d AND appointment_date = %s",
+            $employee_id, $datetime
+        ));
+        
+        if ($booking) {
+            return rest_ensure_response(array(
+                'is_booked' => true,
+                'booking_details' => array(
+                    'id' => $booking->strong_id ?: $booking->id,
+                    'customer' => $booking->name,
+                    'email' => $booking->email,
+                    'status' => $booking->status
+                )
+            ));
+        }
+        
+        return rest_ensure_response(array(
+            'is_booked' => false,
+            'message' => 'Time slot is available'
+        ));
     }
 }

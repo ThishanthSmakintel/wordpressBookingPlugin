@@ -38,6 +38,8 @@ booking_plugin_require_file('includes/class-deactivator.php');
 booking_plugin_require_file('includes/class-booking-plugin.php');
 booking_plugin_require_file('includes/class-settings.php');
 booking_plugin_require_file('includes/class-db-seeder.php');
+booking_plugin_require_file('includes/class-db-reset.php');
+booking_plugin_require_file('includes/class-db-reset-filters.php');
 booking_plugin_require_file('includes/class-api-endpoints.php');
 booking_plugin_require_file('includes/class-heartbeat-handler.php');
 booking_plugin_require_file('includes/session-manager.php');
@@ -48,10 +50,11 @@ register_deactivation_hook(__FILE__, array('Booking_Deactivator', 'deactivate'))
 function run_booking_plugin() {
     $plugin = Booking_Plugin::get_instance();
     
-    // Initialize API endpoints and heartbeat handler
+    // Initialize API endpoints, heartbeat handler, and reset filters
     add_action('init', function() {
         new Booking_API_Endpoints();
         new Appointease_Heartbeat_Handler();
+        new Booking_DB_Reset_Filters();
     });
     
     // Localize script with WordPress REST API URL
@@ -77,6 +80,7 @@ run_booking_plugin();
 
 if (is_admin()) {
     require_once BOOKING_PLUGIN_PATH . 'admin/appointease-admin.php';
+    require_once BOOKING_PLUGIN_PATH . 'admin/db-reset-admin.php';
     
     // Add seeder menu item
     add_action('admin_menu', function() {

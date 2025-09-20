@@ -2,6 +2,15 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createRoot } from 'react-dom/client';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import './assets/styles/frontend/index.css';
+
+// Force load Remix Icons
+if (typeof document !== 'undefined' && !document.querySelector('link[href*="remixicon"]')) {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = 'https://cdn.jsdelivr.net/npm/remixicon@4.0.0/fonts/remixicon.css';
+    link.crossOrigin = 'anonymous';
+    document.head.appendChild(link);
+}
 import Dashboard from './components/pages/Dashboard';
 import LoginForm from './components/forms/LoginForm';
 import ServiceSelector from './components/forms/ServiceSelector';
@@ -36,10 +45,10 @@ declare global {
 const BookingApp = React.forwardRef<any, any>((props, ref) => {
     const {
         step, selectedService, selectedEmployee, selectedDate, selectedTime, formData,
-        services, employees, appointments, servicesLoading, employeesLoading, appointmentsLoading, isSubmitting, isOnline, errors,
+        services, employees, appointments, servicesLoading, employeesLoading, appointmentsLoading, isSubmitting, isOnline, errors, serverDate,
         setStep, setSelectedService, setSelectedEmployee, setSelectedDate, setSelectedTime,
         setFormData, setServices, setEmployees, setAppointments, setServicesLoading, setEmployeesLoading,
-        setAppointmentsLoading, setIsSubmitting, setIsOnline, setErrors, clearError
+        setAppointmentsLoading, setIsSubmitting, setIsOnline, setErrors, setServerDate, clearError
     } = useBookingStore();
     
     const [appointmentId, setAppointmentId] = useState<string>('');
@@ -57,7 +66,8 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
     const [isLoadingLogin, setIsLoadingLogin] = useState(false);
     const [isLoadingAppointments, setIsLoadingAppointments] = useState(false);
     const [showCancelConfirm, setShowCancelConfirm] = useState(false);
-    const [unavailableSlots, setUnavailableSlots] = useState<string[]>([]);
+    const [unavailableSlots, setUnavailableSlots] = useState<string[] | 'all'>([]);
+    const [bookingDetails, setBookingDetails] = useState<Record<string, any>>({});
     const [retryCount, setRetryCount] = useState(0);
     const liveRegionRef = useRef<HTMLDivElement>(null);
 
@@ -97,6 +107,16 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
     const [existingUser, setExistingUser] = useState<any>(null);
     const [sessionToken, setSessionToken] = useState<string | null>(null);
     const dashboardRef = useRef<HTMLDivElement>(null);
+    const [currentTime, setCurrentTime] = useState(new Date());
+    const [timeZone, setTimeZone] = useState(Intl.DateTimeFormat().resolvedOptions().timeZone);
+    const [timeSynced, setTimeSynced] = useState(false);
+    const [showDebug, setShowDebug] = useState(true);
+    const [allBookings, setAllBookings] = useState<any[]>([]);
+    const [debugServices, setDebugServices] = useState<Service[]>([]);
+    const [debugStaff, setDebugStaff] = useState<any[]>([]);
+    const [workingDays, setWorkingDays] = useState<string[]>([]);
+    const [debugTimeSlots, setDebugTimeSlots] = useState<string[]>([]);
+    const [availabilityData, setAvailabilityData] = useState<any>(null);
 
     // Calculate optimal cards per page based on container dimensions
     const calculateCardsPerPage = useCallback(() => {
@@ -232,8 +252,23 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
         }
     };
 
-    // Load session on mount
+    // Step 0: Time sync on mount
     useEffect(() => {
+        const syncTime = async () => {
+            try {
+                const response = await fetch(`${window.bookingAPI?.root || '/wp-json/'}appointease/v1/server-date`);
+                if (response.ok) {
+                    const data = await response.json();
+                    setServerDate(data.server_date);
+                    setTimeSynced(true);
+                    console.log('[Step 0] Time synced:', data);
+                }
+            } catch (error) {
+                console.error('[Step 0] Time sync failed:', error);
+                setTimeSynced(true); // Continue anyway
+            }
+        };
+        
         const checkSession = async () => {
             const session = await loadSession();
             if (session) {
@@ -243,7 +278,17 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                 loadUserAppointmentsRealtime(session.email);
             }
         };
+        
+        syncTime();
         checkSession();
+    }, []);
+    
+    // Update current time every second
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setCurrentTime(new Date());
+        }, 1000);
+        return () => clearInterval(timer);
     }, []);
 
     // Recalculate cards per page on container resize
@@ -391,7 +436,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
         }, 10000);
         
         return () => clearInterval(interval);
-    }, [isLoggedIn, showDashboard, loadUserAppointmentsRealtime]);
+    }, [isLoggedIn, showDashboard]);
     
 
     
@@ -468,13 +513,15 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
     
 
     
-    // Step validation
+    // Step validation for 7-step flow
     const canProceedToStep = (targetStep: number): boolean => {
         switch (targetStep) {
             case 2: return !!selectedService;
             case 3: return !!selectedService && !!selectedEmployee;
             case 4: return !!selectedService && !!selectedEmployee && !!selectedDate;
             case 5: return !!selectedService && !!selectedEmployee && !!selectedDate && !!selectedTime;
+            case 6: return !!selectedService && !!selectedEmployee && !!selectedDate && !!selectedTime && (isLoggedIn || emailVerified);
+            case 7: return true; // Success/confirmation steps
             default: return true;
         }
     };
@@ -502,6 +549,13 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
             setErrors({employee: 'Invalid employee selected'});
             return;
         }
+        
+        // Validate service-staff relationship
+        if (selectedService && employee.services && !employee.services.includes(selectedService.id)) {
+            setErrors({employee: 'This staff member is not available for the selected service'});
+            return;
+        }
+        
         setSelectedEmployee(employee);
         setErrors({});
         setUnavailableSlots([]);
@@ -528,10 +582,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
             return;
         }
         
-        if (businessHours.closedDays.includes(selectedDateObj.getDay())) {
-            setErrors({date: 'This day is not available for appointments'});
-            return;
-        }
+        // Remove frontend working day validation - let API handle it
         
         setSelectedDate(date);
         setErrors({});
@@ -543,9 +594,40 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
     };
 
     const checkAvailability = async (date: string, employeeId: number) => {
-        // Disable availability check for now
-        setUnavailableSlots([]);
-        return;
+        if (!window.bookingAPI || !date || !employeeId) {
+            setUnavailableSlots([]);
+            return;
+        }
+        
+        try {
+            const response = await apiRequest(`${window.bookingAPI.root}booking/v1/availability`, {
+                method: 'POST',
+                body: JSON.stringify({
+                    date: date,
+                    employee_id: employeeId
+                })
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                if (data.unavailable === 'all') {
+                    setUnavailableSlots('all');
+                    setBookingDetails({});
+                } else if (Array.isArray(data.unavailable)) {
+                    setUnavailableSlots(data.unavailable);
+                    setBookingDetails(data.booking_details || {});
+                } else {
+                    setUnavailableSlots([]);
+                    setBookingDetails({});
+                }
+            } else {
+                setUnavailableSlots([]);
+                setBookingDetails({});
+            }
+        } catch (error) {
+            console.error('Error checking availability:', error);
+            setUnavailableSlots([]);
+        }
     };
 
     const handleTimeSelect = (time: string) => {
@@ -554,14 +636,31 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
             return;
         }
         
-        if (unavailableSlots.includes(time)) {
+        if (unavailableSlots === 'all' || (Array.isArray(unavailableSlots) && unavailableSlots.includes(time))) {
             setErrors({time: 'This time slot is not available'});
             return;
         }
         
         setSelectedTime(time);
         setErrors({});
-        setStep(5);
+        // Step 5: Customer Info & OTP (if not logged in) or Review (if logged in)
+        if (isLoggedIn) {
+            setStep(6); // Skip to review for logged-in users
+        } else {
+            setStep(5); // Customer info for new users
+        }
+    };
+    
+    const proceedToReview = () => {
+        if (isLoggedIn || emailVerified) {
+            setStep(6); // Review & Confirmation
+        } else {
+            setErrors({general: 'Please verify your email to continue'});
+        }
+    };
+    
+    const proceedToSuccess = () => {
+        setStep(7); // Success page
     };
 
 
@@ -683,7 +782,9 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
             if (result.strong_id) {
                 setErrors({});
                 setAppointmentId(result.strong_id);
-                setStep(6);
+                // Trigger refresh to update availability in calendar
+                useBookingStore.getState().triggerRefresh();
+                setStep(7); // Success page
             } else if (result.id) {
                 setErrors({});
                 // Fallback: create strong_id format if not provided
@@ -695,7 +796,9 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                     loadUserAppointmentsRealtime();
                 }
                 
-                setStep(6);
+                // Trigger refresh to update availability in calendar
+                useBookingStore.getState().triggerRefresh();
+                setStep(7); // Success page
             } else {
                 const errorMessage = result.message || 'Booking failed. Please try again.';
                 setErrors({general: errorMessage});
@@ -795,7 +898,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                 setCurrentAppointment(null);
                 setShowCancelConfirm(false);
                 setShowOtpVerification(false);
-                setStep(7);
+                setStep(8);
                 setIsCancelling(false);
                 if (isLoggedIn) {
                     loadUserAppointmentsRealtime();
@@ -814,7 +917,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
             setCurrentAppointment(null);
             setShowCancelConfirm(false);
             setShowOtpVerification(false);
-            setStep(7);
+            setStep(8);
             if (isLoggedIn) {
                 loadUserAppointmentsRealtime();
             }
@@ -826,7 +929,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
             setCurrentAppointment(null);
             setShowCancelConfirm(false);
             setShowOtpVerification(false);
-            setStep(7);
+            setStep(8);
             if (isLoggedIn) {
                 loadUserAppointmentsRealtime();
             }
@@ -857,7 +960,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                 setCurrentAppointment(null);
                 setIsRescheduling(false);
                 setShowOtpVerification(false);
-                setStep(8);
+                setStep(9);
                 setIsReschedulingSubmit(false);
                 if (isLoggedIn) {
                     loadUserAppointmentsRealtime();
@@ -878,7 +981,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
             setCurrentAppointment(null);
             setIsRescheduling(false);
             setShowOtpVerification(false);
-            setStep(8);
+            setStep(9);
             if (isLoggedIn) {
                 loadUserAppointmentsRealtime();
             }
@@ -890,7 +993,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
             setCurrentAppointment(null);
             setIsRescheduling(false);
             setShowOtpVerification(false);
-            setStep(8);
+            setStep(9);
             if (isLoggedIn) {
                 loadUserAppointmentsRealtime();
             }
@@ -1089,12 +1192,12 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
             if (result.strong_id) {
                 setErrors({});
                 setAppointmentId(result.strong_id);
-                setStep(6);
+                setStep(7); // Success page
             } else if (result.id) {
                 setErrors({});
                 const fallbackId = `APT-${new Date().getFullYear()}-${result.id.toString().padStart(6, '0')}`;
                 setAppointmentId(fallbackId);
-                setStep(6);
+                setStep(7); // Success page
             } else {
                 const errorMessage = result.message || 'Booking failed. Please try again.';
                 setErrors({general: errorMessage});
@@ -1141,8 +1244,8 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                 setShowEmailVerification(false);
                 setEmailOtp('');
                 setErrors({});
-                // Continue with booking after verification
-                proceedWithBooking();
+                // Continue to review after verification
+                setStep(6);
             } else {
                 const newAttempts = otpAttempts + 1;
                 setOtpAttempts(newAttempts);
@@ -1190,8 +1293,8 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                         performReschedule(pendingRescheduleData.date, pendingRescheduleData.time);
                         setPendingRescheduleData(null);
                     } else {
-                        setSelectedService({name: 'Current Service', price: 0});
-                        setSelectedEmployee({name: 'Current Staff'});
+                        setSelectedService({name: currentAppointment?.service_name, price: 0});
+                        setSelectedEmployee({id: 1, name: currentAppointment?.staff_name});
                         setIsRescheduling(true);
                         setManageMode(false);
                         setShowOtpVerification(false);
@@ -1314,10 +1417,12 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                         name: appointment.name || loginEmail,
                         email: appointment.email || loginEmail,
                         appointment_date: appointment.date,
-                        status: appointment.status
+                        status: appointment.status,
+                        service_name: appointment.service,
+                        staff_name: appointment.staff
                     });
-                    setSelectedService({name: 'Current Service', price: 0});
-                    setSelectedEmployee({name: 'Current Staff'});
+                    setSelectedService({name: appointment.service, price: 0});
+                    setSelectedEmployee({id: 1, name: appointment.staff});
                     setIsRescheduling(true);
                     setShowDashboard(false);
                     setStep(3);
@@ -1445,8 +1550,8 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                                     </div>
                                     <button className="action-btn secondary-btn" onClick={() => {
                                         if (isLoggedIn) {
-                                            setSelectedService({name: 'Current Service', price: 0});
-                                            setSelectedEmployee({name: 'Current Staff'});
+                                            setSelectedService({name: currentAppointment?.service_name, price: 0});
+                                            setSelectedEmployee({id: 1, name: currentAppointment?.staff_name});
                                             setIsRescheduling(true);
                                             setStep(3); 
                                             setManageMode(false);
@@ -1456,13 +1561,13 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                                             sendVerificationOtp();
                                         }
                                     }} disabled={isReschedulingSubmit}>
-                                        {isReschedulingSubmit ? <><i className="fas fa-spinner fa-spin"></i> Processing...</> : <><i className="fas fa-calendar-alt"></i> {isLoggedIn ? 'Reschedule Now' : 'Reschedule (Verify Email)'}</>}
+                                        {isReschedulingSubmit ? <><i className="ri-loader-4-line ri-spin"></i> Processing...</> : <><i className="ri-calendar-line"></i> {isLoggedIn ? 'Reschedule Now' : 'Reschedule (Verify Email)'}</>}
                                     </button>
                                     <button className="action-btn" style={{background: '#dc3545'}} onClick={handleCancelAppointment} disabled={isCancelling}>
-                                        {isCancelling ? <><i className="fas fa-spinner fa-spin"></i> Processing...</> : <><i className="fas fa-times"></i> {isLoggedIn ? 'Cancel Now' : 'Cancel (Verify Email)'}</>}
+                                        {isCancelling ? <><i className="ri-loader-4-line ri-spin"></i> Processing...</> : <><i className="ri-close-line"></i> {isLoggedIn ? 'Cancel Now' : 'Cancel (Verify Email)'}</>}
                                     </button>
                                     <button className="action-btn primary-btn" onClick={() => setManageMode(false)}>
-                                        <i className="fas fa-arrow-left"></i>
+                                        <i className="ri-arrow-left-line"></i>
                                         Back
                                     </button>
                                 </>
@@ -1470,15 +1575,15 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                                 <>
                                     <div className="action-info">
                                         <p className="action-description cancel-warning">
-                                            <i className="fas fa-exclamation-triangle"></i>
+                                            <i className="ri-alert-line"></i>
                                             This will permanently cancel your appointment. This action cannot be undone.
                                         </p>
                                     </div>
                                     <button className="action-btn" style={{background: '#dc3545'}} onClick={confirmCancelAppointment} disabled={isCancelling}>
-                                        {isCancelling ? <><i className="fas fa-spinner fa-spin"></i> Cancelling...</> : <><i className="fas fa-check"></i> Yes, Cancel Appointment</>}
+                                        {isCancelling ? <><i className="ri-loader-4-line ri-spin"></i> Cancelling...</> : <><i className="ri-check-line"></i> Yes, Cancel Appointment</>}
                                     </button>
                                     <button className="action-btn secondary-btn" onClick={() => setShowCancelConfirm(false)}>
-                                        <i className="fas fa-times"></i>
+                                        <i className="ri-close-line"></i>
                                         Keep Appointment
                                     </button>
                                 </>
@@ -1486,7 +1591,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                                 <div className="otp-verification">
                                     <div className="verification-card">
                                         <div className="verification-header">
-                                            <i className="fas fa-shield-alt" style={{fontSize: '2.5rem', color: '#1CBC9B', marginBottom: '1rem'}}></i>
+                                            <i className="ri-shield-line" style={{fontSize: '2.5rem', color: '#1CBC9B', marginBottom: '1rem'}}></i>
                                             <h3>Verify Your Identity</h3>
                                             <p>
                                                 {otpAction === 'cancel' ? 
@@ -1518,7 +1623,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                                             <div className="verification-info">
                                                 {verifyOtpExpiry > 0 && (
                                                     <div className="timer-display">
-                                                        <i className="fas fa-clock"></i>
+                                                        <i className="ri-time-line"></i>
                                                         <span>Expires in {Math.floor(Math.max(0, (verifyOtpExpiry - Date.now()) / 1000) / 60)}:{String(Math.max(0, Math.ceil((verifyOtpExpiry - Date.now()) / 1000) % 60)).padStart(2, '0')}</span>
                                                     </div>
                                                 )}
@@ -1550,12 +1655,12 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                                             setOtpAction(null);
                                             setPendingRescheduleData(null);
                                         }}>
-                                            <i className="fas fa-arrow-left"></i> Back to Options
+                                            <i className="ri-arrow-left-line"></i> Back to Options
                                         </button>
                                         <button className="confirm-btn" onClick={verifyOtpAndProceed} disabled={isVerifyingOtp || verifyIsBlocked || verificationOtp.length !== 6}>
                                             {isVerifyingOtp ? 
-                                                <><i className="fas fa-spinner fa-spin"></i> Verifying...</> : 
-                                                <><i className="fas fa-shield-check"></i> Verify & {otpAction === 'cancel' ? 'Cancel' : 'Reschedule'}</>
+                                                <><i className="ri-loader-4-line ri-spin"></i> Verifying...</> : 
+                                                <><i className="ri-shield-check-line"></i> Verify & {otpAction === 'cancel' ? 'Cancel' : 'Reschedule'}</>
                                             }
                                         </button>
                                     </div>
@@ -1568,10 +1673,177 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
         );
     }
 
+    // Fetch all debug data
+    useEffect(() => {
+        const fetchAllData = async () => {
+            if (!window.bookingAPI) return;
+            try {
+                // Fetch appointments
+                const appointmentsRes = await fetch(`${window.bookingAPI.root}appointease/v1/debug/appointments`);
+                if (appointmentsRes.ok) {
+                    const data = await appointmentsRes.json();
+                    setAllBookings(data.all_appointments || []);
+                }
+                
+                // Fetch services
+                const servicesRes = await fetch(`${window.bookingAPI.root}booking/v1/services`);
+                if (servicesRes.ok) {
+                    const servicesData = await servicesRes.json();
+                    setDebugServices(servicesData || []);
+                }
+                
+                // Fetch staff
+                const staffRes = await fetch(`${window.bookingAPI.root}booking/v1/staff`);
+                if (staffRes.ok) {
+                    const staffData = await staffRes.json();
+                    setDebugStaff(staffData || []);
+                }
+                
+                // Fetch working days
+                const workingDaysRes = await fetch(`${window.bookingAPI.root}appointease/v1/debug/working-days`);
+                if (workingDaysRes.ok) {
+                    const workingDaysData = await workingDaysRes.json();
+                    setWorkingDays(workingDaysData.working_days || []);
+                }
+                
+                // Fetch time slots
+                const timeSlotsRes = await fetch(`${window.bookingAPI.root}appointease/v1/time-slots`);
+                if (timeSlotsRes.ok) {
+                    const timeSlotsData = await timeSlotsRes.json();
+                    setDebugTimeSlots(timeSlotsData.time_slots || []);
+                }
+                
+                // Check availability for current selection
+                if (selectedEmployee && selectedDate) {
+                    const availRes = await fetch(`${window.bookingAPI.root}booking/v1/availability`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({date: selectedDate, employee_id: selectedEmployee.id})
+                    });
+                    if (availRes.ok) {
+                        const availData = await availRes.json();
+                        setAvailabilityData(availData);
+                    }
+                }
+            } catch (error) {
+                console.error('Debug fetch failed:', error);
+            }
+        };
+        
+        fetchAllData();
+        const interval = setInterval(fetchAllData, 2000);
+        return () => clearInterval(interval);
+    }, [selectedEmployee, selectedDate]);
+
     return (
         <>
-        <div className="appointease-booking-container">
-        <div className="appointease-booking wp-block-group" role="main" aria-label="Appointment booking system" style={{overflow: 'visible', height: 'auto'}}>
+        {/* GLOBAL DEBUG PANEL */}
+        {showDebug && (
+            <div style={{
+                position: 'fixed',
+                top: '10px',
+                right: '10px',
+                background: 'rgba(0,0,0,0.9)',
+                color: '#fff',
+                padding: '15px',
+                borderRadius: '8px',
+                fontSize: '11px',
+                maxWidth: '400px',
+                maxHeight: '70vh',
+                overflow: 'auto',
+                zIndex: 99999,
+                fontFamily: 'monospace',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.7)',
+                backdropFilter: 'blur(5px)'
+            }}>
+                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
+                    <strong>🔍 BOOKING DEBUG</strong>
+                    <button onClick={() => setShowDebug(false)} style={{background: 'none', border: 'none', color: '#fff', cursor: 'pointer'}}>✕</button>
+                </div>
+                
+                <div style={{marginBottom: '8px'}}>
+                    <div style={{color: '#0ff'}}>📊 System Status:</div>
+                    <div>Step: {step} | Employee: {selectedEmployee?.id || 'None'}</div>
+                    <div>Date: {selectedDate || 'None'} | Time: {selectedTime || 'None'}</div>
+                    <div>Server: {serverDate || 'Not synced'} | Online: {isOnline ? '✅' : '❌'}</div>
+                </div>
+                
+                <div style={{marginBottom: '8px'}}>
+                    <div style={{color: '#0ff'}}>📅 Current Selection:</div>
+                    <div>Service: {selectedService?.name || 'None'}</div>
+                    <div>Staff: {selectedEmployee?.name || 'None'}</div>
+                    <div>Customer: {isLoggedIn ? loginEmail : formData.firstName || 'None'}</div>
+                </div>
+                
+                <div style={{marginBottom: '8px'}}>
+                    <div style={{color: '#0ff'}}>💼 Database Config:</div>
+                    <div>Services: {debugServices.length} | Staff: {debugStaff.length}</div>
+                    <div>Working Days: [{workingDays.join(',')}]</div>
+                    <div>Time Slots: {debugTimeSlots.length} slots</div>
+                </div>
+                
+                {availabilityData && (
+                    <div style={{marginBottom: '8px'}}>
+                        <div style={{color: '#0ff'}}>🕰 Availability Check:</div>
+                        <div>Date: {selectedDate} | Staff: {selectedEmployee?.id}</div>
+                        <div>Unavailable: {availabilityData.unavailable === 'all' ? 'ALL' : Array.isArray(availabilityData.unavailable) ? availabilityData.unavailable.join(',') : 'None'}</div>
+                        <div>Reason: {availabilityData.reason || 'N/A'}</div>
+                        {availabilityData.booking_details && Object.keys(availabilityData.booking_details).length > 0 && (
+                            <div>Bookings: {Object.keys(availabilityData.booking_details).map(time => `${time}:${availabilityData.booking_details[time].customer_name}`).join(', ')}</div>
+                        )}
+                    </div>
+                )}
+                
+                <div style={{borderTop: '1px solid #333', paddingTop: '8px'}}>
+                    <div style={{color: '#0ff'}}>📋 All Bookings ({allBookings.length}):</div>
+                    {allBookings.length === 0 ? (
+                        <div style={{color: '#888', fontSize: '10px'}}>No bookings found</div>
+                    ) : (
+                        <div style={{maxHeight: '120px', overflow: 'auto'}}>
+                            {allBookings.slice(0, 6).map((booking) => {
+                                const date = new Date(booking.appointment_date);
+                                const dayName = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][date.getDay()];
+                                return (
+                                    <div key={booking.id} style={{
+                                        fontSize: '9px',
+                                        marginBottom: '2px',
+                                        padding: '2px',
+                                        background: booking.status === 'confirmed' ? 'rgba(0,255,0,0.1)' : booking.status === 'cancelled' ? 'rgba(255,0,0,0.1)' : 'rgba(255,255,0,0.1)',
+                                        borderRadius: '2px'
+                                    }}>
+                                        <div>👤 {booking.name} | 📧 {booking.email}</div>
+                                        <div>📅 {date.toLocaleDateString()} ({dayName}) 🕐 {date.toLocaleTimeString('en', {hour: '2-digit', minute: '2-digit'})}</div>
+                                        <div>🏷 {booking.strong_id || `ID-${booking.id}`} | 🟢 {booking.status} | 👥 Staff-{booking.employee_id}</div>
+                                    </div>
+                                );
+                            })}
+                            {allBookings.length > 6 && (
+                                <div style={{fontSize: '9px', color: '#888'}}>... +{allBookings.length - 6} more</div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            </div>
+        )}
+        
+        {/* Debug Toggle Button */}
+        {!showDebug && (
+            <button onClick={() => setShowDebug(true)} style={{
+                position: 'fixed',
+                top: '10px',
+                right: '10px',
+                background: 'rgba(0,0,0,0.7)',
+                color: '#fff',
+                border: 'none',
+                padding: '8px 12px',
+                borderRadius: '5px',
+                fontSize: '12px',
+                cursor: 'pointer',
+                zIndex: 99999
+            }}>🔍 Debug</button>
+        )}
+        
+        <div className="appointease-booking wp-block-group" role="main" aria-label="Appointment booking system" style={{overflow: 'visible', height: 'auto'}} >
             <div ref={liveRegionRef} className="live-region" aria-live="polite" aria-atomic="true"></div>
             <ConnectionStatus />
             <div className="appointease-booking-header wp-block-group is-layout-flex">
@@ -1632,7 +1904,102 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
 
 
             <div className="appointease-booking-content wp-block-group">
-                {step <= 5 && <StepProgress />}
+                {step === 0 && (
+                    <div className="appointease-step-content">
+                        <div className="time-sync-container">
+                            <div className="sync-header">
+                                <i className="ri-time-line" style={{fontSize: '3rem', color: '#1CBC9B', marginBottom: '1rem'}}></i>
+                                <h2>Initializing Booking System</h2>
+                                <p>Syncing time with server to ensure accurate scheduling...</p>
+                            </div>
+                            
+                            <div className="time-display">
+                                <div className="current-time">
+                                    <div className="time-label">Current Time</div>
+                                    <div className="time-value">
+                                        {currentTime.toLocaleTimeString('en-US', {
+                                            hour: '2-digit',
+                                            minute: '2-digit',
+                                            second: '2-digit',
+                                            timeZoneName: 'short'
+                                        })}
+                                    </div>
+                                    <div className="timezone-info">
+                                        {timeZone} • {currentTime.toLocaleDateString('en-US', {
+                                            weekday: 'long',
+                                            year: 'numeric',
+                                            month: 'long',
+                                            day: 'numeric'
+                                        })}
+                                    </div>
+                                </div>
+                                
+                                {serverDate && (
+                                    <div className="server-time">
+                                        <div className="time-label">Server Date</div>
+                                        <div className="time-value">{serverDate}</div>
+                                        <div className="sync-status">
+                                            <i className="ri-check-line"></i> Time synchronized
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                            
+                            {timeSynced && (
+                                <div className="sync-complete">
+                                    <button 
+                                        className="continue-btn"
+                                        onClick={() => setStep(1)}
+                                        style={{
+                                            background: 'linear-gradient(135deg, #1CBC9B, #16a085)',
+                                            color: 'white',
+                                            border: 'none',
+                                            padding: '16px 32px',
+                                            borderRadius: '12px',
+                                            fontSize: '1.1rem',
+                                            fontWeight: '600',
+                                            cursor: 'pointer',
+                                            boxShadow: '0 4px 12px rgba(28, 188, 155, 0.3)',
+                                            transition: 'all 0.2s ease'
+                                        }}
+                                    >
+                                        <i className="ri-arrow-right-line"></i> Start Booking
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+                
+                {step <= 6 && step > 0 && <StepProgress />}
+                
+                {/* Current Time Display */}
+                {step > 0 && (
+                    <div className="current-time-widget" style={{
+                        position: 'fixed',
+                        top: '20px',
+                        right: '20px',
+                        background: 'rgba(255, 255, 255, 0.95)',
+                        padding: '12px 16px',
+                        borderRadius: '8px',
+                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+                        fontSize: '0.85rem',
+                        color: '#374151',
+                        zIndex: 1000,
+                        backdropFilter: 'blur(10px)',
+                        border: '1px solid rgba(0, 0, 0, 0.1)'
+                    }}>
+                        <div style={{fontWeight: '600', marginBottom: '2px'}}>
+                            {currentTime.toLocaleTimeString('en-US', {
+                                hour: '2-digit',
+                                minute: '2-digit'
+                            })}
+                        </div>
+                        <div style={{fontSize: '0.75rem', opacity: 0.7}}>
+                            {timeZone}
+                        </div>
+                    </div>
+                )}
 
                 {step === 1 && (
                     <ServiceSelector
@@ -1648,13 +2015,17 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                 )}
 
                 {step === 3 && (
-                    <DateSelector />
+                    <DateSelector isReschedule={isRescheduling} />
                 )}
-
+                
+                {/* Debug log */}
+                {step === 3 && console.log('[Frontend] CRITICAL DEBUG - Rendering DateSelector with isRescheduling:', isRescheduling, 'Type:', typeof isRescheduling)}
+ 
                 {step === 4 && (
                     <TimeSelector
                         unavailableSlots={unavailableSlots}
                         timezone={timezone}
+                        bookingDetails={bookingDetails}
                     />
                 )}
 
@@ -1699,39 +2070,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                             />
                         )}
                         
-                        {!isRescheduling && isLoggedIn && (
-                            <div className="logged-in-summary">
-                                <div className="booking-summary">
-                                    <h3>Booking Summary</h3>
-                                    <div className="summary-item">
-                                        <span>Service:</span>
-                                        <span>{selectedService?.name}</span>
-                                    </div>
-                                    <div className="summary-item">
-                                        <span>Employee:</span>
-                                        <span>{selectedEmployee?.name}</span>
-                                    </div>
-                                    <div className="summary-item">
-                                        <span>Date:</span>
-                                        <span>{new Date(selectedDate).toLocaleDateString()}</span>
-                                    </div>
-                                    <div className="summary-item">
-                                        <span>Time:</span>
-                                        <span>{selectedTime}</span>
-                                    </div>
-                                    <div className="summary-item total">
-                                        <span>Total:</span>
-                                        <span>${selectedService?.price}</span>
-                                    </div>
-                                </div>
-                                <div className="form-actions">
-                                    <button type="button" className="back-btn" onClick={() => setStep(4)}>← Back</button>
-                                    <button type="button" className="confirm-btn" onClick={handleSubmit} disabled={isSubmitting}>
-                                        {isSubmitting ? <><i className="fas fa-spinner fa-spin"></i> BOOKING...</> : 'CONFIRM BOOKING'}
-                                    </button>
-                                </div>
-                            </div>
-                        )}
+
                         
                         {isRescheduling && !showOtpVerification && (
                             <div className="reschedule-summary">
@@ -1757,7 +2096,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                                             setShowOtpVerification(true);
                                         }
                                     }} disabled={isReschedulingSubmit}>
-                                        {isReschedulingSubmit ? <><i className="fas fa-spinner fa-spin"></i> RESCHEDULING...</> : 'CONFIRM RESCHEDULE'}
+                                        {isReschedulingSubmit ? <><i className="ri-loader-4-line ri-spin"></i> RESCHEDULING...</> : 'CONFIRM RESCHEDULE'}
                                     </button>
                                 </div>
                             </div>
@@ -1767,7 +2106,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                             <div className="otp-verification">
                                 <div className="verification-card">
                                     <div className="verification-header">
-                                        <i className="fas fa-calendar-alt" style={{fontSize: '2.5rem', color: '#1CBC9B', marginBottom: '1rem'}}></i>
+                                        <i className="ri-calendar-line" style={{fontSize: '2.5rem', color: '#1CBC9B', marginBottom: '1rem'}}></i>
                                         <h3>Verify to Reschedule</h3>
                                         <p>To reschedule your appointment, please verify your identity with the code sent to your email.</p>
                                         <div className="email-highlight">
@@ -1797,7 +2136,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                                         <div className="verification-info">
                                             {verifyOtpExpiry > 0 && (
                                                 <div className="timer-display">
-                                                    <i className="fas fa-clock"></i>
+                                                    <i className="ri-time-line"></i>
                                                     <span>Expires in {Math.floor(Math.max(0, (verifyOtpExpiry - Date.now()) / 1000) / 60)}:{String(Math.max(0, Math.ceil((verifyOtpExpiry - Date.now()) / 1000) % 60)).padStart(2, '0')}</span>
                                                 </div>
                                             )}
@@ -1829,12 +2168,12 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                                         setOtpAction(null);
                                         setPendingRescheduleData(null);
                                     }}>
-                                        <i className="fas fa-arrow-left"></i> Back
+                                        <i className="ri-arrow-left-line"></i> Back
                                     </button>
                                     <button className="confirm-btn" onClick={verifyOtpAndProceed} disabled={isVerifyingOtp || verifyIsBlocked || verificationOtp.length !== 6}>
                                         {isVerifyingOtp ? 
-                                            <><i className="fas fa-spinner fa-spin"></i> Verifying...</> : 
-                                            <><i className="fas fa-shield-check"></i> Verify & Reschedule</>
+                                            <><i className="ri-loader-4-line ri-spin"></i> Verifying...</> : 
+                                            <><i className="ri-shield-check-line"></i> Verify & Reschedule</>
                                         }
                                     </button>
                                 </div>
@@ -1843,7 +2182,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                     </div>
                 )}
 
-                {step === 7 && (
+                {step === 8 && (
                     <div className="appointease-step-content success-step">
                         <div className="success-container">
                             <div className="success-animation">
@@ -1851,9 +2190,19 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                             </div>
                             
                             <h1 className="success-title" style={{color: '#dc3545'}}>Appointment Cancelled</h1>
-                            <p className="success-subtitle">
-                                Your appointment has been successfully cancelled. You will receive a confirmation email shortly.
-                            </p>
+                            <div className="success-subtitle">
+                                <p>Your appointment has been successfully cancelled.</p>
+                                <p>We've sent a confirmation email to:</p>
+                                <div className="email-display">
+                                    <i className="ri-mail-line"></i>
+                                    <strong>{currentAppointment?.email || loginEmail}</strong>
+                                </div>
+                            </div>
+                        
+                            <div className="info-note">
+                                <i className="ri-information-line"></i>
+                                Your booking reference {appointmentId} has been cancelled.
+                            </div>
                         
                             <div className="success-actions">
                                 <button className="action-btn primary-btn" onClick={() => {
@@ -1873,7 +2222,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                                         setErrors({});
                                     }
                                 }}>
-                                    <i className="fas fa-list"></i>
+                                    <i className="ri-list-check"></i>
                                     {isLoggedIn ? 'Show All Bookings' : 'Back to Booking'}
                                 </button>
                             </div>
@@ -1881,7 +2230,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                     </div>
                 )}
 
-                {step === 8 && (
+                {step === 9 && (
                     <div className="appointease-step-content success-step">
                         <div className="success-container">
                             <div className="success-animation">
@@ -1889,26 +2238,97 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                             </div>
                             
                             <h1 className="success-title">Appointment Rescheduled!</h1>
-                            <p className="success-subtitle">
-                                Your appointment has been successfully rescheduled. You will receive a confirmation email with the new details.
-                            </p>
+                            <div className="success-subtitle">
+                                <p>Your appointment has been successfully rescheduled.</p>
+                                <p>We've sent a confirmation email to:</p>
+                                <div className="email-display">
+                                    <i className="ri-mail-line"></i>
+                                    <strong>{currentAppointment?.email || loginEmail}</strong>
+                                </div>
+                            </div>
+                        
+                            <div className="appointment-card">
+                                <div className="appointment-id">
+                                    <span className="id-label">Your Booking Reference</span>
+                                    <span className="id-number" title="Click to copy" onClick={() => {
+                                        const copyText = (text: string) => {
+                                            if (navigator.clipboard && navigator.clipboard.writeText) {
+                                                navigator.clipboard.writeText(text).then(() => {
+                                                    const idElement = document.querySelector('.id-number');
+                                                    if (idElement) {
+                                                        const original = idElement.textContent;
+                                                        idElement.textContent = 'Copied!';
+                                                        idElement.style.background = 'rgba(40, 167, 69, 0.3)';
+                                                        setTimeout(() => {
+                                                            idElement.textContent = original;
+                                                            idElement.style.background = 'rgba(255,255,255,0.15)';
+                                                        }, 2000);
+                                                    }
+                                                }).catch(() => {
+                                                    const textArea = document.createElement('textarea');
+                                                    textArea.value = text;
+                                                    document.body.appendChild(textArea);
+                                                    textArea.select();
+                                                    document.execCommand('copy');
+                                                    document.body.removeChild(textArea);
+                                                });
+                                            }
+                                        };
+                                        copyText(appointmentId);
+                                    }}>
+                                        {appointmentId}
+                                    </span>
+                                </div>
+                                
+                                <div className="appointment-details">
+                                    <div className="detail-item">
+                                        <span className="detail-label">Service:</span>
+                                        <span className="detail-value">{currentAppointment?.service_name || selectedService?.name || 'Service'}</span>
+                                    </div>
+                                    <div className="detail-item">
+                                        <span className="detail-label">Specialist:</span>
+                                        <span className="detail-value">{currentAppointment?.staff_name || selectedEmployee?.name || 'Staff Member'}</span>
+                                    </div>
+                                    <div className="detail-item">
+                                        <span className="detail-label">New Date & Time:</span>
+                                        <span className="detail-value">
+                                            {new Date(selectedDate).toLocaleDateString('en', { 
+                                                weekday: 'long', 
+                                                year: 'numeric', 
+                                                month: 'long', 
+                                                day: 'numeric' 
+                                            })} at {selectedTime}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        
+                            <div className="info-note">
+                                <i className="ri-information-line"></i>
+                                Save your reference for future management.
+                            </div>
                         
                             <div className="success-actions">
-                                <button className="action-btn primary-btn" style={{padding: '12px 24px', margin: '20px'}} onClick={() => {
-                                    setStep(1);
-                                    setSelectedService(null);
-                                    setSelectedEmployee(null);
-                                    setSelectedDate('');
-                                    setSelectedTime('');
-                                    setFormData({ firstName: '', lastName: '', email: '', phone: '' });
-                                    setAppointmentId('');
-                                    setManageMode(false);
-                                    setCurrentAppointment(null);
-                                    setIsRescheduling(false);
-                                    setErrors({});
+                                <button className="action-btn primary-btn" onClick={() => {
+                                    if (isLoggedIn) {
+                                        setShowDashboard(true);
+                                        loadUserAppointmentsRealtime(loginEmail);
+                                    } else {
+                                        setStep(1);
+                                        setSelectedService(null);
+                                        setSelectedEmployee(null);
+                                        setSelectedDate('');
+                                        setSelectedTime('');
+                                        setFormData({ firstName: '', lastName: '', email: '', phone: '' });
+                                        setAppointmentId('');
+                                        setManageMode(false);
+                                        setCurrentAppointment(null);
+                                        setIsRescheduling(false);
+                                        setErrors({});
+                                    }
                                 }}>
-                                    <i className="fas fa-plus"></i>
-                                    Book Another
+                                    <i className="ri-list-check"></i>
+                                    {isLoggedIn ? 'Show All Bookings' : 'Book Another'}
                                 </button>
                             </div>
                         </div>
@@ -1916,6 +2336,54 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                 )}
 
                 {step === 6 && (
+                    <div className="appointease-step-content">
+                        <div className="review-container">
+                            <h2>Review & Confirm</h2>
+                            <p className="step-description">Please review your appointment details before confirming</p>
+                            
+                            <div className="booking-summary">
+                                <h3>Appointment Summary</h3>
+                                <div className="summary-item">
+                                    <span>Service:</span>
+                                    <span>{selectedService?.name}</span>
+                                </div>
+                                <div className="summary-item">
+                                    <span>Duration:</span>
+                                    <span>{selectedService?.duration || 30} minutes</span>
+                                </div>
+                                <div className="summary-item">
+                                    <span>Staff:</span>
+                                    <span>{selectedEmployee?.name}</span>
+                                </div>
+                                <div className="summary-item">
+                                    <span>Date:</span>
+                                    <span>{new Date(selectedDate).toLocaleDateString('en', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+                                </div>
+                                <div className="summary-item">
+                                    <span>Time:</span>
+                                    <span>{selectedTime}</span>
+                                </div>
+                                <div className="summary-item">
+                                    <span>Customer:</span>
+                                    <span>{isLoggedIn ? loginEmail : `${formData.firstName} (${formData.email})`}</span>
+                                </div>
+                                <div className="summary-item total">
+                                    <span>Total Price:</span>
+                                    <span>${selectedService?.price}</span>
+                                </div>
+                            </div>
+                            
+                            <div className="form-actions">
+                                <button type="button" className="back-btn" onClick={() => setStep(4)}>← Edit Time</button>
+                                <button type="button" className="confirm-btn" onClick={handleSubmit} disabled={isSubmitting}>
+                                    {isSubmitting ? <><i className="fas fa-spinner fa-spin"></i> BOOKING...</> : 'CONFIRM BOOKING'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {step === 7 && (
                     <BookingSuccessPage
                         appointmentId={appointmentId}
                         onBookAnother={() => {
@@ -1932,8 +2400,6 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                 )}
             </div>
         </div>
-        
-
             {/* Email Lookup Modal */}
             {showEmailLookup && (
                 <div className="modal-overlay" onClick={() => setShowEmailLookup(false)}>
@@ -1941,7 +2407,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                         <div className="modal-header">
                             <h3 className="modal-title">Find Your Appointments</h3>
                             <button className="modal-close" onClick={() => setShowEmailLookup(false)} aria-label="Close">
-                                <i className="fas fa-times"></i>
+                                <i className="ri-close-line"></i>
                             </button>
                         </div>
                         <div className="modal-body">
@@ -1988,7 +2454,6 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                     </div>
                 </div>
             )}
-        </div>
         </>
     );
 });
