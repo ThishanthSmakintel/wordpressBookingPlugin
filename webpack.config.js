@@ -10,6 +10,31 @@ module.exports = {
 	resolve: {
 		extensions: ['.tsx', '.ts', '.js', '.jsx']
 	},
+	module: {
+		...defaultConfig.module,
+		rules: [
+			...defaultConfig.module.rules.map(rule => {
+				if (rule.test && rule.test.toString().includes('scss')) {
+					return {
+						...rule,
+						use: rule.use.map(use => {
+							if (use.loader && use.loader.includes('sass-loader')) {
+								return {
+									...use,
+									options: {
+										...use.options,
+										api: 'modern-compiler'
+									}
+								};
+							}
+							return use;
+						})
+					};
+				}
+				return rule;
+			})
+		]
+	},
 	externals: {
 		...defaultConfig.externals,
 		'react-big-calendar': 'window.BigCalendar',

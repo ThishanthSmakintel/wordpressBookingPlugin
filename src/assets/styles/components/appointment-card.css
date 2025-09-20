@@ -316,6 +316,6 @@
     .appointment-id {
         background: #1CBC9B !important;
         -webkit-print-color-adjust: exact;
-        color-adjust: exact;
+        print-color-adjust: exact;
     }
 }
