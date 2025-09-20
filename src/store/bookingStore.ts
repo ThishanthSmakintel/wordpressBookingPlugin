@@ -46,7 +46,7 @@ interface BookingState {
 }
 
 export const useBookingStore = create<BookingState>((set, get) => ({
-    step: 0,
+    step: 1,
     selectedService: null,
     selectedEmployee: null,
     selectedDate: '',

@@ -27,10 +27,8 @@ import ConnectionStatus from '../../components/ui/ConnectionStatus';
 
 // Modules
 import { DebugPanel } from '../../modules/DebugPanel';
-import { TimeSync } from '../../modules/TimeSync';
 import { AppointmentManager } from '../../modules/AppointmentManager';
 import { BookingHeader } from '../../modules/BookingHeader';
-import { CurrentTimeWidget } from '../../modules/CurrentTimeWidget';
 
 // Hooks
 import { useBookingState } from '../../hooks/useBookingState';
@@ -389,16 +387,7 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                 />
 
                 <div className="appointease-booking-content wp-block-group">
-                    {step === 0 && (
-                        <TimeSync 
-                            debugState={debugState} 
-                            onContinue={() => setStep(1)} 
-                        />
-                    )}
-                    
                     {step <= 6 && step > 0 && <StepProgress />}
-                    
-                    {step > 0 && <CurrentTimeWidget debugState={debugState} />}
                     
                     {step === 1 && (
                         <ServiceSelector

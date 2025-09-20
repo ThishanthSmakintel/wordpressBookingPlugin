@@ -26,7 +26,7 @@ export const BookingHeader: React.FC<BookingHeaderProps> = ({
                 <span className="logo-icon">A</span>
                 <div className="current-time" style={{
                     fontSize: '0.85rem',
-                    color: '#666',
+                    color: 'white',
                     marginTop: '4px',
                     fontWeight: '400'
                 }}>
@@ -37,8 +37,18 @@ export const BookingHeader: React.FC<BookingHeaderProps> = ({
                     })} • {currentTime.toLocaleTimeString('en-US', { 
                         hour: '2-digit', 
                         minute: '2-digit',
-                        hour12: true 
+                        second: '2-digit',
+                        hour12: true,
+                        timeZoneName: 'short'
                     })}
+                    <div style={{
+                        fontSize: '0.7rem',
+                        color: 'rgba(255,255,255,0.8)',
+                        marginTop: '2px',
+                        fontStyle: 'italic'
+                    }}>
+                        All bookings use this timezone
+                    </div>
                 </div>
             </div>
             {bookingState.isLoggedIn ? (
