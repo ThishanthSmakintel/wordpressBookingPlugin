@@ -11,7 +11,7 @@ class ApiService {
 
   constructor() {
     this.baseUrl = window.bookingAPI?.root || '/wp-json/';
-    this.nonce = window.bookingAPI?.nonce || '';
+    this.nonce = (window as any).bookingApiSettings?.nonce || window.bookingAPI?.nonce || '';
   }
 
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -19,6 +19,25 @@ class ApiService {
     const headers = {
       'Content-Type': 'application/json',
       'X-WP-Nonce': this.nonce,
+      ...options.headers,
+    };
+
+    const response = await fetch(url, {
+      ...options,
+      headers,
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  private async publicRequest<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    const url = `${this.baseUrl}${endpoint}`;
+    const headers = {
+      'Content-Type': 'application/json',
       ...options.headers,
     };
 
@@ -82,6 +101,12 @@ class ApiService {
       body: JSON.stringify(data),
     });
   }
+
+  async checkCustomer(email: string): Promise<{exists: boolean; name?: string; phone?: string}> {
+    return this.publicRequest(`booking/v1/check-customer/${encodeURIComponent(email)}`, {
+      method: 'GET',
+    });
+  }
 }
 
 export const apiService = new ApiService();
@@ -94,3 +119,4 @@ export const createAppointment = (data: any) => apiService.createAppointment(dat
 export const cancelAppointment = (id: string) => apiService.cancelAppointment(id);
 export const rescheduleAppointment = (id: string, newDate: string) => apiService.rescheduleAppointment(id, newDate);
 export const checkAvailability = (data: { date: string; employee_id: number }): Promise<AvailabilityResponse> => apiService.checkAvailability(data);
+export const checkCustomer = (email: string) => apiService.checkCustomer(email);

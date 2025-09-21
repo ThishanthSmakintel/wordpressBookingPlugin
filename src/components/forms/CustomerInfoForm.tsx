@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useBookingStore } from '../../store/bookingStore';
 import { sanitizeInput } from '../../utils';
 import { FormData, FormErrors, Service, Employee } from '../../types';
+import { checkCustomer } from '../../services/api';
 
 interface CustomerInfoFormProps {
     isLoggedIn: boolean;
@@ -103,7 +104,7 @@ const CustomerInfoForm: React.FC<CustomerInfoFormProps> = ({
                                     backgroundColor: existingUser?.exists ? '#f9fafb' : 'white'
                                 }}
                                 placeholder="Enter your name"
-                                disabled={existingUser && existingUser.exists}
+                                disabled={existingUser?.exists}
                                 onFocus={(e) => {
                                     if (!errors.firstName) e.target.style.borderColor = '#3b82f6';
                                 }}
@@ -140,7 +141,7 @@ const CustomerInfoForm: React.FC<CustomerInfoFormProps> = ({
                                     backgroundColor: existingUser?.exists ? '#f9fafb' : 'white'
                                 }}
                                 placeholder="(555) 123-4567"
-                                disabled={existingUser && existingUser.exists}
+                                disabled={existingUser?.exists}
                                 onFocus={(e) => {
                                     if (!errors.phone) e.target.style.borderColor = '#3b82f6';
                                 }}

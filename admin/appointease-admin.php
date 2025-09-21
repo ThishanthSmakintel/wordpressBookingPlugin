@@ -29,13 +29,20 @@ class AppointEase_Admin {
         add_action('wp_ajax_save_blackout_date', array($this, 'save_blackout_date'));
         add_action('wp_ajax_create_manual_booking', array($this, 'create_manual_booking'));
         add_action('wp_ajax_reschedule_appointment', array($this, 'reschedule_appointment'));
+        add_action('wp_ajax_sync_customers', array($this, 'ajax_sync_customers'));
+        add_action('wp_ajax_check_day_appointments', array($this, 'ajax_check_day_appointments'));
+        add_action('wp_ajax_check_customer_email', array($this, 'ajax_check_customer_email'));
         add_action('admin_init', array($this, 'init_settings'));
     }
     
     public function enqueue_admin_assets($hook) {
         if (strpos($hook, 'appointease') !== false) {
-            wp_enqueue_style('appointease-admin', BOOKING_PLUGIN_URL . 'admin/appointease-admin.css', array(), '1.0.0');
-            wp_enqueue_script('appointease-admin', BOOKING_PLUGIN_URL . 'admin/appointease-admin.js', array('jquery'), '1.0.0', true);
+            // Toastr.js CDN
+            wp_enqueue_style('toastr-css', 'https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.css', array(), '2.1.4');
+            wp_enqueue_script('toastr-js', 'https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js', array('jquery'), '2.1.4', true);
+            
+            wp_enqueue_style('appointease-admin', BOOKING_PLUGIN_URL . 'admin/appointease-admin.css', array('toastr-css'), '1.0.0');
+            wp_enqueue_script('appointease-admin', BOOKING_PLUGIN_URL . 'admin/appointease-admin.js', array('jquery', 'toastr-js'), '1.0.0', true);
             wp_enqueue_script('appointease-calendar', BOOKING_PLUGIN_URL . 'admin/calendar-integration.js', array('jquery'), '1.0.0', true);
             
             wp_localize_script('appointease-admin', 'appointeaseAdmin', array(
@@ -788,6 +795,17 @@ class AppointEase_Admin {
         $phone = sanitize_text_field($_POST['phone']);
         $notes = sanitize_textarea_field($_POST['notes']);
         
+        // Check for duplicate email
+        $existing = $wpdb->get_row($wpdb->prepare(
+            "SELECT id, name FROM {$wpdb->prefix}appointease_customers WHERE email = %s AND id != %d",
+            $email, $id
+        ));
+        
+        if ($existing) {
+            wp_send_json_error('Email already exists for customer: ' . $existing->name);
+            return;
+        }
+        
         if($id) {
             $wpdb->update(
                 $wpdb->prefix . 'appointease_customers',
@@ -1117,151 +1135,136 @@ class AppointEase_Admin {
     
     public function settings_page() {
         if (isset($_POST['submit'])) {
-            update_option('appointease_options', $_POST['appointease_options']);
-            echo '<div class="notice notice-success"><p>Settings saved!</p></div>';
+            $validation_result = $this->validate_working_days($_POST['appointease_options']['working_days'] ?? []);
+            
+            if ($validation_result['valid']) {
+                update_option('appointease_options', $_POST['appointease_options']);
+                wp_cache_delete('appointease_options', 'options');
+                echo '<script>jQuery(document).ready(function() { showSuccessToast("Settings Saved", "Your booking system has been updated with the new configuration.", [{text: "View Calendar", type: "primary", callback: function() { window.location.href = "admin.php?page=appointease-calendar"; }}]); });</script>';
+            } else {
+                echo '<script>jQuery(document).ready(function() { showErrorToast("Save Failed", "' . esc_js($validation_result['message']) . '", [{text: "Retry", type: "primary", callback: function() { document.querySelector("form").submit(); }}]); });</script>';
+            }
         }
         
         $options = get_option('appointease_options', array());
         ?>
         <div class="appointease-wrap">
-            <div id="settings-header" class="ae-page-header">
+            <div class="ae-page-header">
                 <div class="page-title">
                     <h1><i class="dashicons dashicons-admin-settings"></i> Settings</h1>
                     <p class="page-subtitle">Configure your booking system preferences</p>
                 </div>
-                <div class="page-actions">
-                </div>
             </div>
             
-            <form method="post" class="ae-settings-form">
-                <div class="ae-card">
-                    <h3>Business Hours</h3>
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>Start Time</label>
-                            <input type="time" name="appointease_options[start_time]" value="<?php echo isset($options['start_time']) ? $options['start_time'] : '09:00'; ?>" />
+            <div class="ae-settings-form">
+                <form method="post">
+                    <div class="settings-grid">
+                        <div class="ae-card">
+                            <h3><i class="dashicons dashicons-clock"></i> Business Hours</h3>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Start Time</label>
+                                    <input type="time" name="appointease_options[start_time]" value="<?php echo isset($options['start_time']) ? $options['start_time'] : '09:00'; ?>" />
+                                </div>
+                                <div class="form-group">
+                                    <label>End Time</label>
+                                    <input type="time" name="appointease_options[end_time]" value="<?php echo isset($options['end_time']) ? $options['end_time'] : '17:00'; ?>" />
+                                </div>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label>End Time</label>
-                            <input type="time" name="appointease_options[end_time]" value="<?php echo isset($options['end_time']) ? $options['end_time'] : '17:00'; ?>" />
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="ae-card">
-                    <h3>Working Days</h3>
-                    <div class="form-group">
-                        <?php $working_days = isset($options['working_days']) && is_array($options['working_days']) ? $options['working_days'] : ['1','2','3','4','5']; ?>
-                        <label><input type="checkbox" name="appointease_options[working_days][]" value="1" <?php checked(in_array('1', $working_days)); ?>> Monday</label>
-                        <label><input type="checkbox" name="appointease_options[working_days][]" value="2" <?php checked(in_array('2', $working_days)); ?>> Tuesday</label>
-                        <label><input type="checkbox" name="appointease_options[working_days][]" value="3" <?php checked(in_array('3', $working_days)); ?>> Wednesday</label>
-                        <label><input type="checkbox" name="appointease_options[working_days][]" value="4" <?php checked(in_array('4', $working_days)); ?>> Thursday</label>
-                        <label><input type="checkbox" name="appointease_options[working_days][]" value="5" <?php checked(in_array('5', $working_days)); ?>> Friday</label>
-                        <label><input type="checkbox" name="appointease_options[working_days][]" value="6" <?php checked(in_array('6', $working_days)); ?>> Saturday</label>
-                        <label><input type="checkbox" name="appointease_options[working_days][]" value="0" <?php checked(in_array('0', $working_days)); ?>> Sunday</label>
-                    </div>
-                </div>
-                
-                <div class="ae-card">
-                    <h3>Time Slots</h3>
-                    <div class="form-group">
-                        <label>Slot Duration</label>
-                        <select name="appointease_options[slot_duration]">
-                            <option value="15" <?php selected(isset($options['slot_duration']) ? $options['slot_duration'] : 30, 15); ?>>15 minutes</option>
-                            <option value="30" <?php selected(isset($options['slot_duration']) ? $options['slot_duration'] : 30, 30); ?>>30 minutes</option>
-                            <option value="60" <?php selected(isset($options['slot_duration']) ? $options['slot_duration'] : 30, 60); ?>>60 minutes</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Advance Booking (days)</label>
-                        <input type="number" name="appointease_options[advance_booking]" value="<?php echo isset($options['advance_booking']) ? $options['advance_booking'] : 30; ?>" min="1" max="365" />
-                    </div>
-                </div>
-                
-                <div class="ae-card">
-                    <h3>Email Notifications</h3>
-                    <div class="form-group">
-                        <label><input type="checkbox" name="appointease_options[email_customer]" value="1" <?php checked(isset($options['email_customer']) ? $options['email_customer'] : 1); ?>> Send confirmation emails to customers</label>
-                    </div>
-                    <div class="form-group">
-                        <label><input type="checkbox" name="appointease_options[email_admin]" value="1" <?php checked(isset($options['email_admin']) ? $options['email_admin'] : 1); ?>> Send notification emails to admin</label>
-                    </div>
-                    <div class="form-group">
-                        <label>Admin Email</label>
-                        <input type="email" name="appointease_options[admin_email]" value="<?php echo isset($options['admin_email']) ? $options['admin_email'] : get_option('admin_email'); ?>" />
-                    </div>
-                </div>
-                
-                <div class="ae-card">
-                    <h3>Booking Restrictions</h3>
-                    <div class="form-group">
-                        <label>Minimum advance notice (hours)</label>
-                        <input type="number" name="appointease_options[min_advance]" value="<?php echo isset($options['min_advance']) ? $options['min_advance'] : 2; ?>" min="0" max="168" />
-                    </div>
-                    <div class="form-group">
-                        <label>Maximum bookings per day</label>
-                        <input type="number" name="appointease_options[max_bookings]" value="<?php echo isset($options['max_bookings']) ? $options['max_bookings'] : 10; ?>" min="1" max="100" />
-                    </div>
-                </div>
-                
-                <div class="ae-card">
-                    <h3>Blackout Dates</h3>
-                    <div class="form-group">
-                        <label>Add Blackout Date Range</label>
-                        <div class="form-row">
-                            <input type="date" id="blackout-start" class="form-control" />
-                            <input type="date" id="blackout-end" class="form-control" />
-                            <input type="text" id="blackout-reason" placeholder="Reason" class="form-control" />
-                            <button type="button" class="ae-btn primary" onclick="addBlackoutDate()">Add</button>
-                        </div>
-                    </div>
-                    <div id="blackout-dates-list">
-                        <?php
-                        global $wpdb;
-                        $blackout_dates = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}appointease_blackout_dates ORDER BY start_date");
-                        foreach($blackout_dates as $blackout): ?>
-                        <div class="blackout-item">
-                            <span><?php echo $blackout->start_date; ?> to <?php echo $blackout->end_date; ?></span>
-                            <span><?php echo $blackout->reason; ?></span>
-                            <button type="button" class="ae-btn-small danger" onclick="removeBlackoutDate(<?php echo $blackout->id; ?>)">Remove</button>
-                        </div>
-                        <?php endforeach; ?>
-                    </div>
-                </div>
-                
-                <div class="ae-card">
-                    <h3>Staff Availability</h3>
-                    <div class="form-group">
-                        <label>Default Working Hours</label>
-                        <div class="form-row">
+                        
+                        <div class="ae-card">
+                            <h3><i class="dashicons dashicons-calendar-alt"></i> Working Days</h3>
                             <div class="form-group">
-                                <label>Monday</label>
-                                <input type="time" name="appointease_options[default_hours][mon][start]" value="<?php echo $options['default_hours']['mon']['start'] ?? '09:00'; ?>" />
-                                <input type="time" name="appointease_options[default_hours][mon][end]" value="<?php echo $options['default_hours']['mon']['end'] ?? '17:00'; ?>" />
+                                <?php $working_days = isset($options['working_days']) && is_array($options['working_days']) ? $options['working_days'] : ['1','2','3','4','5']; ?>
+                                <div class="working-days-grid">
+                                    <label class="checkbox-label"><input type="checkbox" name="appointease_options[working_days][]" value="1" <?php checked(in_array('1', $working_days)); ?>> <span>Monday</span></label>
+                                    <label class="checkbox-label"><input type="checkbox" name="appointease_options[working_days][]" value="2" <?php checked(in_array('2', $working_days)); ?>> <span>Tuesday</span></label>
+                                    <label class="checkbox-label"><input type="checkbox" name="appointease_options[working_days][]" value="3" <?php checked(in_array('3', $working_days)); ?>> <span>Wednesday</span></label>
+                                    <label class="checkbox-label"><input type="checkbox" name="appointease_options[working_days][]" value="4" <?php checked(in_array('4', $working_days)); ?>> <span>Thursday</span></label>
+                                    <label class="checkbox-label"><input type="checkbox" name="appointease_options[working_days][]" value="5" <?php checked(in_array('5', $working_days)); ?>> <span>Friday</span></label>
+                                    <label class="checkbox-label"><input type="checkbox" name="appointease_options[working_days][]" value="6" <?php checked(in_array('6', $working_days)); ?>> <span>Saturday</span></label>
+                                    <label class="checkbox-label"><input type="checkbox" name="appointease_options[working_days][]" value="0" <?php checked(in_array('0', $working_days)); ?>> <span>Sunday</span></label>
+                                </div>
+                            </div>
+                        </div>
+                
+                        <div class="ae-card">
+                            <h3><i class="dashicons dashicons-admin-tools"></i> Time Slots & Booking</h3>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Appointment Duration</label>
+                                    <select name="appointease_options[slot_duration]">
+                                        <option value="15" <?php selected(isset($options['slot_duration']) ? $options['slot_duration'] : 30, 15); ?>>15 minutes</option>
+                                        <option value="30" <?php selected(isset($options['slot_duration']) ? $options['slot_duration'] : 30, 30); ?>>30 minutes</option>
+                                        <option value="45" <?php selected(isset($options['slot_duration']) ? $options['slot_duration'] : 30, 45); ?>>45 minutes</option>
+                                        <option value="60" <?php selected(isset($options['slot_duration']) ? $options['slot_duration'] : 30, 60); ?>>60 minutes</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
+                                    <label>Advance Booking (days)</label>
+                                    <input type="number" name="appointease_options[advance_booking]" value="<?php echo isset($options['advance_booking']) ? $options['advance_booking'] : 30; ?>" min="1" max="365" />
+                                </div>
+                            </div>
+                        </div>
+                
+                        <div class="ae-card">
+                            <h3><i class="dashicons dashicons-email"></i> Email Notifications</h3>
+                            <div class="form-group">
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="appointease_options[email_customer]" value="1" <?php checked(isset($options['email_customer']) ? $options['email_customer'] : 1); ?>>
+                                    <span>Send confirmation emails to customers</span>
+                                </label>
                             </div>
                             <div class="form-group">
-                                <label>Tuesday</label>
-                                <input type="time" name="appointease_options[default_hours][tue][start]" value="<?php echo $options['default_hours']['tue']['start'] ?? '09:00'; ?>" />
-                                <input type="time" name="appointease_options[default_hours][tue][end]" value="<?php echo $options['default_hours']['tue']['end'] ?? '17:00'; ?>" />
+                                <label class="checkbox-label">
+                                    <input type="checkbox" name="appointease_options[email_admin]" value="1" <?php checked(isset($options['email_admin']) ? $options['email_admin'] : 1); ?>>
+                                    <span>Send notification emails to admin</span>
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label>Admin Email</label>
+                                <input type="email" name="appointease_options[admin_email]" value="<?php echo isset($options['admin_email']) ? $options['admin_email'] : get_option('admin_email'); ?>" />
+                            </div>
+                        </div>
+                
+                        <div class="ae-card">
+                            <h3><i class="dashicons dashicons-shield"></i> Booking Restrictions</h3>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Minimum advance notice (hours)</label>
+                                    <input type="number" name="appointease_options[min_advance]" value="<?php echo isset($options['min_advance']) ? $options['min_advance'] : 2; ?>" min="0" max="168" />
+                                </div>
+                                <div class="form-group">
+                                    <label>Maximum bookings per day</label>
+                                    <input type="number" name="appointease_options[max_bookings]" value="<?php echo isset($options['max_bookings']) ? $options['max_bookings'] : 10; ?>" min="1" max="100" />
+                                </div>
+                            </div>
+                        </div>
+                
+                        <div class="ae-card">
+                            <h3><i class="dashicons dashicons-calendar-alt"></i> Appearance</h3>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label>Primary Color</label>
+                                    <input type="color" name="appointease_options[primary_color]" value="<?php echo isset($options['primary_color']) ? $options['primary_color'] : '#1CBC9B'; ?>" />
+                                </div>
+                                <div class="form-group">
+                                    <label>Button Text</label>
+                                    <input type="text" name="appointease_options[button_text]" value="<?php echo isset($options['button_text']) ? $options['button_text'] : 'Book Appointment'; ?>" />
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-                
-                <div class="ae-card">
-                    <h3>Appearance</h3>
-                    <div class="form-group">
-                        <label>Primary Color</label>
-                        <input type="color" name="appointease_options[primary_color]" value="<?php echo isset($options['primary_color']) ? $options['primary_color'] : '#1CBC9B'; ?>" />
+                    
+                    <div style="text-align: center; margin-top: 30px;">
+                        <button type="submit" name="submit" class="ae-btn primary" style="padding: 15px 40px; font-size: 16px;">
+                            <i class="dashicons dashicons-saved"></i> Save All Settings
+                        </button>
                     </div>
-                    <div class="form-group">
-                        <label>Button Text</label>
-                        <input type="text" name="appointease_options[button_text]" value="<?php echo isset($options['button_text']) ? $options['button_text'] : 'Book Appointment'; ?>" />
-                    </div>
-                </div>
-                
-                <button type="submit" name="submit" class="ae-btn primary">Save Settings</button>
-            </form>
+                </form>
+            </div>
+
         </div>
         <?php
     }
@@ -1406,10 +1409,18 @@ class AppointEase_Admin {
     
     public function customers_page() {
         global $wpdb;
+        
+        // Auto-sync customers from appointments if customers table is empty
+        $customer_count = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}appointease_customers");
+        if ($customer_count == 0) {
+            $this->sync_customers_from_appointments();
+        }
+        
         $customers = $wpdb->get_results(
-            "SELECT c.*, COUNT(a.id) as appointment_count, SUM(a.total_amount) as total_spent
+            "SELECT c.*, COUNT(a.id) as appointment_count, SUM(s.price) as total_spent
              FROM {$wpdb->prefix}appointease_customers c
-             LEFT JOIN {$wpdb->prefix}appointments a ON c.id = a.customer_id
+             LEFT JOIN {$wpdb->prefix}appointments a ON c.email = a.email
+             LEFT JOIN {$wpdb->prefix}appointease_services s ON a.service_id = s.id
              GROUP BY c.id ORDER BY c.created_at DESC"
         );
         ?>
@@ -1420,6 +1431,7 @@ class AppointEase_Admin {
                     <p class="page-subtitle">Manage customer database</p>
                 </div>
                 <div class="page-actions">
+                    <button class="ae-btn ghost" onclick="syncCustomers()" style="margin-right: 10px;">Sync from Appointments</button>
                     <button class="ae-btn primary" onclick="openCustomerModal()">Add Customer</button>
                 </div>
             </div>
@@ -1558,7 +1570,7 @@ class AppointEase_Admin {
         
         if (isset($_POST['save_email_settings'])) {
             update_option('appointease_email_settings', $_POST['email_settings']);
-            echo '<div class="notice notice-success"><p>Email settings saved!</p></div>';
+            echo '<script>jQuery(document).ready(function() { showSuccessToast("Email Settings Saved", "SMTP configuration has been updated successfully.", [{text: "Test Email", type: "primary", callback: function() { testEmail(); }}]); });</script>';
         }
         ?>
         <div class="appointease-wrap">
@@ -1772,6 +1784,124 @@ class AppointEase_Admin {
             wp_send_json_success('Appointment rescheduled successfully');
         } else {
             wp_send_json_error('Failed to reschedule appointment');
+        }
+    }
+    
+    public function ajax_sync_customers() {
+        check_ajax_referer('appointease_nonce', '_wpnonce');
+        
+        $synced = $this->sync_customers_from_appointments();
+        wp_send_json_success('Customers synced from appointments successfully');
+    }
+    
+    public function ajax_check_day_appointments() {
+        check_ajax_referer('appointease_nonce', '_wpnonce');
+        
+        $day = intval($_POST['day']);
+        global $wpdb;
+        
+        $count = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}appointments 
+             WHERE DAYOFWEEK(appointment_date) = %d 
+             AND appointment_date >= NOW() 
+             AND status IN ('confirmed', 'created')",
+            $day == 0 ? 1 : $day + 1
+        ));
+        
+        wp_send_json_success(['count' => intval($count)]);
+    }
+    
+    public function ajax_check_customer_email() {
+        check_ajax_referer('appointease_nonce', '_wpnonce');
+        
+        $email = sanitize_email($_POST['email']);
+        global $wpdb;
+        
+        $customer = $wpdb->get_row($wpdb->prepare(
+            "SELECT name, phone FROM {$wpdb->prefix}appointease_customers WHERE email = %s",
+            $email
+        ));
+        
+        if ($customer) {
+            wp_send_json_success(['exists' => true, 'name' => $customer->name, 'phone' => $customer->phone]);
+        } else {
+            wp_send_json_success(['exists' => false]);
+        }
+    }
+    
+    private function validate_working_days($new_working_days) {
+        global $wpdb;
+        
+        $current_options = get_option('appointease_options', array());
+        $current_working_days = isset($current_options['working_days']) && is_array($current_options['working_days']) 
+            ? $current_options['working_days'] 
+            : ['1','2','3','4','5'];
+        
+        if (!is_array($new_working_days)) {
+            $new_working_days = [];
+        }
+        
+        // Find days being removed
+        $removed_days = array_diff($current_working_days, $new_working_days);
+        
+        if (empty($removed_days)) {
+            return ['valid' => true];
+        }
+        
+        // Check for appointments on removed days
+        $day_names = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        $conflicts = [];
+        
+        foreach ($removed_days as $day) {
+            $day_num = intval($day);
+            $appointments = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->prefix}appointments 
+                 WHERE DAYOFWEEK(appointment_date) = %d 
+                 AND appointment_date >= NOW() 
+                 AND status IN ('confirmed', 'created')",
+                $day_num == 0 ? 1 : $day_num + 1 // MySQL DAYOFWEEK: 1=Sunday, 2=Monday, etc.
+            ));
+            
+            if ($appointments > 0) {
+                $conflicts[] = $day_names[$day_num] . ' (' . $appointments . ' appointments)';
+            }
+        }
+        
+        if (!empty($conflicts)) {
+            return [
+                'valid' => false,
+                'message' => 'Cannot remove working days with existing appointments: ' . implode(', ', $conflicts) . '. Please cancel or reschedule these appointments first.'
+            ];
+        }
+        
+        return ['valid' => true];
+    }
+    
+    private function sync_customers_from_appointments() {
+        global $wpdb;
+        
+        $appointments = $wpdb->get_results(
+            "SELECT DISTINCT name, email, phone FROM {$wpdb->prefix}appointments WHERE email IS NOT NULL AND email != ''"
+        );
+        
+        foreach ($appointments as $appointment) {
+            $existing = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$wpdb->prefix}appointease_customers WHERE email = %s",
+                $appointment->email
+            ));
+            
+            if (!$existing) {
+                $wpdb->insert(
+                    $wpdb->prefix . 'appointease_customers',
+                    array(
+                        'name' => $appointment->name,
+                        'email' => $appointment->email,
+                        'phone' => $appointment->phone,
+                        'created_at' => current_time('mysql')
+                    ),
+                    array('%s', '%s', '%s', '%s')
+                );
+            }
         }
     }
     

@@ -11,7 +11,7 @@ class Booking_API_Endpoints {
         register_rest_route('appointease/v1', '/appointments', array(
             'methods' => 'POST',
             'callback' => array($this, 'create_appointment'),
-            'permission_callback' => array($this, 'public_permission')
+            'permission_callback' => array($this, 'verify_nonce_permission')
         ));
         
         register_rest_route('appointease/v1', '/appointments/(?P<id>[a-zA-Z0-9\-]+)', array(
@@ -29,7 +29,7 @@ class Booking_API_Endpoints {
             array(
                 'methods' => 'DELETE',
                 'callback' => array($this, 'cancel_appointment'),
-                'permission_callback' => array($this, 'public_permission'),
+                'permission_callback' => array($this, 'verify_nonce_permission'),
                 'args' => array(
                     'id' => array(
                         'required' => true,
@@ -40,7 +40,7 @@ class Booking_API_Endpoints {
             array(
                 'methods' => 'PUT',
                 'callback' => array($this, 'reschedule_appointment'),
-                'permission_callback' => array($this, 'public_permission')
+                'permission_callback' => array($this, 'verify_nonce_permission')
             )
         ));
         
@@ -63,6 +63,12 @@ class Booking_API_Endpoints {
             'permission_callback' => array($this, 'public_permission')
         ));
         
+        register_rest_route('booking/v1', '/check-customer/(?P<email>[^/]+)', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'check_customer_by_email'),
+            'permission_callback' => array($this, 'public_permission')
+        ));
+        
         // Add appointease/v1 availability route
         register_rest_route('appointease/v1', '/availability', array(
             'methods' => 'POST',
@@ -75,6 +81,12 @@ class Booking_API_Endpoints {
             'methods' => 'POST',
             'callback' => array($this, 'get_user_appointments'),
             'permission_callback' => array($this, 'public_permission')
+        ));
+        
+        register_rest_route('appointease/v1', '/check-customer/(?P<email>[^/]+)', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'check_customer_by_email'),
+            'permission_callback' => '__return_true'
         ));
         
         // Backward compatibility route
@@ -178,6 +190,26 @@ class Booking_API_Endpoints {
             'methods' => 'POST',
             'callback' => array($this, 'check_slot_booking'),
             'permission_callback' => '__return_true'
+        ));
+        
+        // Settings endpoint for dynamic configuration
+        register_rest_route('appointease/v1', '/settings', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_settings'),
+            'permission_callback' => '__return_true'
+        ));
+        
+        // Admin calendar endpoints
+        register_rest_route('appointease/v1', '/admin/appointments', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_admin_appointments'),
+            'permission_callback' => function() { return current_user_can('manage_options'); }
+        ));
+        
+        register_rest_route('appointease/v1', '/admin/appointments/(?P<id>\d+)', array(
+            'methods' => 'PUT',
+            'callback' => array($this, 'update_admin_appointment'),
+            'permission_callback' => function() { return current_user_can('manage_options'); }
         ));
     }
     
@@ -526,8 +558,61 @@ class Booking_API_Endpoints {
         return rest_ensure_response($appointments);
     }
     
+    public function check_customer_by_email($request) {
+        global $wpdb;
+        
+        $email = $request->get_param('email');
+        if (!$email) {
+            return new WP_Error('missing_email', 'Email is required', array('status' => 400));
+        }
+        
+        $email = sanitize_email(urldecode($email));
+        
+        if (empty($email) || !is_email($email)) {
+            return new WP_Error('invalid_email', 'Valid email is required', array('status' => 400));
+        }
+        
+        // Check in customers table first
+        $customer = $wpdb->get_row($wpdb->prepare(
+            "SELECT name, phone FROM {$wpdb->prefix}appointease_customers WHERE email = %s",
+            $email
+        ));
+        
+        if ($customer) {
+            return rest_ensure_response(array(
+                'exists' => true,
+                'name' => $customer->name,
+                'phone' => $customer->phone
+            ));
+        }
+        
+        // Check in appointments table as fallback
+        $appointment = $wpdb->get_row($wpdb->prepare(
+            "SELECT name, phone FROM {$wpdb->prefix}appointments WHERE email = %s ORDER BY id DESC LIMIT 1",
+            $email
+        ));
+        
+        if ($appointment) {
+            return rest_ensure_response(array(
+                'exists' => true,
+                'name' => $appointment->name,
+                'phone' => $appointment->phone
+            ));
+        }
+        
+        return rest_ensure_response(array('exists' => false));
+    }
+    
     public function public_permission($request) {
         return true;
+    }
+    
+    public function verify_nonce_permission($request) {
+        $nonce = $request->get_header('X-WP-Nonce');
+        if (!$nonce) {
+            $nonce = $request->get_param('_wpnonce');
+        }
+        return wp_verify_nonce($nonce, 'wp_rest');
     }
     
     public function appointment_permission($request) {
@@ -918,5 +1003,131 @@ class Booking_API_Endpoints {
             'is_booked' => false,
             'message' => 'Time slot is available'
         ));
+    }
+    
+    public function get_settings($request) {
+        $options = get_option('appointease_options', array());
+        
+        // Generate time slots based on settings
+        $start_time = isset($options['start_time']) ? $options['start_time'] : '09:00';
+        $end_time = isset($options['end_time']) ? $options['end_time'] : '17:00';
+        $slot_duration = isset($options['slot_duration']) ? intval($options['slot_duration']) : 30;
+        
+        $time_slots = $this->generate_time_slots($start_time, $end_time, $slot_duration);
+        
+        return rest_ensure_response(array(
+            'business_hours' => array(
+                'start' => $start_time,
+                'end' => $end_time
+            ),
+            'working_days' => isset($options['working_days']) && !empty($options['working_days']) 
+                ? $options['working_days'] 
+                : array('1','2','3','4','5'),
+            'time_slots' => $time_slots,
+            'slot_duration' => $slot_duration
+        ));
+    }
+    
+    private function generate_time_slots($start_time, $end_time, $duration_minutes) {
+        $slots = array();
+        $start = strtotime($start_time);
+        $end = strtotime($end_time);
+        
+        for ($time = $start; $time < $end; $time += ($duration_minutes * 60)) {
+            $slots[] = date('H:i', $time);
+        }
+        
+        return $slots;
+    }
+    
+    public function get_admin_appointments($request) {
+        global $wpdb;
+        
+        $start_date = $request->get_param('start');
+        $end_date = $request->get_param('end');
+        
+        $where_clause = '';
+        $params = array();
+        
+        if ($start_date && $end_date) {
+            $where_clause = 'WHERE appointment_date BETWEEN %s AND %s';
+            $params = array($start_date, $end_date);
+        }
+        
+        $query = "SELECT a.*, s.name as service_name, st.name as staff_name 
+                  FROM {$wpdb->prefix}appointments a 
+                  LEFT JOIN {$wpdb->prefix}appointease_services s ON a.service_id = s.id 
+                  LEFT JOIN {$wpdb->prefix}appointease_staff st ON a.employee_id = st.id 
+                  {$where_clause} 
+                  ORDER BY a.appointment_date ASC";
+        
+        if (!empty($params)) {
+            $appointments = $wpdb->get_results($wpdb->prepare($query, $params));
+        } else {
+            $appointments = $wpdb->get_results($query);
+        }
+        
+        $events = array();
+        foreach ($appointments as $appointment) {
+            $events[] = array(
+                'id' => $appointment->id,
+                'title' => $appointment->name . ' - ' . ($appointment->service_name ?: 'Service'),
+                'start' => $appointment->appointment_date,
+                'end' => date('Y-m-d H:i:s', strtotime($appointment->appointment_date . ' +1 hour')),
+                'status' => $appointment->status,
+                'customer' => $appointment->name,
+                'email' => $appointment->email,
+                'phone' => $appointment->phone,
+                'service' => $appointment->service_name ?: 'Service',
+                'staff' => $appointment->staff_name ?: 'Staff'
+            );
+        }
+        
+        return rest_ensure_response($events);
+    }
+    
+    public function update_admin_appointment($request) {
+        global $wpdb;
+        
+        $id = intval($request['id']);
+        $params = $request->get_json_params();
+        
+        if (!$id) {
+            return new WP_Error('invalid_id', 'Invalid appointment ID', array('status' => 400));
+        }
+        
+        $update_data = array();
+        $update_format = array();
+        
+        if (isset($params['appointment_date'])) {
+            $update_data['appointment_date'] = sanitize_text_field($params['appointment_date']);
+            $update_format[] = '%s';
+        }
+        
+        if (isset($params['status'])) {
+            $status = sanitize_text_field($params['status']);
+            if (in_array($status, ['confirmed', 'cancelled', 'pending'])) {
+                $update_data['status'] = $status;
+                $update_format[] = '%s';
+            }
+        }
+        
+        if (empty($update_data)) {
+            return new WP_Error('no_data', 'No valid data to update', array('status' => 400));
+        }
+        
+        $result = $wpdb->update(
+            $wpdb->prefix . 'appointments',
+            $update_data,
+            array('id' => $id),
+            $update_format,
+            array('%d')
+        );
+        
+        if ($result === false) {
+            return new WP_Error('update_failed', 'Failed to update appointment', array('status' => 500));
+        }
+        
+        return rest_ensure_response(array('success' => true, 'updated' => $result));
     }
 }

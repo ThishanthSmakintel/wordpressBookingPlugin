@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useBookingStore } from '../../store/bookingStore';
-import { TIME_SLOTS } from '../../constants';
+import { SettingsService } from '../../app/shared/services/settings.service';
 
 interface TimeSelectorProps {
     unavailableSlots: string[] | 'all';
@@ -44,11 +44,23 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
     const [timeSlots, setTimeSlots] = useState<string[]>([]);
     const [isLoadingSlots, setIsLoadingSlots] = useState(true);
     
-    // Load time slots - use default slots immediately
+    // Load time slots from settings API
     useEffect(() => {
-        const defaultSlots = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'];
-        setTimeSlots(defaultSlots);
-        setIsLoadingSlots(false);
+        const loadTimeSlots = async () => {
+            try {
+                const settingsService = SettingsService.getInstance();
+                const settings = await settingsService.getSettings();
+                setTimeSlots(settings.time_slots);
+            } catch (error) {
+                console.error('Failed to load time slots:', error);
+                // Fallback to default slots
+                setTimeSlots(['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30']);
+            } finally {
+                setIsLoadingSlots(false);
+            }
+        };
+        
+        loadTimeSlots();
     }, []);
 
     return (

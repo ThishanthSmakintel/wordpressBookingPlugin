@@ -38,6 +38,7 @@ import { useBookingActions } from '../../hooks/useBookingActions';
 // Store and utilities
 import { useBookingStore } from '../../store/bookingStore';
 import { sanitizeInput, generateStrongId } from '../../utils';
+import { checkCustomer } from '../../services/api';
 
 declare global {
     interface Window {
@@ -69,6 +70,7 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
     const liveRegionRef = useRef<HTMLDivElement>(null);
     const loginClickedRef = useRef(false);
     const dashboardRef = useRef<HTMLDivElement>(null);
+    const appContainerRef = useRef<HTMLDivElement>(null);
     
     // ✅ Actions hook
     const { checkAvailability, handleManageAppointment, handleSubmit, loadUserAppointmentsRealtime } = useBookingActions(bookingState);
@@ -191,6 +193,13 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
     useEffect(() => {
         loadInitialData();
     }, [loadInitialData]);
+
+    // Scroll to top when step changes
+    useEffect(() => {
+        if (appContainerRef.current) {
+            appContainerRef.current.scrollIntoView({ behavior: 'smooth' });
+        }
+    }, [step]);
 
     useEffect(() => {
         const fetchAllData = async () => {
@@ -370,7 +379,7 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
         <>
             <DebugPanel debugState={debugState} bookingState={bookingState} />
             
-            <div className="appointease-booking wp-block-group" role="main" aria-label="Appointment booking system">
+            <div ref={appContainerRef} className="appointease-booking wp-block-group booking-app-container" role="main" aria-label="Appointment booking system">
                 <div ref={liveRegionRef} className="live-region" aria-live="polite" aria-atomic="true"></div>
                 <ConnectionStatus />
                 
@@ -431,7 +440,30 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                                     existingUser={bookingState.existingUser}
                                     onSubmit={handleSubmit}
                                     onBack={() => setStep(4)}
-                                    checkExistingEmail={() => {}}
+                                    checkExistingEmail={async (email: string) => {
+                                        bookingState.setIsCheckingEmail(true);
+                                        try {
+                                            const result = await checkCustomer(email);
+                                            if (result.exists) {
+                                                bookingState.setExistingUser({
+                                                    exists: true,
+                                                    name: result.name,
+                                                    phone: result.phone
+                                                });
+                                                setFormData({
+                                                    firstName: result.name || '',
+                                                    phone: result.phone || ''
+                                                });
+                                            } else {
+                                                bookingState.setExistingUser({ exists: false });
+                                            }
+                                        } catch (error) {
+                                            console.error('Error checking customer:', error);
+                                            bookingState.setExistingUser({ exists: false });
+                                        } finally {
+                                            bookingState.setIsCheckingEmail(false);
+                                        }
+                                    }}
                                 />
                             )}
                             

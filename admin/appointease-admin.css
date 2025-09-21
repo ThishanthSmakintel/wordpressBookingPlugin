@@ -1,4 +1,66 @@
 /* AppointEase Admin Styles */
+
+/* Toastr Custom Styles */
+.toast-actions {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255,255,255,0.2);
+    display: flex;
+    gap: 8px;
+}
+
+.toast-action-btn {
+    padding: 4px 12px;
+    border: none;
+    border-radius: 3px;
+    font-size: 11px;
+    cursor: pointer;
+    font-weight: 500;
+    text-decoration: none;
+    display: inline-block;
+    line-height: 1.2;
+    transition: all 0.2s ease;
+}
+
+.toast-action-btn.primary {
+    background: rgba(255,255,255,0.9);
+    color: #333;
+}
+
+.toast-action-btn.primary:hover {
+    background: #fff;
+    transform: translateY(-1px);
+}
+
+.toast-action-btn.secondary {
+    background: rgba(255,255,255,0.2);
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.3);
+}
+
+.toast-action-btn.secondary:hover {
+    background: rgba(255,255,255,0.3);
+}
+
+.toast-action-btn.danger {
+    background: #dc3232;
+    color: #fff;
+}
+
+.toast-action-btn.danger:hover {
+    background: #c02d2d;
+}
+
+/* Override Toastr positioning for WordPress admin */
+#toast-container {
+    top: 32px !important;
+    z-index: 999999 !important;
+}
+
+#toast-container > div {
+    box-shadow: 0 2px 10px rgba(0,0,0,0.15) !important;
+    border-radius: 4px !important;
+}
 .appointease-wrap {
     background: #f1f1f1;
     margin: 20px 0 0 -20px;
@@ -522,7 +584,7 @@
 
 .working-days-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
     gap: 12px;
 }
 
@@ -677,6 +739,26 @@
     font-size: 14px;
 }
 
+/* Settings specific styles */
+.settings-grid .ae-card {
+    margin-bottom: 0;
+}
+
+.settings-grid .ae-card h3 {
+    color: #2c3e50;
+    font-size: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #e1e5e9;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.settings-grid .ae-card h3 i {
+    color: #1CBC9B;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .amelia-header {
@@ -708,7 +790,13 @@
     }
     
     .working-days-grid {
-        grid-template-columns: 1fr;
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    @media (max-width: 480px) {
+        .working-days-grid {
+            grid-template-columns: 1fr;
+        }
     }
 }
 

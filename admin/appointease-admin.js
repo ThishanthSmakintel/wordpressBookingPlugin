@@ -1,5 +1,80 @@
 // AppointEase Admin JavaScript
+
+// Toastr Configuration
+function initToastr() {
+    if (typeof toastr !== 'undefined') {
+        toastr.options = {
+            closeButton: true,
+            debug: false,
+            newestOnTop: true,
+            progressBar: true,
+            positionClass: 'toast-top-right',
+            preventDuplicates: false,
+            onclick: null,
+            showDuration: '300',
+            hideDuration: '1000',
+            timeOut: '5000',
+            extendedTimeOut: '1000',
+            showEasing: 'swing',
+            hideEasing: 'linear',
+            showMethod: 'fadeIn',
+            hideMethod: 'fadeOut'
+        };
+    }
+}
+
+function showSuccessToast(title, message, actions = []) {
+    if (typeof toastr !== 'undefined') {
+        const toast = toastr.success(message, title);
+        if (actions.length > 0) {
+            addToastActions(toast, actions);
+        }
+    }
+}
+
+function showErrorToast(title, message, actions = []) {
+    if (typeof toastr !== 'undefined') {
+        const toast = toastr.error(message, title);
+        if (actions.length > 0) {
+            addToastActions(toast, actions);
+        }
+    }
+}
+
+function showWarningToast(title, message, actions = []) {
+    if (typeof toastr !== 'undefined') {
+        const toast = toastr.warning(message, title);
+        if (actions.length > 0) {
+            addToastActions(toast, actions);
+        }
+    }
+}
+
+function addToastActions(toast, actions) {
+    if (toast && actions.length > 0) {
+        setTimeout(() => {
+            if (toast && toast[0]) {
+                const actionsDiv = jQuery('<div class="toast-actions"></div>');
+                
+                actions.forEach((action, index) => {
+                    const btn = jQuery(`<button class="toast-action-btn ${action.type || 'secondary'}">${action.text}</button>`);
+                    btn.on('click', function() {
+                        if (action.callback) {
+                            action.callback();
+                        }
+                        toastr.clear();
+                    });
+                    actionsDiv.append(btn);
+                });
+                
+                jQuery(toast[0]).append(actionsDiv);
+            }
+        }, 100);
+    }
+}
+
 jQuery(document).ready(function($) {
+    initToastr();
 
     // Modal Functions
     window.openServiceModal = function() {
@@ -44,11 +119,23 @@ jQuery(document).ready(function($) {
 
         $.post(appointeaseAdmin.ajaxurl, formData, function(response) {
             if (response.success) {
-                showNotification('Service saved successfully!', 'success');
+                showSuccessToast('Service Saved', 'Service saved successfully!', [
+                    {
+                        text: 'View Services',
+                        type: 'primary',
+                        callback: function() { window.location.href = 'admin.php?page=appointease-services'; }
+                    }
+                ]);
                 $('#service-modal').removeClass('show');
                 location.reload();
             } else {
-                showNotification('Error saving service', 'error');
+                showErrorToast('Save Failed', 'Error saving service', [
+                    {
+                        text: 'Retry',
+                        type: 'primary',
+                        callback: function() { $('#service-form').submit(); }
+                    }
+                ]);
             }
         });
     });
@@ -68,11 +155,23 @@ jQuery(document).ready(function($) {
 
         $.post(appointeaseAdmin.ajaxurl, formData, function(response) {
             if (response.success) {
-                showNotification('Staff member saved successfully!', 'success');
+                showSuccessToast('Staff Saved', 'Staff member saved successfully!', [
+                    {
+                        text: 'View Staff',
+                        type: 'primary',
+                        callback: function() { window.location.href = 'admin.php?page=appointease-staff'; }
+                    }
+                ]);
                 $('#staff-modal').removeClass('show');
                 location.reload();
             } else {
-                showNotification('Error saving staff member', 'error');
+                showErrorToast('Save Failed', 'Error saving staff member', [
+                    {
+                        text: 'Retry',
+                        type: 'primary',
+                        callback: function() { $('#staff-form').submit(); }
+                    }
+                ]);
             }
         });
     });
@@ -125,10 +224,10 @@ jQuery(document).ready(function($) {
                 id: id
             }, function(response) {
                 if (response.success) {
-                    showNotification('Service deleted successfully!', 'success');
+                    showSuccessToast('Service Deleted', 'Service deleted successfully!');
                     location.reload();
                 } else {
-                    showNotification('Error deleting service', 'error');
+                    showErrorToast('Delete Failed', 'Error deleting service');
                 }
             });
         }
@@ -143,10 +242,10 @@ jQuery(document).ready(function($) {
                 id: id
             }, function(response) {
                 if (response.success) {
-                    showNotification('Staff member deleted successfully!', 'success');
+                    showSuccessToast('Staff Deleted', 'Staff member deleted successfully!');
                     location.reload();
                 } else {
-                    showNotification('Error deleting staff member', 'error');
+                    showErrorToast('Delete Failed', 'Error deleting staff member');
                 }
             });
         }
@@ -161,9 +260,9 @@ jQuery(document).ready(function($) {
             status: status
         }, function(response) {
             if (response.success) {
-                showNotification('Appointment status updated!', 'success');
+                showSuccessToast('Status Updated', 'Appointment status updated!');
             } else {
-                showNotification('Error updating status', 'error');
+                showErrorToast('Update Failed', 'Error updating status');
             }
         });
     };
@@ -177,10 +276,10 @@ jQuery(document).ready(function($) {
                 id: id
             }, function(response) {
                 if (response.success) {
-                    showNotification('Appointment deleted successfully!', 'success');
+                    showSuccessToast('Appointment Deleted', 'Appointment deleted successfully!');
                     location.reload();
                 } else {
-                    showNotification('Error deleting appointment', 'error');
+                    showErrorToast('Delete Failed', 'Error deleting appointment');
                 }
             });
         }
@@ -205,39 +304,36 @@ jQuery(document).ready(function($) {
 
         $.post(appointeaseAdmin.ajaxurl, formData, function(response) {
             if (response.success) {
-                showNotification('Appointment rescheduled successfully!', 'success');
+                showSuccessToast('Appointment Rescheduled', 'Appointment rescheduled successfully!', [
+                    {
+                        text: 'View Calendar',
+                        type: 'primary',
+                        callback: function() { window.location.href = 'admin.php?page=appointease-calendar'; }
+                    }
+                ]);
                 $('#reschedule-modal').removeClass('show');
                 location.reload();
             } else {
-                showNotification('Error rescheduling appointment', 'error');
+                showErrorToast('Reschedule Failed', 'Error rescheduling appointment', [
+                    {
+                        text: 'Retry',
+                        type: 'primary',
+                        callback: function() { $('#reschedule-form').submit(); }
+                    }
+                ]);
             }
         });
     });
 
-    // Notification System
+    // Legacy notification function for backward compatibility
     function showNotification(message, type = 'success') {
-        const notification = $(`
-            <div class="ae-notification ${type}">
-                <span>${message}</span>
-                <button class="ae-notification-close">&times;</button>
-            </div>
-        `);
-
-        $('body').append(notification);
-        
-        setTimeout(() => {
-            notification.addClass('show');
-        }, 100);
-
-        setTimeout(() => {
-            notification.removeClass('show');
-            setTimeout(() => notification.remove(), 300);
-        }, 3000);
-
-        notification.find('.ae-notification-close').click(() => {
-            notification.removeClass('show');
-            setTimeout(() => notification.remove(), 300);
-        });
+        if (typeof toastr !== 'undefined') {
+            if (type === 'success') {
+                toastr.success(message);
+            } else {
+                toastr.error(message);
+            }
+        }
     }
 
     // Search and Filter Functionality
@@ -291,10 +387,10 @@ jQuery(document).ready(function($) {
                 id: id
             }, function(response) {
                 if (response.success) {
-                    showNotification('Category deleted successfully!', 'success');
+                    showSuccessToast('Category Deleted', 'Category deleted successfully!');
                     location.reload();
                 } else {
-                    showNotification('Error deleting category', 'error');
+                    showErrorToast('Delete Failed', 'Error deleting category');
                 }
             });
         }
@@ -305,8 +401,33 @@ jQuery(document).ready(function($) {
         $('#customer-modal-title').text('Add Customer');
         $('#customer-form')[0].reset();
         $('#customer-id').val('');
+        $('#customer-name').prop('disabled', false);
+        $('#customer-phone').prop('disabled', false);
         $('#customer-modal').addClass('show');
     };
+    
+    // Check customer email on blur
+    $(document).on('blur', '#customer-email', function() {
+        const email = $(this).val();
+        const customerId = $('#customer-id').val();
+        
+        if (email && !customerId) {
+            $.post(appointeaseAdmin.ajaxurl, {
+                action: 'check_customer_email',
+                _wpnonce: appointeaseAdmin.nonce,
+                email: email
+            }, function(response) {
+                if (response.success && response.data.exists) {
+                    $('#customer-name').val(response.data.name).prop('disabled', true);
+                    $('#customer-phone').val(response.data.phone).prop('disabled', true);
+                    showWarningToast('Existing Customer', 'This email belongs to an existing customer. Name and phone are auto-filled.');
+                } else {
+                    $('#customer-name').prop('disabled', false);
+                    $('#customer-phone').prop('disabled', false);
+                }
+            });
+        }
+    });
     
     window.editCustomer = function(id) {
         $('#customer-modal-title').text('Edit Customer');
@@ -322,10 +443,10 @@ jQuery(document).ready(function($) {
                 id: id
             }, function(response) {
                 if (response.success) {
-                    showNotification('Customer deleted successfully!', 'success');
+                    showSuccessToast('Customer Deleted', 'Customer deleted successfully!');
                     location.reload();
                 } else {
-                    showNotification('Error deleting customer', 'error');
+                    showErrorToast('Delete Failed', 'Error deleting customer');
                 }
             });
         }
@@ -353,10 +474,10 @@ jQuery(document).ready(function($) {
                 id: id
             }, function(response) {
                 if (response.success) {
-                    showNotification('Template deleted successfully!', 'success');
+                    showSuccessToast('Template Deleted', 'Template deleted successfully!');
                     location.reload();
                 } else {
-                    showNotification('Error deleting template', 'error');
+                    showErrorToast('Delete Failed', 'Error deleting template');
                 }
             });
         }
@@ -368,9 +489,9 @@ jQuery(document).ready(function($) {
             _wpnonce: appointeaseAdmin.nonce
         }, function(response) {
             if (response.success) {
-                showNotification('Test email sent successfully!', 'success');
+                showSuccessToast('Email Sent', 'Test email sent successfully!');
             } else {
-                showNotification('Failed to send test email', 'error');
+                showErrorToast('Email Failed', 'Failed to send test email');
             }
         });
     };
@@ -410,10 +531,10 @@ jQuery(document).ready(function($) {
                 id: id
             }, function(response) {
                 if (response.success) {
-                    showNotification('Holiday deleted successfully!', 'success');
+                    showSuccessToast('Holiday Deleted', 'Holiday deleted successfully!');
                     location.reload();
                 } else {
-                    showNotification('Error deleting holiday', 'error');
+                    showErrorToast('Delete Failed', 'Error deleting holiday');
                 }
             });
         }
@@ -432,11 +553,11 @@ jQuery(document).ready(function($) {
         
         $.post(appointeaseAdmin.ajaxurl, formData, function(response) {
             if (response.success) {
-                showNotification('Holiday saved successfully!', 'success');
+                showSuccessToast('Holiday Saved', 'Holiday saved successfully!');
                 $('#holiday-modal').removeClass('show');
                 location.reload();
             } else {
-                showNotification('Error saving holiday', 'error');
+                showErrorToast('Save Failed', 'Error saving holiday');
             }
         });
     });
@@ -455,9 +576,9 @@ jQuery(document).ready(function($) {
                 a.download = 'appointments-' + new Date().toISOString().split('T')[0] + '.csv';
                 a.click();
                 window.URL.revokeObjectURL(url);
-                showNotification('Data exported successfully!', 'success');
+                showSuccessToast('Export Complete', 'Data exported successfully!');
             } else {
-                showNotification('Export failed', 'error');
+                showErrorToast('Export Failed', 'Export failed');
             }
         });
     };
@@ -470,7 +591,7 @@ jQuery(document).ready(function($) {
         }).get();
         
         if (!action || selectedIds.length === 0) {
-            showNotification('Please select an action and appointments', 'error');
+            showErrorToast('Selection Required', 'Please select an action and appointments');
             return;
         }
         
@@ -482,10 +603,10 @@ jQuery(document).ready(function($) {
                 appointment_ids: selectedIds
             }, function(response) {
                 if (response.success) {
-                    showNotification('Bulk action applied successfully!', 'success');
+                    showSuccessToast('Bulk Action Complete', 'Bulk action applied successfully!');
                     location.reload();
                 } else {
-                    showNotification('Bulk action failed', 'error');
+                    showErrorToast('Bulk Action Failed', 'Bulk action failed');
                 }
             });
         }
@@ -510,11 +631,11 @@ jQuery(document).ready(function($) {
         
         $.post(appointeaseAdmin.ajaxurl, formData, function(response) {
             if (response.success) {
-                showNotification('Category saved successfully!', 'success');
+                showSuccessToast('Category Saved', 'Category saved successfully!');
                 $('#category-modal').removeClass('show');
                 location.reload();
             } else {
-                showNotification('Error saving category', 'error');
+                showErrorToast('Save Failed', 'Error saving category');
             }
         });
     });
@@ -533,11 +654,11 @@ jQuery(document).ready(function($) {
         
         $.post(appointeaseAdmin.ajaxurl, formData, function(response) {
             if (response.success) {
-                showNotification('Customer saved successfully!', 'success');
+                showSuccessToast('Customer Saved', 'Customer saved successfully!');
                 $('#customer-modal').removeClass('show');
                 location.reload();
             } else {
-                showNotification('Error saving customer', 'error');
+                showErrorToast('Save Failed', 'Error saving customer');
             }
         });
     });
@@ -556,11 +677,11 @@ jQuery(document).ready(function($) {
         
         $.post(appointeaseAdmin.ajaxurl, formData, function(response) {
             if (response.success) {
-                showNotification('Template saved successfully!', 'success');
+                showSuccessToast('Template Saved', 'Template saved successfully!');
                 $('#template-modal').removeClass('show');
                 location.reload();
             } else {
-                showNotification('Error saving template', 'error');
+                showErrorToast('Save Failed', 'Error saving template');
             }
         });
     });
@@ -572,6 +693,75 @@ jQuery(document).ready(function($) {
         $('#holiday-start').val(date);
         $('#holiday-end').val(date);
     };
+    
+    // Sync customers from appointments
+    window.syncCustomers = function() {
+        if (confirm('This will sync customer data from existing appointments. Continue?')) {
+            $.post(appointeaseAdmin.ajaxurl, {
+                action: 'sync_customers',
+                _wpnonce: appointeaseAdmin.nonce
+            }, function(response) {
+                if (response.success) {
+                    showSuccessToast('Sync Complete', 'Customers synced successfully!', [
+                        {
+                            text: 'View Customers',
+                            type: 'primary',
+                            callback: function() { window.location.href = 'admin.php?page=appointease-customers'; }
+                        }
+                    ]);
+                    location.reload();
+                } else {
+                    showErrorToast('Sync Failed', 'Error syncing customers', [
+                        {
+                            text: 'Retry',
+                            type: 'primary',
+                            callback: function() { window.syncCustomers(); }
+                        }
+                    ]);
+                }
+            });
+        }
+    };
+    
+    // Working days validation
+    $('input[name="appointease_options[working_days][]"]').change(function() {
+        const dayValue = $(this).val();
+        const isChecked = $(this).prop('checked');
+        const checkbox = $(this);
+        
+        if (!isChecked) {
+            // Check if this day has appointments
+            $.post(appointeaseAdmin.ajaxurl, {
+                action: 'check_day_appointments',
+                _wpnonce: appointeaseAdmin.nonce,
+                day: dayValue
+            }, function(response) {
+                if (response.data && response.data.count > 0) {
+                    const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                    const dayName = dayNames[parseInt(dayValue)];
+                    
+                    // Recheck the checkbox immediately
+                    checkbox.prop('checked', true);
+                    
+                    showWarningToast(
+                        'Cannot Remove Working Day',
+                        `${dayName} has ${response.data.count} existing appointments. Please cancel or reschedule them first.`,
+                        [
+                            {
+                                text: 'View Appointments',
+                                type: 'primary',
+                                callback: function() { window.location.href = 'admin.php?page=appointease-appointments'; }
+                            },
+                            {
+                                text: 'Cancel',
+                                type: 'secondary'
+                            }
+                        ]
+                    );
+                }
+            });
+        }
+    });
 
 });
 

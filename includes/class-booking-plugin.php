@@ -249,6 +249,11 @@ class Booking_Plugin {
             'nonce' => wp_create_nonce('wp_rest')
         ));
         
+        wp_localize_script('booking-frontend', 'bookingApiSettings', array(
+            'root' => esc_url_raw(rest_url()),
+            'nonce' => wp_create_nonce('wp_rest')
+        ));
+        
         wp_localize_script('booking-frontend', 'booking_ajax', array(
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('wp_rest')
