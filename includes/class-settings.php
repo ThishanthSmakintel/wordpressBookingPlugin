@@ -503,20 +503,53 @@ class Booking_Settings {
     
     public function get_custom_css() {
         $options = get_option('appointease_options', array());
+        $theme = isset($options['appearance_theme']) ? $options['appearance_theme'] : 'light';
         
-        $primary_color = isset($options['primary_color']) ? $options['primary_color'] : '#1CBC9B';
-        $secondary_color = isset($options['secondary_color']) ? $options['secondary_color'] : '#6c757d';
-        $success_color = isset($options['success_color']) ? $options['success_color'] : '#28a745';
-        $background_color = isset($options['background_color']) ? $options['background_color'] : '#ffffff';
-        $text_color = isset($options['text_color']) ? $options['text_color'] : '#333333';
-        $border_color = isset($options['border_color']) ? $options['border_color'] : '#e0e0e0';
+        // Apply theme-based defaults
+        if ($theme === 'light') {
+            $defaults = [
+                'primary_color' => '#1CBC9B',
+                'header_color' => '#004D40', 
+                'text_color' => '#263238',
+                'background_color' => '#ffffff',
+                'success_color' => '#27AE60',
+                'border_color' => '#e5e7eb'
+            ];
+        } elseif ($theme === 'dark') {
+            $defaults = [
+                'primary_color' => '#8E44AD',
+                'header_color' => '#1D2125',
+                'text_color' => '#FFFFFF', 
+                'background_color' => '#363A3F',
+                'success_color' => '#9C27B0',
+                'border_color' => '#4A5568'
+            ];
+        } else {
+            $defaults = [
+                'primary_color' => '#1CBC9B',
+                'header_color' => '#004D40',
+                'text_color' => '#263238',
+                'background_color' => '#ffffff', 
+                'success_color' => '#27AE60',
+                'border_color' => '#e5e7eb'
+            ];
+        }
+        
+        $primary_color = isset($options['primary_color']) ? $options['primary_color'] : $defaults['primary_color'];
+        $header_color = isset($options['header_color']) ? $options['header_color'] : $defaults['header_color'];
+        $text_color = isset($options['text_color']) ? $options['text_color'] : $defaults['text_color'];
+        $background_color = isset($options['background_color']) ? $options['background_color'] : $defaults['background_color'];
+        $success_color = isset($options['success_color']) ? $options['success_color'] : $defaults['success_color'];
+        $border_color = isset($options['border_color']) ? $options['border_color'] : $defaults['border_color'];
         $border_radius = isset($options['border_radius']) ? $options['border_radius'] : '8';
         $font_size = isset($options['font_size']) ? $options['font_size'] : '16';
         
-        // Generate darker and lighter variants
-        $primary_dark = $this->darken_color($primary_color, 20);
+        // Smart color calculations
+        $primary_dark = $this->darken_color($primary_color, 15);
         $primary_light = $this->lighten_color($primary_color, 20);
         $primary_alpha = $this->hex_to_rgba($primary_color, 0.1);
+        $primary_text = $this->get_contrast_color($primary_color);
+        $header_text = $this->get_contrast_color($header_color);
         
         $css = "
         :root {
@@ -613,6 +646,22 @@ class Booking_Settings {
         return sprintf('#%02x%02x%02x', $r, $g, $b);
     }
     
+    private function get_contrast_color($hex) {
+        $hex = str_replace('#', '', $hex);
+        if (strlen($hex) == 3) {
+            $hex = str_repeat(substr($hex, 0, 1), 2) . str_repeat(substr($hex, 1, 1), 2) . str_repeat(substr($hex, 2, 1), 2);
+        }
+        $r = hexdec(substr($hex, 0, 2));
+        $g = hexdec(substr($hex, 2, 2));
+        $b = hexdec(substr($hex, 4, 2));
+        
+        // Calculate luminance
+        $luminance = (0.299 * $r + 0.587 * $g + 0.114 * $b) / 255;
+        
+        // Return white for dark colors, dark for light colors
+        return $luminance > 0.5 ? '#263238' : '#FFFFFF';
+    }
+    
     public static function get_button_text() {
         $options = get_option('appointease_options', array());
         return isset($options['button_text']) ? $options['button_text'] : 'Book Appointment';
@@ -662,110 +711,83 @@ class Booking_Settings {
         ?>
         <div class="wrap">
             <h1><i class="dashicons dashicons-admin-appearance"></i> Appearance Settings</h1>
-            <p class="description">Customize the visual appearance of your booking form.</p>
+            <p class="description">Match your brand in under a minute! Choose a ready-made theme or set just 3 brand colors. We automatically handle text contrast, hover effects, and accessibility.</p>
             
             <div class="appointease-settings-container" style="display: flex; gap: 30px; margin-top: 30px;">
                 <div class="settings-form" style="flex: 2;">
                     <form method="post" action="options.php">
-                        <?php
-                        settings_fields('appointease_settings');
-                        ?>
-                        <div class="ae-card" style="background: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05);">
-                            <h2 style="margin-top: 0; color: #2c3e50; border-bottom: 2px solid #1CBC9B; padding-bottom: 10px;">🎨 Color Customization</h2>
-                            <p style="color: #666; margin-bottom: 25px;">Choose a preset palette or customize individual colors. Changes apply instantly in the live preview.</p>
+                        <?php settings_fields('appointease_settings'); ?>
+                        
+                        <!-- Theme Selection -->
+                        <div class="ae-card" style="background: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); margin-bottom: 25px;">
+                            <h2 style="margin-top: 0; color: #2c3e50; border-bottom: 2px solid #1CBC9B; padding-bottom: 10px;">🎨 Choose Your Style</h2>
+                            <p style="color: #666; margin-bottom: 25px;">Pick a professionally designed theme that works perfectly out of the box, or customize with your brand colors.</p>
                             
-                            <!-- Color Palette Presets -->
-                            <div style="margin-bottom: 30px;">
-                                <h3 style="margin-bottom: 15px; color: #2c3e50;">Quick Color Palettes</h3>
-                                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
-                                    <div class="palette-preset" data-palette="professional" style="border: 2px solid #e5e7eb; border-radius: 8px; padding: 15px; cursor: pointer; transition: all 0.2s;">
-                                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px;">
-                                            <div style="width: 18px; height: 18px; background: #004D40; border-radius: 3px;" title="Header"></div>
-                                            <div style="width: 18px; height: 18px; background: #263238; border-radius: 3px;" title="Heading"></div>
-                                            <div style="width: 18px; height: 18px; background: #1ABC9C; border-radius: 3px;" title="Primary"></div>
-                                            <div style="width: 18px; height: 18px; background: #1DE9B6; border-radius: 3px;" title="Active Step"></div>
-                                            <div style="width: 18px; height: 18px; background: #B0BEC5; border-radius: 3px;" title="Inactive Step"></div>
-                                            <div style="width: 18px; height: 18px; background: #27AE60; border-radius: 3px;" title="Success"></div>
-                                            <div style="width: 18px; height: 18px; background: #FFFFFF; border: 1px solid #ddd; border-radius: 3px;" title="Background"></div>
-                                            <div style="width: 18px; height: 18px; background: #2C3E50; border-radius: 3px;" title="Text"></div>
-                                        </div>
-                                        <div style="font-weight: 600; font-size: 14px;">Professional & Calming</div>
-                                        <div style="font-size: 12px; color: #666;">Blue & Teal - Trust & Reliability</div>
+                            <div class="theme-options" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+                                <?php $current_theme = get_option('appointease_options')['appearance_theme'] ?? 'light'; ?>
+                                
+                                <label class="theme-option <?php echo $current_theme === 'light' ? 'selected' : ''; ?>" style="border: 2px solid <?php echo $current_theme === 'light' ? '#1CBC9B' : '#e5e7eb'; ?>; border-radius: 12px; padding: 20px; cursor: pointer; transition: all 0.2s;">
+                                    <input type="radio" name="appointease_options[appearance_theme]" value="light" <?php checked($current_theme, 'light'); ?> style="margin-bottom: 15px;">
+                                    <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+                                        <div style="width: 20px; height: 20px; background: #1CBC9B; border-radius: 4px;"></div>
+                                        <div style="width: 20px; height: 20px; background: #ffffff; border: 1px solid #e5e7eb; border-radius: 4px;"></div>
+                                        <div style="width: 20px; height: 20px; background: #263238; border-radius: 4px;"></div>
                                     </div>
-                                    
-                                    <div class="palette-preset" data-palette="modern" style="border: 2px solid #e5e7eb; border-radius: 8px; padding: 15px; cursor: pointer; transition: all 0.2s;">
-                                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px;">
-                                            <div style="width: 18px; height: 18px; background: #1D2125; border-radius: 3px;" title="Header"></div>
-                                            <div style="width: 18px; height: 18px; background: #FFFFFF; border-radius: 3px;" title="Heading"></div>
-                                            <div style="width: 18px; height: 18px; background: #8E44AD; border-radius: 3px;" title="Primary"></div>
-                                            <div style="width: 18px; height: 18px; background: #E91E63; border-radius: 3px;" title="Active Step"></div>
-                                            <div style="width: 18px; height: 18px; background: #757575; border-radius: 3px;" title="Inactive Step"></div>
-                                            <div style="width: 18px; height: 18px; background: #9C27B0; border-radius: 3px;" title="Success"></div>
-                                            <div style="width: 18px; height: 18px; background: #363A3F; border-radius: 3px;" title="Background"></div>
-                                            <div style="width: 18px; height: 18px; background: #FFFFFF; border-radius: 3px;" title="Text"></div>
-                                        </div>
-                                        <div style="font-weight: 600; font-size: 14px;">Modern & Energetic</div>
-                                        <div style="font-size: 12px; color: #666;">Dark Mode - Bold & Dynamic</div>
+                                    <strong>✨ Light Mode (Recommended)</strong>
+                                    <p style="margin: 8px 0 0; color: #666; font-size: 14px;">Professional design that works perfectly out of the box. Great for most businesses.</p>
+                                </label>
+                                
+                                <label class="theme-option <?php echo $current_theme === 'dark' ? 'selected' : ''; ?>" style="border: 2px solid <?php echo $current_theme === 'dark' ? '#1CBC9B' : '#e5e7eb'; ?>; border-radius: 12px; padding: 20px; cursor: pointer; transition: all 0.2s;">
+                                    <input type="radio" name="appointease_options[appearance_theme]" value="dark" <?php checked($current_theme, 'dark'); ?> style="margin-bottom: 15px;">
+                                    <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+                                        <div style="width: 20px; height: 20px; background: #8E44AD; border-radius: 4px;"></div>
+                                        <div style="width: 20px; height: 20px; background: #363A3F; border-radius: 4px;"></div>
+                                        <div style="width: 20px; height: 20px; background: #ffffff; border-radius: 4px;"></div>
                                     </div>
-                                    
-                                    <div class="palette-preset" data-palette="natural" style="border: 2px solid #e5e7eb; border-radius: 8px; padding: 15px; cursor: pointer; transition: all 0.2s;">
-                                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 8px;">
-                                            <div style="width: 18px; height: 18px; background: #2D5A2D; border-radius: 3px;" title="Header"></div>
-                                            <div style="width: 18px; height: 18px; background: #2D5A2D; border-radius: 3px;" title="Heading"></div>
-                                            <div style="width: 18px; height: 18px; background: #5DAA68; border-radius: 3px;" title="Primary"></div>
-                                            <div style="width: 18px; height: 18px; background: #66BB6A; border-radius: 3px;" title="Active Step"></div>
-                                            <div style="width: 18px; height: 18px; background: #A5A5A5; border-radius: 3px;" title="Inactive Step"></div>
-                                            <div style="width: 18px; height: 18px; background: #4CAF50; border-radius: 3px;" title="Success"></div>
-                                            <div style="width: 18px; height: 18px; background: #FFFFFF; border: 1px solid #ddd; border-radius: 3px;" title="Background"></div>
-                                            <div style="width: 18px; height: 18px; background: #5C4033; border-radius: 3px;" title="Text"></div>
-                                        </div>
-                                        <div style="font-weight: 600; font-size: 14px;">Natural & Welcoming</div>
-                                        <div style="font-size: 12px; color: #666;">Green & Earth - Organic & Serene</div>
+                                    <strong>🌙 Dark Mode</strong>
+                                    <p style="margin: 8px 0 0; color: #666; font-size: 14px;">Modern, sleek design for contemporary brands. Perfect for tech companies.</p>
+                                </label>
+                                
+                                <label class="theme-option <?php echo $current_theme === 'custom' ? 'selected' : ''; ?>" style="border: 2px solid <?php echo $current_theme === 'custom' ? '#1CBC9B' : '#e5e7eb'; ?>; border-radius: 12px; padding: 20px; cursor: pointer; transition: all 0.2s;">
+                                    <input type="radio" name="appointease_options[appearance_theme]" value="custom" <?php checked($current_theme, 'custom'); ?> style="margin-bottom: 15px;">
+                                    <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+                                        <div style="width: 20px; height: 20px; background: linear-gradient(45deg, #1CBC9B, #8E44AD); border-radius: 4px;"></div>
+                                        <div style="width: 20px; height: 20px; background: linear-gradient(45deg, #ffffff, #363A3F); border-radius: 4px;"></div>
+                                        <div style="width: 20px; height: 20px; background: linear-gradient(45deg, #263238, #E91E63); border-radius: 4px;"></div>
                                     </div>
+                                    <strong>🎨 Custom Brand Colors</strong>
+                                    <p style="margin: 8px 0 0; color: #666; font-size: 14px;">Match your exact brand with just 3 colors. We handle the rest automatically.</p>
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <!-- Custom Brand Colors (only show when Custom is selected) -->
+                        <div id="custom-colors-section" class="ae-card" style="background: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.05); display: <?php echo $current_theme === 'custom' ? 'block' : 'none'; ?>;">
+                            <h2 style="margin-top: 0; color: #2c3e50; border-bottom: 2px solid #1CBC9B; padding-bottom: 10px;">🎯 Your Brand Colors</h2>
+                            <p style="color: #666; margin-bottom: 25px;"><strong>Only 3 colors needed!</strong> We'll automatically handle text contrast, hover effects, and accessibility for you.</p>
+                            
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 25px; margin-top: 25px;">
+                                <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #1CBC9B;">
+                                    <h3 style="margin-bottom: 8px; color: #1CBC9B;">🎯 Primary Action Color</h3>
+                                    <p style="font-size: 14px; color: #666; margin-bottom: 15px;">Your most important color. Used for buttons, selected items, and active steps to guide users forward.</p>
+                                    <?php $this->primary_color_field(); ?>
+                                </div>
+                                
+                                <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #004D40;">
+                                    <h3 style="margin-bottom: 8px; color: #004D40;">🏢 Header Background</h3>
+                                    <p style="font-size: 14px; color: #666; margin-bottom: 15px;">The color for your branding header. We'll automatically choose white or dark text for perfect readability.</p>
+                                    <?php $this->header_color_field(); ?>
+                                </div>
+                                
+                                <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #263238;">
+                                    <h3 style="margin-bottom: 8px; color: #263238;">📝 Main Text Color</h3>
+                                    <p style="font-size: 14px; color: #666; margin-bottom: 15px;">Color for headings and main text. This ensures your content is readable and professional.</p>
+                                    <?php $this->text_color_field(); ?>
                                 </div>
                             </div>
                             
-                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin-top: 25px;">
-                                <div>
-                                    <h3>Header Color</h3>
-                                    <p style="font-size: 12px; color: #666; margin-bottom: 10px;">Top bar background</p>
-                                    <?php $this->header_color_field(); ?>
-                                </div>
-                                <div>
-                                    <h3>Heading Color</h3>
-                                    <p style="font-size: 12px; color: #666; margin-bottom: 10px;">Page titles</p>
-                                    <?php $this->heading_color_field(); ?>
-                                </div>
-                                <div>
-                                    <h3>Primary Action</h3>
-                                    <p style="font-size: 12px; color: #666; margin-bottom: 10px;">Buttons & selected cards</p>
-                                    <?php $this->primary_color_field(); ?>
-                                </div>
-                                <div>
-                                    <h3>Active Step</h3>
-                                    <p style="font-size: 12px; color: #666; margin-bottom: 10px;">Current progress step</p>
-                                    <?php $this->active_step_color_field(); ?>
-                                </div>
-                                <div>
-                                    <h3>Inactive Step</h3>
-                                    <p style="font-size: 12px; color: #666; margin-bottom: 10px;">Future progress steps</p>
-                                    <?php $this->inactive_step_color_field(); ?>
-                                </div>
-                                <div>
-                                    <h3>Success Color</h3>
-                                    <p style="font-size: 12px; color: #666; margin-bottom: 10px;">Success messages</p>
-                                    <?php $this->success_color_field(); ?>
-                                </div>
-                                <div>
-                                    <h3>Background</h3>
-                                    <p style="font-size: 12px; color: #666; margin-bottom: 10px;">Cards & forms</p>
-                                    <?php $this->background_color_field(); ?>
-                                </div>
-                                <div>
-                                    <h3>Text Color</h3>
-                                    <p style="font-size: 12px; color: #666; margin-bottom: 10px;">Main text</p>
-                                    <?php $this->text_color_field(); ?>
-                                </div>
+                            <div style="background: #e8f5e8; border: 1px solid #c3e6c3; border-radius: 8px; padding: 15px; margin-top: 20px;">
+                                <p style="margin: 0; color: #2d5a2d; font-size: 14px;"><strong>✨ Smart Features:</strong> Hover effects, text contrast, and accessibility are automatically handled. No need to pick colors for every element!</p>
                             </div>
                         </div>
                         
@@ -863,7 +885,7 @@ class Booking_Settings {
                             <div style="text-align: center; margin-top: 32px;"><div class="preview-button" style="background: var(--primary-color, #10b981); color: white; border: none; border-radius: var(--border-radius, 12px); padding: 16px 32px; font-size: 1.1rem; font-weight: 600; display: inline-block;"><span class="preview-button-text">Next: Choose Employee →</span></div></div>
                         `,
                         staff: `
-                            <h2 style="font-size: 2rem; font-weight: 700; text-align: center; margin-bottom: 2rem; color: var(--text-color, #1f2937);">Choose Your Staff</h2>
+                            <h2 style="font-size: 2rem; font-weight: 700; text-align: center; margin-bottom: 2rem; color: var(--heading-color, #263238);">Choose Your Staff</h2>
                             <div class="preview-card selected-card" style="display: flex; align-items: center; padding: 24px; margin-bottom: 16px; background: var(--primary-color, #10b981); border: 3px solid var(--primary-color, #10b981); border-radius: var(--border-radius, 12px);">
                                 <div class="radio-btn" style="width: 24px; height: 24px; border-radius: 50%; background: white; margin-right: 20px; display: flex; align-items: center; justify-content: center;"><div style="width: 8px; height: 8px; border-radius: 50%; background: var(--primary-color, #10b981);"></div></div>
                                 <div style="width: 60px; height: 60px; border-radius: 50%; background: rgba(255,255,255,0.2); display: flex; align-items: center; justify-content: center; margin-right: 20px; font-weight: 600; color: white;">DS</div>
@@ -872,7 +894,7 @@ class Booking_Settings {
                             <div style="text-align: center; margin-top: 32px;"><div class="preview-button" style="background: var(--primary-color, #10b981); color: white; border: none; border-radius: var(--border-radius, 12px); padding: 16px 32px; font-size: 1.1rem; font-weight: 600; display: inline-block;"><span class="preview-button-text">Next: Choose Date →</span></div></div>
                         `,
                         date: `
-                            <h2 style="font-size: 2rem; font-weight: 700; text-align: center; margin-bottom: 2rem; color: var(--text-color, #1f2937);">Select Date</h2>
+                            <h2 style="font-size: 2rem; font-weight: 700; text-align: center; margin-bottom: 2rem; color: var(--heading-color, #263238);">Select Date</h2>
                             <div style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-bottom: 24px;">
                                 <div style="text-align: center; padding: 8px; font-weight: 600; color: #6b7280;">Sun</div>
                                 <div style="text-align: center; padding: 8px; font-weight: 600; color: #6b7280;">Mon</div>
@@ -953,7 +975,7 @@ class Booking_Settings {
                             <div style="text-align: center;"><div class="preview-button" style="background: var(--primary-color, #10b981); color: white; border: none; border-radius: var(--border-radius, 12px); padding: 16px 32px; font-size: 1.1rem; font-weight: 600; display: inline-block;"><span class="preview-button-text">Book New Appointment</span></div></div>
                         `,
                         login: `
-                            <h2 style="font-size: 2rem; font-weight: 700; text-align: center; margin-bottom: 2rem; color: var(--text-color, #1f2937);">Customer Login</h2>
+                            <h2 style="font-size: 2rem; font-weight: 700; text-align: center; margin-bottom: 2rem; color: var(--heading-color, #263238);">Customer Login</h2>
                             <div class="preview-card" style="background: var(--bg-color, white); padding: 24px; border: 2px solid var(--border-color, #e5e7eb); border-radius: var(--border-radius, 12px); margin-bottom: 24px;">
                                 <div style="margin-bottom: 16px;"><label style="display: block; margin-bottom: 8px; font-weight: 600; color: var(--text-color, #374151);">Email Address</label><input type="email" placeholder="Enter your email" style="width: 100%; padding: 12px; border: 2px solid var(--border-color, #e5e7eb); border-radius: var(--border-radius, 8px); font-size: 16px;"></div>
                                 <div style="text-align: center; margin-bottom: 16px;"><div class="preview-button" style="background: var(--primary-color, #10b981); color: white; border: none; border-radius: var(--border-radius, 12px); padding: 16px 32px; font-size: 1.1rem; font-weight: 600; display: inline-block;"><span class="preview-button-text">Send Login Code</span></div></div>
@@ -1013,25 +1035,42 @@ class Booking_Settings {
                         const borderRadius = document.querySelector('input[name="appointease_options[border_radius]"]')?.value || '8';
                         const fontSize = document.querySelector('select[name="appointease_options[font_size]"]')?.value || '16';
                         
+                        // Apply theme defaults and smart colors
+                        const theme = document.querySelector('input[name="appointease_options[appearance_theme]"]:checked')?.value || 'light';
+                        const currentPrimary = primaryColor || (theme === 'dark' ? '#8E44AD' : '#1CBC9B');
+                        const currentHeader = headerColor || (theme === 'dark' ? '#1D2125' : '#004D40');
+                        const currentText = textColor || (theme === 'dark' ? '#FFFFFF' : '#263238');
+                        
+                        const primaryTextColor = getContrastColor(currentPrimary);
+                        const headerTextColor = getContrastColor(currentHeader);
+                        const primaryDark = darkenColor(currentPrimary, 15);
+                        
                         // Update CSS custom properties for instant updates
                         const container = document.getElementById('preview-container');
                         if (container) {
-                            container.style.setProperty('--primary-color', primaryColor);
+                            container.style.setProperty('--primary-color', currentPrimary);
+                            container.style.setProperty('--primary-text', primaryTextColor);
+                            container.style.setProperty('--primary-dark', primaryDark);
+                            container.style.setProperty('--header-color', currentHeader);
+                            container.style.setProperty('--header-text', headerTextColor);
                             container.style.setProperty('--success-color', successColor);
                             container.style.setProperty('--bg-color', backgroundColor);
-                            container.style.setProperty('--text-color', textColor);
-                            container.style.setProperty('--header-color', headerColor);
-                            container.style.setProperty('--heading-color', headingColor);
-                            container.style.setProperty('--active-step-color', activeStepColor);
-                            container.style.setProperty('--inactive-step-color', inactiveStepColor);
+                            container.style.setProperty('--text-color', currentText);
+                            container.style.setProperty('--heading-color', headingColor || currentText);
                             container.style.setProperty('--border-color', borderColor);
                             container.style.setProperty('--border-radius', borderRadius + 'px');
                             container.style.fontSize = fontSize + 'px';
                         }
                         
-                        // Update header
+                        // Update header with smart text
                         const header = document.getElementById('preview-header');
-                        if (header) header.style.background = headerColor;
+                        if (header) {
+                            header.style.setProperty('background', currentHeader, 'important');
+                            header.style.setProperty('color', headerTextColor, 'important');
+                            header.querySelectorAll('*').forEach(child => {
+                                child.style.setProperty('color', headerTextColor, 'important');
+                            });
+                        }
                         
                         // Update all elements with classes
                         requestAnimationFrame(() => {
@@ -1044,18 +1083,24 @@ class Booking_Settings {
                                 card.style.setProperty('border-radius', borderRadius + 'px', 'important');
                             });
                             
-                            // Update selected/primary elements
+                            // Update primary elements
                             document.querySelectorAll('.selected-card, .radio-btn, .preview-button').forEach(el => {
-                                el.style.setProperty('background', primaryColor, 'important');
-                                el.style.setProperty('color', 'white', 'important');
-                                if (el.classList.contains('preview-button')) {
-                                    el.style.setProperty('border-radius', borderRadius + 'px', 'important');
-                                }
-                                // Ensure all child elements also use white text
+                                el.style.setProperty('background', currentPrimary, 'important');
+                                el.style.setProperty('color', primaryTextColor, 'important');
+                                el.style.setProperty('border-radius', borderRadius + 'px', 'important');
                                 el.querySelectorAll('*').forEach(child => {
-                                    child.style.setProperty('color', 'white', 'important');
+                                    child.style.setProperty('color', primaryTextColor, 'important');
                                 });
                             });
+                            
+                            // Dynamic hover styles
+                            let hoverStyle = document.getElementById('hover-styles');
+                            if (!hoverStyle) {
+                                hoverStyle = document.createElement('style');
+                                hoverStyle.id = 'hover-styles';
+                                document.head.appendChild(hoverStyle);
+                            }
+                            hoverStyle.textContent = `.preview-button:hover { background: ${primaryDark} !important; }`;
                             
                             // Update secondary buttons (like login)
                             document.querySelectorAll('.secondary-btn').forEach(el => {
@@ -1072,20 +1117,14 @@ class Booking_Settings {
                             
                             // Update text elements
                             document.querySelectorAll('.preview-text').forEach(el => {
-                                el.style.setProperty('color', textColor, 'important');
+                                el.style.setProperty('color', currentText, 'important');
                             });
                             
                             // Update step progress
-                            ['step-1', 'step-2', 'step-3'].forEach(stepId => {
-                                const step = document.getElementById(stepId);
-                                const label = document.getElementById(stepId + '-label');
-                                if (step && step.style.background !== '#e9ecef' && !step.style.background.includes('rgb(233, 236, 239)')) {
-                                    step.style.setProperty('background', primaryColor, 'important');
-                                }
-                                if (label && label.style.color !== '#6c757d' && !label.style.color.includes('rgb(108, 117, 125)')) {
-                                    label.style.setProperty('color', primaryColor, 'important');
-                                }
-                            });
+                            const step1 = document.getElementById('step-1');
+                            const label1 = document.getElementById('step-1-label');
+                            if (step1) step1.style.setProperty('background', currentPrimary, 'important');
+                            if (label1) label1.style.setProperty('color', currentPrimary, 'important');
                             
                             // Update input fields
                             document.querySelectorAll('input').forEach(input => {
@@ -1100,101 +1139,62 @@ class Booking_Settings {
                         loadPreview(this.value);
                     });
                     
-                    // Color palette presets
-                    const palettes = {
-                        professional: {
-                            primary_color: '#1ABC9C',
-                            success_color: '#27AE60',
-                            background_color: '#FFFFFF',
-                            text_color: '#2C3E50',
-                            header_color: '#004D40',
-                            heading_color: '#263238',
-                            active_step_color: '#1DE9B6',
-                            inactive_step_color: '#B0BEC5',
-                            border_color: '#E5E7EB'
-                        },
-                        modern: {
-                            primary_color: '#8E44AD',
-                            success_color: '#9C27B0',
-                            background_color: '#363A3F',
-                            text_color: '#FFFFFF',
-                            header_color: '#1D2125',
-                            heading_color: '#FFFFFF',
-                            active_step_color: '#E91E63',
-                            inactive_step_color: '#757575',
-                            border_color: '#4A5568'
-                        },
-                        natural: {
-                            primary_color: '#5DAA68',
-                            success_color: '#4CAF50',
-                            background_color: '#FFFFFF',
-                            text_color: '#5C4033',
-                            header_color: '#2D5A2D',
-                            heading_color: '#2D5A2D',
-                            active_step_color: '#66BB6A',
-                            inactive_step_color: '#A5A5A5',
-                            border_color: '#D4D4AA'
-                        }
-                    };
+
                     
-                    function applyPalette(paletteName) {
-                        const palette = palettes[paletteName];
-                        if (!palette) return;
-                        
-                        // Update all color inputs
-                        Object.keys(palette).forEach(colorKey => {
-                            const input = document.querySelector(`input[name="appointease_options[${colorKey}]"]`);
-                            if (input) {
-                                input.value = palette[colorKey];
-                                // Trigger color picker palette update
-                                const container = input.closest('.color-field-container');
-                                if (container) {
-                                    const paletteColors = container.querySelectorAll('.palette-color');
-                                    paletteColors.forEach(btn => {
-                                        btn.classList.toggle('selected', btn.dataset.color === palette[colorKey]);
-                                    });
-                                }
-                            }
-                        });
-                        
-                        // Update preview immediately
-                        updatePreview();
-                    }
+                    // Theme selection
+                    const themeRadios = document.querySelectorAll('input[name="appointease_options[appearance_theme]"]');
+                    const customSection = document.getElementById('custom-colors-section');
                     
-                    // Palette preset click handlers
-                    document.querySelectorAll('.palette-preset').forEach(preset => {
-                        preset.addEventListener('click', function() {
-                            // Remove active state from all presets
-                            document.querySelectorAll('.palette-preset').forEach(p => {
-                                p.style.borderColor = '#e5e7eb';
-                                p.style.boxShadow = 'none';
+                    themeRadios.forEach(radio => {
+                        radio.addEventListener('change', function() {
+                            document.querySelectorAll('.theme-option').forEach(option => {
+                                option.style.borderColor = '#e5e7eb';
                             });
+                            this.closest('.theme-option').style.borderColor = '#1CBC9B';
                             
-                            // Add active state to clicked preset
-                            this.style.borderColor = '#1CBC9B';
-                            this.style.boxShadow = '0 4px 12px rgba(28, 188, 155, 0.15)';
-                            
-                            // Apply the palette
-                            applyPalette(this.dataset.palette);
-                        });
-                        
-                        // Hover effects
-                        preset.addEventListener('mouseenter', function() {
-                            if (this.style.borderColor !== 'rgb(28, 188, 155)') {
-                                this.style.borderColor = '#d1d5db';
-                                this.style.boxShadow = '0 2px 8px rgba(0, 0, 0, 0.1)';
+                            if (this.value === 'custom') {
+                                customSection.style.display = 'block';
+                            } else {
+                                customSection.style.display = 'none';
+                                applyTheme(this.value);
                             }
-                        });
-                        
-                        preset.addEventListener('mouseleave', function() {
-                            if (this.style.borderColor !== 'rgb(28, 188, 155)') {
-                                this.style.borderColor = '#e5e7eb';
-                                this.style.boxShadow = 'none';
-                            }
+                            updatePreview();
                         });
                     });
                     
-                    // Update preview on input changes
+                    function applyTheme(theme) {
+                        const themes = {
+                            light: { primary_color: '#1CBC9B', header_color: '#004D40', text_color: '#263238' },
+                            dark: { primary_color: '#8E44AD', header_color: '#1D2125', text_color: '#FFFFFF' }
+                        };
+                        
+                        if (themes[theme]) {
+                            Object.keys(themes[theme]).forEach(colorKey => {
+                                const input = document.querySelector(`input[name="appointease_options[${colorKey}]"]`);
+                                if (input) input.value = themes[theme][colorKey];
+                            });
+                        }
+                    }
+                    
+                    // Smart color functions
+                    function getContrastColor(hexColor) {
+                        const r = parseInt(hexColor.slice(1, 3), 16);
+                        const g = parseInt(hexColor.slice(3, 5), 16);
+                        const b = parseInt(hexColor.slice(5, 7), 16);
+                        const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+                        return luminance > 0.5 ? '#263238' : '#FFFFFF';
+                    }
+                    
+                    function darkenColor(hex, percent) {
+                        const num = parseInt(hex.replace('#', ''), 16);
+                        const amt = Math.round(2.55 * percent);
+                        const R = Math.max(0, Math.min(255, (num >> 16) - amt));
+                        const G = Math.max(0, Math.min(255, (num >> 8 & 0x00FF) - amt));
+                        const B = Math.max(0, Math.min(255, (num & 0x0000FF) - amt));
+                        return '#' + ((R << 16) + (G << 8) + B).toString(16).padStart(6, '0');
+                    }
+                    
+                    // Real-time updates
                     document.addEventListener('input', updatePreview);
                     document.addEventListener('change', updatePreview);
                     
