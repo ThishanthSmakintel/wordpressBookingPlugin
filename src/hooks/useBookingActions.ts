@@ -15,16 +15,23 @@ export const useBookingActions = (bookingState: any) => {
         }
         
         try {
+            const requestBody: any = {
+                date: date,
+                employee_id: employeeId
+            };
+            
+            // When rescheduling, exclude current appointment from unavailable slots
+            if (bookingState.isRescheduling && bookingState.currentAppointment?.id) {
+                requestBody.exclude_appointment_id = bookingState.currentAppointment.id;
+            }
+            
             const response = await fetch(`${window.bookingAPI.root}booking/v1/availability`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-WP-Nonce': window.bookingAPI.nonce
                 },
-                body: JSON.stringify({
-                    date: date,
-                    employee_id: employeeId
-                })
+                body: JSON.stringify(requestBody)
             });
             
             if (response.ok) {

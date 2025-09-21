@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useBookingStore } from '../../store/bookingStore';
+import { useBookingState } from '../../hooks/useBookingState';
 import { checkAvailability } from '../../services/api';
 
 // Date utility functions
@@ -33,10 +34,12 @@ interface DateStatus {
     isAvailable: boolean;
     reason?: string;
     isLoading: boolean;
+    bookingCount?: number;
 }
 
 const DateSelector: React.FC<DateSelectorProps> = ({ isReschedule = false }) => {
     const { selectedDate, setSelectedDate, setStep, selectedEmployee, serverDate, refreshTrigger } = useBookingStore();
+    const bookingState = useBookingState();
     const [tempSelected, setTempSelected] = useState<string>(selectedDate || '');
     const [dateStatuses, setDateStatuses] = useState<Map<string, DateStatus>>(new Map());
     const [currentMonth, setCurrentMonth] = useState(0);
@@ -105,26 +108,48 @@ const DateSelector: React.FC<DateSelectorProps> = ({ isReschedule = false }) => 
         });
         setDateStatuses(newStatuses);
         
+        // Debug log for rescheduling
+        console.log('[DateSelector] Checking availability - isReschedule:', isReschedule, 'currentAppointment:', bookingState.currentAppointment?.id, 'employeeId:', employeeId);
+        
         // Check each date
         const checkDates = async () => {
             for (const date of dates) {
                 const dateString = formatDateString(date);
                 
                 try {
-                    const response = await checkAvailability({
+                    const requestData: any = {
                         date: dateString,
                         employee_id: employeeId
-                    });
+                    };
+                    
+                    // When rescheduling, exclude current appointment from count
+                    if (isReschedule && bookingState.currentAppointment?.id) {
+                        requestData.exclude_appointment_id = bookingState.currentAppointment.id;
+                    }
+                    
+                    const response = await checkAvailability(requestData);
+                    
+                    console.log(`[DateSelector] ${dateString} response:`, response);
                     
                     const isAvailable = response.unavailable !== 'all';
                     const reason = response.reason;
+                    let bookingCount = 0;
+                    
+                    if (Array.isArray(response.unavailable)) {
+                        bookingCount = response.unavailable.length;
+                    } else if (response.booking_details && typeof response.booking_details === 'object') {
+                        bookingCount = Object.keys(response.booking_details).length;
+                    }
+                    
+                    console.log(`[DateSelector] ${dateString} - Available: ${isAvailable}, Count: ${bookingCount}, Rescheduling: ${isReschedule}, Response:`, response);
                     
                     setDateStatuses(prev => {
                         const updated = new Map(prev);
                         updated.set(dateString, {
                             isAvailable,
                             reason: isAvailable ? undefined : reason,
-                            isLoading: false
+                            isLoading: false,
+                            bookingCount
                         });
                         return updated;
                     });
@@ -143,7 +168,7 @@ const DateSelector: React.FC<DateSelectorProps> = ({ isReschedule = false }) => 
         };
         
         checkDates();
-    }, [selectedEmployee, currentMonth, refreshTrigger]);
+    }, [selectedEmployee, currentMonth, refreshTrigger, isReschedule, bookingState.currentAppointment?.id]);
 
     const renderDateStatus = (dateString: string, date: Date) => {
         const status = dateStatuses.get(dateString);
@@ -166,9 +191,10 @@ const DateSelector: React.FC<DateSelectorProps> = ({ isReschedule = false }) => 
         }
         
         if (status.isAvailable) {
+            const bookingCount = status.bookingCount || 0;
             return (
                 <div style={{ fontSize: '0.7rem', color: '#10b981', marginTop: '4px', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
-                    <span>✅</span><span>Available</span>
+                    <span>✅</span><span>{bookingCount > 0 ? `${bookingCount} booked` : 'Available'}</span>
                 </div>
             );
         }
@@ -195,6 +221,27 @@ const DateSelector: React.FC<DateSelectorProps> = ({ isReschedule = false }) => 
 
     return (
         <div className="appointease-step-content">
+            {isReschedule && bookingState.currentAppointment && (
+                <div className="reschedule-header">
+                    <h2><i className="fas fa-calendar-alt"></i> Rescheduling Appointment</h2>
+                    <div className="current-appointment-info">
+                        <p><strong>Current Appointment:</strong></p>
+                        <p>{bookingState.currentAppointment?.appointment_date && 
+                            new Date(bookingState.currentAppointment.appointment_date).toLocaleDateString('en', { 
+                                weekday: 'long', 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric' 
+                            })} at {bookingState.currentAppointment?.appointment_date && 
+                            new Date(bookingState.currentAppointment.appointment_date).toLocaleTimeString('en', { 
+                                hour: '2-digit', 
+                                minute: '2-digit' 
+                            })}
+                        </p>
+                    </div>
+                    <p className="step-description">Select a new date for your appointment</p>
+                </div>
+            )}
             <div style={{display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '2rem', gap: '20px'}}>
                 <button 
                     onClick={() => setCurrentMonth(currentMonth - 1)}

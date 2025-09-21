@@ -311,10 +311,29 @@ class Booking_API_Endpoints {
         
         // Check existing appointments for this staff member on this date
         $appointments_table = $wpdb->prefix . 'appointments';
-        $booked_appointments = $wpdb->get_results($wpdb->prepare(
-            "SELECT TIME_FORMAT(appointment_date, '%%H:%%i') as time_slot, name, email, status, strong_id, id, appointment_date FROM {$appointments_table} WHERE employee_id = %d AND DATE(appointment_date) = %s AND status IN ('confirmed', 'created')",
-            $employee_id, $date
-        ));
+        
+        // Build query with optional exclusion for rescheduling
+        $exclude_appointment_id = isset($params['exclude_appointment_id']) ? sanitize_text_field($params['exclude_appointment_id']) : null;
+        
+        if ($exclude_appointment_id) {
+            // Exclude current appointment when rescheduling
+            if (strpos($exclude_appointment_id, 'APT-') === 0) {
+                $booked_appointments = $wpdb->get_results($wpdb->prepare(
+                    "SELECT TIME_FORMAT(appointment_date, '%%H:%%i') as time_slot, name, email, status, strong_id, id, appointment_date FROM {$appointments_table} WHERE employee_id = %d AND DATE(appointment_date) = %s AND status IN ('confirmed', 'created') AND strong_id != %s",
+                    $employee_id, $date, $exclude_appointment_id
+                ));
+            } else {
+                $booked_appointments = $wpdb->get_results($wpdb->prepare(
+                    "SELECT TIME_FORMAT(appointment_date, '%%H:%%i') as time_slot, name, email, status, strong_id, id, appointment_date FROM {$appointments_table} WHERE employee_id = %d AND DATE(appointment_date) = %s AND status IN ('confirmed', 'created') AND id != %d",
+                    $employee_id, $date, intval($exclude_appointment_id)
+                ));
+            }
+        } else {
+            $booked_appointments = $wpdb->get_results($wpdb->prepare(
+                "SELECT TIME_FORMAT(appointment_date, '%%H:%%i') as time_slot, name, email, status, strong_id, id, appointment_date FROM {$appointments_table} WHERE employee_id = %d AND DATE(appointment_date) = %s AND status IN ('confirmed', 'created')",
+                $employee_id, $date
+            ));
+        }
         
         // Enhanced debug logging
         error_log("[AppointEase] SQL Query: SELECT TIME_FORMAT(appointment_date, '%H:%i') as time_slot, name, email, status, strong_id, id, appointment_date FROM {$appointments_table} WHERE employee_id = {$employee_id} AND DATE(appointment_date) = '{$date}' AND status IN ('confirmed', 'created')");

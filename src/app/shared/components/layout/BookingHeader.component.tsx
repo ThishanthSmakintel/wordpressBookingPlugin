@@ -25,7 +25,6 @@ export const BookingHeader: React.FC<BookingHeaderProps> = ({
             <i className="fas fa-th-large"></i>
             <div className="user-info">
               <span>My Appointments</span>
-              <span className="user-email">{bookingState.loginEmail}</span>
             </div>
           </button>
           <button onClick={onLogout}>

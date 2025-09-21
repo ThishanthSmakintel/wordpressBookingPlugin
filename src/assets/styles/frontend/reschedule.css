@@ -1,3 +1,56 @@
+.reschedule-header {
+    background: linear-gradient(135deg, #1CBC9B, #16a085);
+    color: white;
+    padding: 12px 16px;
+    border-radius: 8px;
+    margin-bottom: 16px;
+    box-shadow: 0 2px 8px rgba(28, 188, 155, 0.2);
+}
+
+.reschedule-header h2 {
+    margin: 0 0 8px 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.reschedule-header h2 i {
+    font-size: 1rem;
+}
+
+.current-appointment-info {
+    background: rgba(255, 255, 255, 0.1);
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin: 8px 0;
+    border-left: 3px solid rgba(255, 255, 255, 0.4);
+}
+
+.current-appointment-info p {
+    margin: 0;
+    line-height: 1.4;
+}
+
+.current-appointment-info p:first-child {
+    font-size: 0.8rem;
+    opacity: 0.9;
+    margin-bottom: 3px;
+}
+
+.current-appointment-info p:last-child {
+    font-size: 0.95rem;
+    font-weight: 500;
+}
+
+.reschedule-header .step-description {
+    margin: 8px 0 0 0;
+    font-size: 0.85rem;
+    opacity: 0.9;
+    font-weight: 400;
+}
+
 .reschedule-banner {
     background: linear-gradient(135deg, #3498db, #2980b9);
     color: white;

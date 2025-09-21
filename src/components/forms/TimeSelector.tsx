@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useBookingStore } from '../../store/bookingStore';
+import { useBookingState } from '../../hooks/useBookingState';
 import { SettingsService } from '../../app/shared/services/settings.service';
 
 interface TimeSelectorProps {
@@ -14,6 +15,7 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
     bookingDetails = {}
 }) => {
     const { selectedDate, selectedTime, selectedService, setSelectedTime, setStep } = useBookingStore();
+    const bookingState = useBookingState();
     const [tempSelected, setTempSelected] = useState<string>(selectedTime || '');
     
     // Debug logging
@@ -65,7 +67,30 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
 
     return (
         <div className="appointease-step-content">
-            <h2 style={{fontSize: '2rem', fontWeight: '700', textAlign: 'center', marginBottom: '1rem', color: '#1f2937'}}>Choose Your Time</h2>
+            {bookingState.isRescheduling && bookingState.currentAppointment && (
+                <div className="reschedule-header">
+                    <h2><i className="fas fa-calendar-alt"></i> Rescheduling Appointment</h2>
+                    <div className="current-appointment-info">
+                        <p><strong>Current Appointment:</strong></p>
+                        <p>{bookingState.currentAppointment?.appointment_date && 
+                            new Date(bookingState.currentAppointment.appointment_date).toLocaleDateString('en', { 
+                                weekday: 'long', 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric' 
+                            })} at {bookingState.currentAppointment?.appointment_date && 
+                            new Date(bookingState.currentAppointment.appointment_date).toLocaleTimeString('en', { 
+                                hour: '2-digit', 
+                                minute: '2-digit' 
+                            })}
+                        </p>
+                    </div>
+                    <p className="step-description">Select a new time for your appointment</p>
+                </div>
+            )}
+            <h2 style={{fontSize: '2rem', fontWeight: '700', textAlign: 'center', marginBottom: '1rem', color: '#1f2937'}}>
+                {bookingState.isRescheduling ? 'Choose New Time' : 'Choose Your Time'}
+            </h2>
             
             {/* Selected Date Info */}
             <div style={{
