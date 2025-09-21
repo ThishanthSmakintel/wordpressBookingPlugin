@@ -79,3 +79,126 @@
         transition: none !important;
     }
 }
+
+/* Force resend button styling */
+.resend-link {
+    background: var(--button-bg, #1CBC9B) !important;
+    color: var(--button-text, white) !important;
+    border: none !important;
+    padding: 12px 24px !important;
+    border-radius: 8px !important;
+    cursor: pointer !important;
+    font-size: 0.9rem !important;
+    font-weight: 600 !important;
+    transition: all 0.2s ease !important;
+    box-shadow: 0 2px 4px rgba(var(--button-bg-rgb, 28, 188, 155), 0.2) !important;
+    min-width: 120px !important;
+    display: inline-block !important;
+}
+
+.resend-link:hover:not(:disabled) {
+    background: var(--button-bg-hover, #059669) !important;
+    transform: translateY(-1px) !important;
+}
+
+.resend-link:disabled {
+    opacity: 0.6 !important;
+    cursor: not-allowed !important;
+    transform: none !important;
+}
+
+/* Dashboard header styling */
+.appointease-booking .dashboard-container {
+    color: var(--text-color, #333) !important;
+}
+
+/* Dashboard appointment cards */
+.appointease-booking .appointment-card {
+    border-color: var(--border-color, #dee2e6) !important;
+}
+
+.appointease-booking .appointment-card .card-header {
+    background-color: var(--card-header-bg, #f8f9fa) !important;
+    border-bottom-color: var(--border-color, #dee2e6) !important;
+}
+
+.appointease-booking .appointment-card .card-footer {
+    background-color: var(--card-footer-bg, #f8f9fa) !important;
+    border-top-color: var(--border-color, #dee2e6) !important;
+}
+
+/* Dashboard text colors */
+.appointease-booking .card-title,
+.appointease-booking .h5 {
+    color: var(--heading-color, #212529) !important;
+}
+
+.appointease-booking .text-muted {
+    color: var(--muted-text-color, #6c757d) !important;
+}
+
+/* Dashboard buttons */
+.appointease-booking .btn-primary {
+    background-color: var(--button-bg, #007bff) !important;
+    border-color: var(--button-bg, #007bff) !important;
+    color: var(--button-text, white) !important;
+}
+
+.appointease-booking .btn-primary:hover {
+    background-color: var(--button-bg-hover, #0056b3) !important;
+    border-color: var(--button-bg-hover, #0056b3) !important;
+}
+
+.appointease-booking .btn-success {
+    background-color: var(--success-color, #28a745) !important;
+    border-color: var(--success-color, #28a745) !important;
+}
+
+.appointease-booking .btn-success:hover {
+    background-color: var(--success-hover, #218838) !important;
+    border-color: var(--success-hover, #218838) !important;
+}
+
+.appointease-booking .btn-danger {
+    background-color: var(--danger-color, #dc3545) !important;
+    border-color: var(--danger-color, #dc3545) !important;
+}
+
+.appointease-booking .btn-danger:hover {
+    background-color: var(--danger-hover, #c82333) !important;
+    border-color: var(--danger-hover, #c82333) !important;
+}
+
+/* Make appointment cards fill row width */
+.appointease-booking .row.g-2.g-md-3.align-items-stretch {
+    display: flex !important;
+    flex-wrap: wrap !important;
+}
+
+.appointease-booking .row.g-2.g-md-3.align-items-stretch .col-12.col-md-6 {
+    flex: 1 1 calc(33.333% - 1rem) !important;
+    min-width: 280px !important;
+    max-width: calc(33.333% - 1rem) !important;
+}
+
+@media (max-width: 992px) {
+    .appointease-booking .row.g-2.g-md-3.align-items-stretch .col-12.col-md-6 {
+        flex: 1 1 calc(50% - 1rem) !important;
+        max-width: calc(50% - 1rem) !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .appointease-booking .row.g-2.g-md-3.align-items-stretch .col-12.col-md-6 {
+        flex: 1 1 100% !important;
+        max-width: 100% !important;
+    }
+}
+
+.appointease-booking .appointment-card {
+    width: 100% !important;
+    height: 100% !important;
+    display: flex !important;
+    flex-direction: column !important;
+}
+

@@ -73,7 +73,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         <div className="wp-block-group appointease-booking">
             {/* Single Cohesive Header */}
             <div style={{
-                backgroundColor: '#5344F4',
+                backgroundColor: 'var(--header-bg, #5344F4)',
                 padding: '16px 24px',
                 display: 'flex',
                 alignItems: 'center',
@@ -83,7 +83,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                 <div className="d-flex align-items-center">
                     <span style={{
                         backgroundColor: 'white',
-                        color: '#5344F4',
+                        color: 'var(--header-bg, #5344F4)',
                         width: '40px',
                         height: '40px',
                         borderRadius: '8px',
@@ -154,13 +154,13 @@ const Dashboard: React.FC<DashboardProps> = ({
                     <Button 
                         onClick={onNewAppointment}
                         style={{
-                            backgroundColor: '#28a745',
+                            backgroundColor: 'var(--button-bg, #28a745)',
                             border: 'none',
                             borderRadius: '6px',
                             padding: '8px 16px',
                             fontWeight: '600',
                             fontSize: '14px',
-                            color: 'white'
+                            color: 'var(--button-text, white)'
                         }}
                     >
                         <i className="fas fa-plus me-2"></i>

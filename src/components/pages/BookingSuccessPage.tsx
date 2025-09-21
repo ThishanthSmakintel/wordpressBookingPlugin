@@ -72,7 +72,20 @@ const BookingSuccessPage: React.FC<BookingSuccessPageProps> = ({
         <div className="appointease-step-content success-step">
             <div className="success-container">
                 <div className="success-animation">
-                    <div className="success-icon">✓</div>
+                    <div className="success-icon" style={{
+                        background: 'var(--button-bg, #1CBC9B)',
+                        width: '100px',
+                        height: '100px',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '48px',
+                        color: 'white',
+                        margin: '0 auto'
+                    }}>
+                        <i className="fas fa-check"></i>
+                    </div>
                 </div>
                 
                 <h1 className="success-title">Booking Confirmed!</h1>
@@ -130,7 +143,14 @@ const BookingSuccessPage: React.FC<BookingSuccessPageProps> = ({
                 </div>
             
                 <div className="success-actions">
-                    <button className="action-btn primary-btn" onClick={onBookAnother}>
+                    <button 
+                        className="action-btn primary-btn" 
+                        onClick={onBookAnother}
+                        style={{
+                            background: 'var(--button-bg, #1CBC9B)',
+                            color: 'var(--button-text, white)'
+                        }}
+                    >
                         <i className="fas fa-plus"></i>
                         Book Another
                     </button>

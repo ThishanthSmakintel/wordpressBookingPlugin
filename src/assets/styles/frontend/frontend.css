@@ -1952,6 +1952,70 @@
     --text-primary: var(--wp-color-foreground);
 }
 
+/* Success page styling */
+.success-container {
+    text-align: center;
+    max-width: 600px;
+    margin: 0 auto;
+}
+
+.success-icon,
+.success-icon i {
+    color: white !important;
+}
+
+.info-note i {
+    color: var(--button-bg, #1CBC9B);
+}
+
+/* OTP input styling */
+.otp-input {
+    width: 100%;
+    padding: 16px 20px;
+    border: 2px solid var(--card-border, #e5e7eb);
+    border-radius: 12px;
+    font-size: 24px;
+    font-weight: 700;
+    text-align: center;
+    letter-spacing: 8px;
+    background: var(--card-bg, white);
+    color: var(--text-primary, #1f2937);
+    font-family: 'Courier New', monospace;
+    transition: all 0.3s ease;
+}
+
+.otp-input:focus {
+    outline: none;
+    border-color: var(--button-bg, #1CBC9B);
+    box-shadow: 0 0 0 3px rgba(var(--button-bg-rgb, 28, 188, 155), 0.1);
+}
+
+/* Resend button styling - match other buttons */
+.resend-link {
+    background: var(--button-bg, #1CBC9B);
+    color: var(--button-text, white);
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 4px rgba(var(--button-bg-rgb, 28, 188, 155), 0.2);
+    min-width: 120px;
+}
+
+.resend-link:hover:not(:disabled) {
+    background: var(--button-bg-hover, #059669);
+    transform: translateY(-1px);
+}
+
+.resend-link:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
 .appointease-booking-container {
     width: 100%;
     max-width: 100%;
