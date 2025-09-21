@@ -1,0 +1,198 @@
+@import './_variables.scss';
+
+// Button Components
+.ae-btn {
+  @include button-base;
+  
+  &--primary {
+    background: var(--ae-primary);
+    color: var(--ae-white);
+    
+    &:hover:not(:disabled) {
+      background: var(--ae-primary-dark);
+      transform: translateY(-1px);
+    }
+  }
+  
+  &--secondary {
+    background: var(--ae-gray-500);
+    color: var(--ae-white);
+    
+    &:hover:not(:disabled) {
+      background: var(--ae-gray-800);
+    }
+  }
+  
+  &--danger {
+    background: var(--ae-danger);
+    color: var(--ae-white);
+    
+    &:hover:not(:disabled) {
+      background: #c82333;
+    }
+  }
+  
+  &--outline {
+    background: transparent;
+    border: 2px solid var(--ae-border);
+    color: var(--ae-text-primary);
+    
+    &:hover:not(:disabled) {
+      border-color: var(--ae-primary);
+      color: var(--ae-primary);
+    }
+  }
+}
+
+// Card Components
+.ae-card {
+  @include card-base;
+  
+  &__header {
+    padding: var(--ae-space-4);
+    border-bottom: 1px solid var(--ae-border);
+    background: var(--ae-bg-secondary);
+  }
+  
+  &__body {
+    padding: var(--ae-space-4);
+  }
+  
+  &__footer {
+    padding: var(--ae-space-4);
+    border-top: 1px solid var(--ae-border);
+    background: var(--ae-bg-secondary);
+  }
+  
+  &--hover {
+    cursor: pointer;
+    
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--ae-shadow-md);
+    }
+  }
+  
+  &--selected {
+    border-color: var(--ae-primary);
+    box-shadow: 0 0 0 3px var(--ae-primary-alpha);
+  }
+}
+
+// Form Components
+.ae-form {
+  &__group {
+    margin-bottom: var(--ae-space-4);
+  }
+  
+  &__label {
+    display: block;
+    margin-bottom: var(--ae-space-2);
+    font-weight: var(--ae-font-weight-semibold);
+    color: var(--ae-text-primary);
+    font-size: var(--ae-font-size-sm);
+  }
+  
+  &__input {
+    width: 100%;
+    padding: var(--ae-space-3) var(--ae-space-4);
+    border: 2px solid var(--ae-border);
+    border-radius: var(--ae-radius);
+    font-size: var(--ae-font-size-base);
+    background: var(--ae-bg-primary);
+    color: var(--ae-text-primary);
+    transition: border-color var(--ae-transition-fast);
+    
+    &:focus {
+      outline: none;
+      border-color: var(--ae-primary);
+      box-shadow: 0 0 0 3px var(--ae-primary-alpha);
+    }
+    
+    &:disabled {
+      background: var(--ae-gray-50);
+      color: var(--ae-text-secondary);
+      cursor: not-allowed;
+      opacity: 0.8;
+    }
+    
+    &--error {
+      border-color: var(--ae-danger);
+      background: #fdf2f2;
+    }
+  }
+  
+  &__error {
+    color: var(--ae-danger);
+    font-size: var(--ae-font-size-sm);
+    margin-top: var(--ae-space-2);
+  }
+  
+  &__actions {
+    display: flex;
+    gap: var(--ae-space-3);
+    justify-content: center;
+    margin-top: var(--ae-space-6);
+  }
+}
+
+// Grid System
+.ae-grid {
+  display: grid;
+  gap: var(--ae-space-4);
+  
+  &--2 {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
+  
+  &--3 {
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  }
+  
+  &--responsive {
+    @include media-up(md) {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    
+    @include media-up(lg) {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+}
+
+// Status Badge
+.ae-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ae-space-2);
+  padding: var(--ae-space-2) var(--ae-space-3);
+  border-radius: var(--ae-radius);
+  font-size: var(--ae-font-size-sm);
+  font-weight: var(--ae-font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  
+  &--success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid rgba(21, 87, 36, 0.2);
+  }
+  
+  &--warning {
+    background: #fff3cd;
+    color: #856404;
+    border: 1px solid rgba(133, 100, 4, 0.2);
+  }
+  
+  &--danger {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid rgba(114, 28, 36, 0.2);
+  }
+  
+  &--info {
+    background: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid rgba(12, 84, 96, 0.2);
+  }
+}

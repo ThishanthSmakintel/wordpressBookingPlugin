@@ -1,0 +1,254 @@
+@import '../scss/main.scss';
+
+/* WordPress Block Wrapper */
+.wp-block-appointease-booking-form {
+    /* WordPress color support */
+    --header-bg: var(--wp--preset--color--primary, #1CBC9B);
+    --header-text: var(--wp--preset--color--white, #ffffff);
+    --card-bg: var(--wp--preset--color--base, #ffffff);
+    --card-border: var(--wp--preset--color--contrast-2, #e9ecef);
+    --button-bg: var(--wp--preset--color--primary, #1CBC9B);
+    --button-text: var(--wp--preset--color--white, #ffffff);
+    --text-primary: var(--wp--preset--color--contrast, #000000);
+    --text-secondary: var(--wp--preset--color--contrast-3, #666666);
+    
+    color: var(--wp--preset--color--foreground, #000000);
+    background-color: var(--wp--preset--color--background, transparent);
+    
+    font-family: inherit;
+    font-size: inherit;
+    width: 100%;
+    background: transparent !important;
+    border-radius: 12px;
+    box-shadow: none;
+    overflow: visible !important;
+    height: auto !important;
+    max-height: none !important;
+    padding: 0;
+    margin: 0;
+
+    /* Container with minimum height to prevent jumping */
+    #appointease-booking-form-container {
+        min-height: 600px;
+        transition: height 0.3s ease;
+    }
+}
+
+/* Legacy CSS compatibility - keep existing styles that aren't converted yet */
+.appointease-booking {
+    font-family: inherit;
+    background: var(--card-bg);
+    color: var(--text-primary);
+    border-radius: 8px;
+    overflow: hidden;
+    height: auto;
+    max-width: 100%;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    contain: layout;
+    border: 1px solid #e0e0e0;
+}
+
+.appointease-booking-header {
+    background: var(--header-bg);
+    color: var(--header-text);
+    padding: 20px 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: nowrap;
+    min-height: 60px;
+}
+
+.appointease-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.logo-icon {
+    width: 40px;
+    height: 40px;
+    background: rgba(255,255,255,0.2);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 18px;
+}
+
+.logo-text {
+    font-size: 24px;
+    font-weight: 500;
+}
+
+.appointease-booking-content {
+    padding: 0;
+}
+
+.appointease-steps {
+    display: flex;
+    justify-content: center;
+    padding: 20px 30px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0 20px;
+    position: relative;
+}
+
+.step:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    top: 15px;
+    right: -20px;
+    width: 40px;
+    height: 2px;
+    background: #e9ecef;
+    z-index: 1;
+}
+
+.step.completed:not(:last-child)::after {
+    background: #1CBC9B;
+}
+
+.step-number {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background: #e9ecef;
+    color: #6c757d;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 8px;
+    position: relative;
+    z-index: 2;
+}
+
+.step.active .step-number {
+    background: #1CBC9B;
+    color: white;
+}
+
+.step.completed .step-number {
+    background: #1CBC9B;
+    color: white;
+}
+
+.step-label {
+    font-size: 12px;
+    color: #6c757d;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.step.active .step-label {
+    color: #1CBC9B;
+}
+
+.appointease-step-content {
+    padding: 40px 60px;
+}
+
+.appointease-step-content h2 {
+    text-align: center;
+    color: var(--text-primary);
+    margin-bottom: 10px;
+    font-size: 16px;
+    font-weight: 500;
+}
+
+/* Form Actions */
+.form-actions {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+    margin-top: 30px;
+}
+
+.back-btn {
+    background: #6c757d;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.confirm-btn {
+    background: #1CBC9B;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Mobile Responsive */
+@media (max-width: 768px) {
+    .appointease-booking-header {
+        padding: 12px 16px;
+        flex-direction: column;
+        gap: 12px;
+        text-align: center;
+        min-height: auto;
+    }
+    
+    .logo-text {
+        font-size: 20px;
+    }
+    
+    .appointease-steps {
+        padding: 16px 12px;
+        overflow-x: auto;
+        scrollbar-width: none;
+        -ms-overflow-style: none;
+    }
+    
+    .appointease-steps::-webkit-scrollbar {
+        display: none;
+    }
+    
+    .step {
+        margin: 0 12px;
+        min-width: 50px;
+        flex-shrink: 0;
+    }
+    
+    .step-label {
+        font-size: 10px;
+        white-space: nowrap;
+    }
+    
+    .appointease-step-content {
+        padding: 24px 32px;
+    }
+    
+    .form-actions {
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    .back-btn,
+    .confirm-btn {
+        width: 100%;
+        padding: 14px;
+    }
+}

@@ -1,0 +1,103 @@
+// Design System Variables
+:root {
+  // Primary Colors
+  --ae-primary: #1CBC9B;
+  --ae-primary-dark: #16a085;
+  --ae-primary-light: #20c997;
+  --ae-primary-alpha: rgba(28, 188, 155, 0.1);
+  
+  // Status Colors
+  --ae-success: #28a745;
+  --ae-warning: #ffc107;
+  --ae-danger: #dc3545;
+  --ae-info: #17a2b8;
+  
+  // Neutral Colors
+  --ae-white: #ffffff;
+  --ae-gray-50: #f8f9fa;
+  --ae-gray-100: #e9ecef;
+  --ae-gray-200: #dee2e6;
+  --ae-gray-500: #6c757d;
+  --ae-gray-800: #212529;
+  
+  // Semantic Colors
+  --ae-text-primary: var(--ae-gray-800);
+  --ae-text-secondary: var(--ae-gray-500);
+  --ae-bg-primary: var(--ae-white);
+  --ae-bg-secondary: var(--ae-gray-50);
+  --ae-border: var(--ae-gray-200);
+  
+  // Typography
+  --ae-font-size-sm: 0.875rem;
+  --ae-font-size-base: 1rem;
+  --ae-font-size-lg: 1.125rem;
+  --ae-font-size-xl: 1.25rem;
+  --ae-font-weight-medium: 500;
+  --ae-font-weight-semibold: 600;
+  --ae-font-weight-bold: 700;
+  
+  // Spacing
+  --ae-space-2: 0.5rem;
+  --ae-space-3: 0.75rem;
+  --ae-space-4: 1rem;
+  --ae-space-6: 1.5rem;
+  --ae-space-8: 2rem;
+  
+  // Border Radius
+  --ae-radius: 0.5rem;
+  --ae-radius-md: 0.75rem;
+  --ae-radius-lg: 1rem;
+  
+  // Shadows
+  --ae-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --ae-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  --ae-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  
+  // Transitions
+  --ae-transition-fast: 150ms ease;
+  --ae-transition: 300ms ease;
+}
+
+// SCSS Variables
+$breakpoints: (
+  sm: 576px,
+  md: 768px,
+  lg: 992px,
+  xl: 1200px
+);
+
+// Mixins
+@mixin media-up($breakpoint) {
+  @if map-has-key($breakpoints, $breakpoint) {
+    @media (min-width: map-get($breakpoints, $breakpoint)) {
+      @content;
+    }
+  }
+}
+
+@mixin button-base {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--ae-space-2);
+  padding: var(--ae-space-3) var(--ae-space-4);
+  border: none;
+  border-radius: var(--ae-radius);
+  font-size: var(--ae-font-size-sm);
+  font-weight: var(--ae-font-weight-medium);
+  cursor: pointer;
+  transition: all var(--ae-transition-fast);
+  
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+}
+
+@mixin card-base {
+  background: var(--ae-bg-primary);
+  border: 1px solid var(--ae-border);
+  border-radius: var(--ae-radius-md);
+  box-shadow: var(--ae-shadow-sm);
+  transition: all var(--ae-transition);
+}

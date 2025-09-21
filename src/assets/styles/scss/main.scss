@@ -1,0 +1,430 @@
+/* CSS Variables */
+:root {
+  --ae-primary: #1CBC9B;
+  --ae-primary-dark: #16a085;
+  --ae-primary-light: #20c997;
+  --ae-primary-alpha: rgba(28, 188, 155, 0.1);
+  --ae-success: #28a745;
+  --ae-warning: #ffc107;
+  --ae-danger: #dc3545;
+  --ae-info: #17a2b8;
+  --ae-white: #ffffff;
+  --ae-gray-50: #f8f9fa;
+  --ae-gray-100: #e9ecef;
+  --ae-gray-200: #dee2e6;
+  --ae-gray-500: #6c757d;
+  --ae-gray-800: #212529;
+  --ae-text-primary: var(--ae-gray-800);
+  --ae-text-secondary: var(--ae-gray-500);
+  --ae-bg-primary: var(--ae-white);
+  --ae-bg-secondary: var(--ae-gray-50);
+  --ae-border: var(--ae-gray-200);
+  --ae-font-size-sm: 0.875rem;
+  --ae-font-size-base: 1rem;
+  --ae-font-size-lg: 1.125rem;
+  --ae-font-size-xl: 1.25rem;
+  --ae-font-weight-medium: 500;
+  --ae-font-weight-semibold: 600;
+  --ae-font-weight-bold: 700;
+  --ae-space-2: 0.5rem;
+  --ae-space-3: 0.75rem;
+  --ae-space-4: 1rem;
+  --ae-space-6: 1.5rem;
+  --ae-space-8: 2rem;
+  --ae-radius: 0.5rem;
+  --ae-radius-md: 0.75rem;
+  --ae-radius-lg: 1rem;
+  --ae-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --ae-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  --ae-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --ae-transition-fast: 150ms ease;
+  --ae-transition: 300ms ease;
+}
+
+/* Main AppointEase Booking Component */
+.appointease-booking {
+  font-family: inherit;
+  background: var(--ae-bg-primary);
+  color: var(--ae-text-primary);
+  border-radius: var(--ae-radius-md);
+  overflow: hidden;
+  max-width: 100%;
+  box-shadow: var(--ae-shadow);
+  border: 1px solid var(--ae-border);
+  min-height: 600px;
+  transition: height var(--ae-transition);
+  
+  &__container {
+    width: 100%;
+    max-width: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    height: auto;
+    box-sizing: border-box;
+  }
+  
+  /* Header */
+  &__header {
+    background: var(--ae-primary);
+    color: var(--ae-white);
+    padding: var(--ae-space-4) var(--ae-space-6);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: nowrap;
+    min-height: 60px;
+  }
+  
+  &__logo {
+    display: flex;
+    align-items: center;
+    gap: var(--ae-space-3);
+    
+    &-icon {
+      width: 40px;
+      height: 40px;
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: var(--ae-radius);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: var(--ae-font-weight-semibold);
+      font-size: var(--ae-font-size-lg);
+    }
+    
+    &-text {
+      font-size: var(--ae-font-size-xl);
+      font-weight: var(--ae-font-weight-medium);
+    }
+  }
+  
+  /* Step Progress */
+  &__steps {
+    display: flex;
+    justify-content: center;
+    padding: var(--ae-space-4) var(--ae-space-6);
+    background: var(--ae-bg-secondary);
+    border-bottom: 1px solid var(--ae-border);
+  }
+  
+  &__step {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    margin: 0 var(--ae-space-4);
+    position: relative;
+    
+    &::after {
+      content: "";
+      position: absolute;
+      top: 15px;
+      right: -1rem;
+      width: 2rem;
+      height: 2px;
+      background: var(--ae-border);
+      z-index: 1;
+    }
+    
+    &:last-child::after {
+      display: none;
+    }
+    
+    &--completed::after {
+      background: var(--ae-primary);
+    }
+    
+    &-number {
+      width: 30px;
+      height: 30px;
+      border-radius: 50%;
+      background: var(--ae-border);
+      color: var(--ae-text-secondary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: var(--ae-font-weight-semibold);
+      font-size: var(--ae-font-size-sm);
+      margin-bottom: var(--ae-space-2);
+      position: relative;
+      z-index: 2;
+    }
+    
+    &--active &-number,
+    &--completed &-number {
+      background: var(--ae-primary);
+      color: var(--ae-white);
+    }
+    
+    &-label {
+      font-size: var(--ae-font-size-sm);
+      color: var(--ae-text-secondary);
+      font-weight: var(--ae-font-weight-medium);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    &--active &-label {
+      color: var(--ae-primary);
+    }
+  }
+  
+  /* Content Area */
+  &__content {
+    padding: 0;
+  }
+  
+  &__step-content {
+    padding: var(--ae-space-8) var(--ae-space-6);
+    
+    h2 {
+      text-align: center;
+      color: var(--ae-text-primary);
+      margin-bottom: var(--ae-space-2);
+      font-size: var(--ae-font-size-lg);
+      font-weight: var(--ae-font-weight-medium);
+    }
+    
+    .step-description {
+      color: var(--ae-text-secondary);
+      font-size: var(--ae-font-size-sm);
+      margin-bottom: var(--ae-space-6);
+      text-align: center;
+    }
+  }
+}
+
+/* Service Selector */
+.service-selector {
+  &__grid {
+    display: grid;
+    gap: var(--ae-space-4);
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    margin-top: var(--ae-space-6);
+  }
+  
+  &__card {
+    background: var(--ae-bg-primary);
+    border: 1px solid var(--ae-border);
+    border-radius: var(--ae-radius-md);
+    box-shadow: var(--ae-shadow-sm);
+    transition: all var(--ae-transition);
+    padding: var(--ae-space-4);
+    text-align: center;
+    min-height: 140px;
+    cursor: pointer;
+    
+    &:hover {
+      border-color: var(--ae-primary);
+      transform: translateY(-5px);
+      box-shadow: var(--ae-shadow-md);
+    }
+    
+    h3 {
+      color: var(--ae-text-primary);
+      margin-bottom: var(--ae-space-2);
+      font-size: inherit;
+    }
+    
+    p {
+      color: var(--ae-text-secondary);
+      margin-bottom: var(--ae-space-3);
+    }
+  }
+  
+  &__meta {
+    display: flex;
+    justify-content: center;
+    gap: var(--ae-space-3);
+  }
+  
+  &__duration {
+    background: var(--ae-bg-secondary);
+    color: var(--ae-text-primary);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ae-space-2);
+    padding: var(--ae-space-2) var(--ae-space-3);
+    border-radius: var(--ae-radius);
+    font-size: var(--ae-font-size-sm);
+    font-weight: var(--ae-font-weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  
+  &__price {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ae-space-2);
+    padding: var(--ae-space-2) var(--ae-space-3);
+    border-radius: var(--ae-radius);
+    font-size: var(--ae-font-size-sm);
+    font-weight: var(--ae-font-weight-semibold);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid rgba(21, 87, 36, 0.2);
+  }
+}
+
+/* Employee Selector */
+.employee-selector {
+  &__grid {
+    display: grid;
+    gap: var(--ae-space-4);
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    margin-top: var(--ae-space-6);
+  }
+  
+  &__card {
+    background: var(--ae-bg-primary);
+    border: 1px solid var(--ae-border);
+    border-radius: var(--ae-radius-md);
+    box-shadow: var(--ae-shadow-sm);
+    transition: all var(--ae-transition);
+    padding: var(--ae-space-6);
+    text-align: center;
+    cursor: pointer;
+    
+    &:hover {
+      border-color: var(--ae-primary);
+      transform: translateY(-5px);
+      box-shadow: var(--ae-shadow-md);
+    }
+  }
+  
+  &__avatar {
+    width: 60px;
+    height: 60px;
+    background: var(--ae-primary);
+    color: var(--ae-white);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: var(--ae-font-weight-semibold);
+    font-size: var(--ae-font-size-xl);
+    margin: 0 auto var(--ae-space-3);
+  }
+  
+  &__name {
+    color: var(--ae-text-primary);
+    margin-bottom: var(--ae-space-2);
+    font-size: inherit;
+  }
+  
+  &__rating {
+    display: flex;
+    justify-content: center;
+    gap: var(--ae-space-2);
+    font-size: var(--ae-font-size-sm);
+    
+    .rating {
+      color: var(--ae-warning);
+      font-weight: var(--ae-font-weight-semibold);
+    }
+    
+    .reviews {
+      color: var(--ae-text-secondary);
+    }
+  }
+}
+
+/* Time Selector */
+.time-selector {
+  &__grid {
+    display: grid;
+    gap: var(--ae-space-4);
+    margin-top: var(--ae-space-6);
+  }
+  
+  &__slot {
+    background: var(--ae-bg-primary);
+    border: 1px solid var(--ae-border);
+    border-radius: var(--ae-radius-md);
+    box-shadow: var(--ae-shadow-sm);
+    transition: all var(--ae-transition);
+    padding: var(--ae-space-4);
+    cursor: pointer;
+    text-align: center;
+    font-weight: var(--ae-font-weight-semibold);
+    
+    &:hover:not(&--unavailable) {
+      border-color: var(--ae-primary);
+      background: var(--ae-primary-alpha);
+      color: var(--ae-primary);
+    }
+    
+    &--unavailable {
+      opacity: 0.5;
+      cursor: not-allowed;
+      background: var(--ae-gray-50);
+      
+      &:hover {
+        transform: none;
+        box-shadow: var(--ae-shadow-sm);
+      }
+    }
+  }
+}
+
+/* Responsive Design */
+@media (min-width: 768px) {
+  .appointease-booking__step-content {
+    padding: var(--ae-space-8) var(--ae-space-8);
+  }
+}
+
+@media (max-width: 768px) {
+  .appointease-booking {
+    &__header {
+      padding: var(--ae-space-3) var(--ae-space-4);
+      flex-direction: column;
+      gap: var(--ae-space-3);
+      text-align: center;
+      min-height: auto;
+    }
+    
+    &__logo-text {
+      font-size: var(--ae-font-size-lg);
+    }
+    
+    &__steps {
+      padding: var(--ae-space-4) var(--ae-space-3);
+      overflow-x: auto;
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+      
+      &::-webkit-scrollbar {
+        display: none;
+      }
+    }
+    
+    &__step {
+      margin: 0 var(--ae-space-3);
+      min-width: 50px;
+      flex-shrink: 0;
+      
+      &-label {
+        font-size: 10px;
+        white-space: nowrap;
+      }
+    }
+    
+    &__step-content {
+      padding: var(--ae-space-6) var(--ae-space-4);
+    }
+  }
+  
+  .service-selector__grid,
+  .employee-selector__grid {
+    grid-template-columns: 1fr;
+    gap: var(--ae-space-4);
+  }
+  
+  .time-selector__grid {
+    grid-template-columns: 1fr;
+    gap: var(--ae-space-3);
+  }
+}

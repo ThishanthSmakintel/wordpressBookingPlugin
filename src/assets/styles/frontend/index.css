@@ -1,5 +1,5 @@
-/* Frontend Styles - Main Entry Point */
-@import './frontend.css';
+
+@import './frontend.scss';
 @import './login.css';
 @import './reschedule.css';
 @import './wp-responsive-fix.css';
