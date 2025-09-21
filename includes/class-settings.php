@@ -551,52 +551,52 @@ class Booking_Settings {
         $primary_text = $this->get_contrast_color($primary_color);
         $header_text = $this->get_contrast_color($header_color);
         
+        // Extract RGB values for rgba usage
+        $primary_rgb = $this->hex_to_rgb($primary_color);
+        
         $css = "
-        :root {
-            --appointease-primary: {$primary_color} !important;
-            --appointease-primary-dark: {$primary_dark} !important;
-            --appointease-primary-light: {$primary_light} !important;
-            --appointease-primary-alpha: {$primary_alpha} !important;
-            --appointease-success: {$success_color} !important;
-            --appointease-secondary: {$secondary_color} !important;
-            --appointease-background: {$background_color} !important;
-            --appointease-text: {$text_color} !important;
-            --appointease-border: {$border_color} !important;
-            --appointease-border-radius: {$border_radius}px !important;
-            --appointease-font-size: {$font_size}px !important;
-        }
-        
-        .wp-block-appointease-booking-form {
-            --header-bg: {$primary_color} !important;
-            --button-bg: {$primary_color} !important;
-            --card-bg: {$background_color} !important;
-            --text-primary: {$text_color} !important;
-            --card-border: {$border_color} !important;
-            font-size: {$font_size}px !important;
-            color: {$text_color} !important;
-        }
-        
+        .wp-block-appointease-booking-form,
         .appointease-booking {
+            --header-bg: {$header_color} !important;
+            --header-text: {$header_text} !important;
+            --card-bg: {$background_color} !important;
+            --card-border: {$border_color} !important;
+            --button-bg: {$primary_color} !important;
+            --button-bg-rgb: {$primary_rgb} !important;
+            --button-bg-hover: {$primary_dark} !important;
+            --button-text: {$primary_text} !important;
+            --text-primary: {$text_color} !important;
+            --text-secondary: #666666 !important;
             font-size: {$font_size}px !important;
             color: {$text_color} !important;
-            background: {$background_color} !important;
         }
         
-        .service-card,
-        .employee-card,
-        .calendar-day,
-        .time-slot {
-            background: {$background_color} !important;
-            border-color: {$border_color} !important;
-            color: {$text_color} !important;
-            border-radius: {$border_radius}px !important;
+        /* Button hover states */
+        .wp-block-appointease-booking-form .confirm-btn:hover,
+        .wp-block-appointease-booking-form .primary-btn:hover {
+            background: {$primary_dark} !important;
         }
         
-        .form-group input {
-            background: {$background_color} !important;
-            border-color: {$border_color} !important;
-            color: {$text_color} !important;
-            border-radius: {$border_radius}px !important;
+        /* Header styling */
+        .wp-block-appointease-booking-form .appointease-booking-header {
+            background: {$header_color} !important;
+            color: {$header_text} !important;
+        }
+        
+        /* Target login button by class */
+        .wp-block-appointease-booking-form .login-button {
+            background: {$primary_color} !important;
+            box-shadow: 0 2px 4px rgba(28, 188, 155, 0.2) !important;
+        }
+        
+        .wp-block-appointease-booking-form .login-button:hover {
+            background: {$primary_dark} !important;
+        }
+        
+        /* Success elements */
+        .wp-block-appointease-booking-form .success-icon,
+        .wp-block-appointease-booking-form .preview-success {
+            background: {$success_color} !important;
         }
         ";
         
@@ -612,6 +612,17 @@ class Booking_Settings {
         $g = hexdec(substr($hex, 2, 2));
         $b = hexdec(substr($hex, 4, 2));
         return "rgba({$r}, {$g}, {$b}, {$alpha})";
+    }
+    
+    private function hex_to_rgb($hex) {
+        $hex = str_replace('#', '', $hex);
+        if (strlen($hex) == 3) {
+            $hex = str_repeat(substr($hex, 0, 1), 2) . str_repeat(substr($hex, 1, 1), 2) . str_repeat(substr($hex, 2, 1), 2);
+        }
+        $r = hexdec(substr($hex, 0, 2));
+        $g = hexdec(substr($hex, 2, 2));
+        $b = hexdec(substr($hex, 4, 2));
+        return "{$r}, {$g}, {$b}";
     }
     
     private function darken_color($hex, $percent) {

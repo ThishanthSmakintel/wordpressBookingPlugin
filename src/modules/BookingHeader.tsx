@@ -66,17 +66,18 @@ export const BookingHeader: React.FC<BookingHeaderProps> = React.memo(({
                 </div>
             ) : (
                 <button 
+                    className="login-button"
                     onClick={onLogin}
                     style={{
-                        background: 'linear-gradient(135deg, #3b82f6, #2563eb)',
+                        background: 'var(--button-bg, #1CBC9B)',
                         border: 'none',
-                        color: 'white',
+                        color: 'var(--button-text, white)',
                         padding: '10px 20px',
                         borderRadius: '8px',
                         cursor: 'pointer',
                         fontSize: '0.9rem',
                         fontWeight: '500',
-                        boxShadow: '0 2px 4px rgba(59, 130, 246, 0.2)',
+                        boxShadow: '0 2px 4px rgba(var(--button-bg-rgb, 28, 188, 155), 0.2)',
                         transition: 'all 0.2s ease'
                     }}
                 >

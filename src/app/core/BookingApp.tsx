@@ -628,7 +628,7 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                         <div className="appointease-step-content success-step">
                             <div className="success-container">
                                 <div className="success-animation">
-                                    <div className="success-icon" style={{background: '#1CBC9B'}}>✓</div>
+                                    <div className="success-icon" style={{background: 'var(--button-bg, #1CBC9B)'}}>✓</div>
                                 </div>
                                 
                                 <h1 className="success-title">Appointment Rescheduled!</h1>

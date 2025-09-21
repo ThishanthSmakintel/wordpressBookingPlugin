@@ -32,16 +32,16 @@ const StepProgress: React.FC = React.memo(() => {
                             width: '48px',
                             height: '48px',
                             borderRadius: '50%',
-                            backgroundColor: currentStep >= step.number ? '#10b981' : '#e5e7eb',
-                            color: currentStep >= step.number ? 'white' : '#9ca3af',
+                            backgroundColor: currentStep >= step.number ? 'var(--button-bg, #10b981)' : '#e5e7eb',
+                            color: currentStep >= step.number ? 'var(--button-text, white)' : '#9ca3af',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
                             fontSize: '1.25rem',
                             fontWeight: '700',
                             transition: 'all 0.3s ease',
-                            border: currentStep === step.number ? '3px solid #10b981' : '3px solid transparent',
-                            boxShadow: currentStep === step.number ? '0 0 0 4px rgba(16, 185, 129, 0.2)' : 'none'
+                            border: currentStep === step.number ? '3px solid var(--button-bg, #10b981)' : '3px solid transparent',
+                            boxShadow: currentStep === step.number ? '0 0 0 4px rgba(var(--button-bg-rgb, 16, 185, 129), 0.2)' : 'none'
                         }}>
                             {currentStep > step.number ? (
                                 <i className="fas fa-check" style={{fontSize: '1rem'}}></i>
@@ -53,7 +53,7 @@ const StepProgress: React.FC = React.memo(() => {
                             marginTop: '8px',
                             fontSize: '0.875rem',
                             fontWeight: currentStep === step.number ? '600' : '500',
-                            color: currentStep >= step.number ? '#1f2937' : '#9ca3af',
+                            color: currentStep >= step.number ? 'var(--text-primary, #1f2937)' : '#9ca3af',
                             textAlign: 'center'
                         }}>
                             {step.label}
@@ -63,7 +63,7 @@ const StepProgress: React.FC = React.memo(() => {
                         <div style={{
                             width: '60px',
                             height: '3px',
-                            backgroundColor: currentStep > step.number ? '#10b981' : '#e5e7eb',
+                            backgroundColor: currentStep > step.number ? 'var(--button-bg, #10b981)' : '#e5e7eb',
                             margin: '0 16px',
                             marginTop: '-24px',
                             transition: 'background-color 0.3s ease'

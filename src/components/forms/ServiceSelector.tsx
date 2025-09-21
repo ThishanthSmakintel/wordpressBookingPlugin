@@ -85,11 +85,11 @@ const ServiceSelector: React.FC<ServiceSelectorProps> = React.memo(({
                                         padding: '24px',
                                         marginBottom: '16px',
                                         backgroundColor: 'white',
-                                        border: isSelected ? '3px solid #10b981' : '2px solid #e5e7eb',
+                                        border: isSelected ? '3px solid var(--button-bg, #10b981)' : '2px solid #e5e7eb',
                                         borderRadius: '12px',
                                         cursor: 'pointer',
                                         transition: 'all 0.2s ease',
-                                        boxShadow: isSelected ? '0 4px 12px rgba(16, 185, 129, 0.15)' : '0 2px 4px rgba(0, 0, 0, 0.05)'
+                                        boxShadow: isSelected ? '0 4px 12px rgba(var(--button-bg-rgb, 16, 185, 129), 0.15)' : '0 2px 4px rgba(0, 0, 0, 0.05)'
                                     }}
                                     onMouseEnter={(e) => {
                                         if (!isSelected) {
@@ -114,8 +114,8 @@ const ServiceSelector: React.FC<ServiceSelectorProps> = React.memo(({
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'center',
-                                        backgroundColor: isSelected ? '#10b981' : 'white',
-                                        borderColor: isSelected ? '#10b981' : '#d1d5db'
+                                        backgroundColor: isSelected ? 'var(--button-bg, #10b981)' : 'white',
+                                        borderColor: isSelected ? 'var(--button-bg, #10b981)' : '#d1d5db'
                                     }}>
                                         {isSelected && (
                                             <div style={{
@@ -132,7 +132,7 @@ const ServiceSelector: React.FC<ServiceSelectorProps> = React.memo(({
                                         <h3 style={{
                                             fontSize: '1.25rem',
                                             fontWeight: '600',
-                                            color: '#1f2937',
+                                            color: 'var(--text-primary, #1f2937)',
                                             marginBottom: '8px'
                                         }}>
                                             {service.name}
@@ -176,8 +176,8 @@ const ServiceSelector: React.FC<ServiceSelectorProps> = React.memo(({
                                 onClick={handleNext}
                                 disabled={!tempSelected}
                                 style={{
-                                    backgroundColor: tempSelected ? '#10b981' : '#d1d5db',
-                                    color: 'white',
+                                    backgroundColor: tempSelected ? 'var(--button-bg, #10b981)' : '#d1d5db',
+                                    color: tempSelected ? 'var(--button-text, white)' : 'white',
                                     border: 'none',
                                     borderRadius: '12px',
                                     padding: '16px 32px',
@@ -189,12 +189,12 @@ const ServiceSelector: React.FC<ServiceSelectorProps> = React.memo(({
                                 }}
                                 onMouseEnter={(e) => {
                                     if (tempSelected) {
-                                        e.currentTarget.style.backgroundColor = '#059669';
+                                        e.currentTarget.style.backgroundColor = 'var(--button-bg-hover, #059669)';
                                     }
                                 }}
                                 onMouseLeave={(e) => {
                                     if (tempSelected) {
-                                        e.currentTarget.style.backgroundColor = '#10b981';
+                                        e.currentTarget.style.backgroundColor = 'var(--button-bg, #10b981)';
                                     }
                                 }}
                             >
