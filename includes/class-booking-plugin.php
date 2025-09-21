@@ -112,9 +112,13 @@ class Booking_Plugin {
             $custom_styles .= '--button-text:' . esc_attr($attributes['buttonTextColor']) . ';';
         }
         
+        // Get custom button text from settings
+        $button_text = Booking_Settings::get_button_text();
+        
         $wrapper_attributes = get_block_wrapper_attributes([
             'style' => $custom_styles,
-            'class' => 'appointease-booking-wrapper'
+            'class' => 'appointease-booking-wrapper',
+            'data-button-text' => esc_attr($button_text)
         ]);
         
         ob_start();
@@ -257,6 +261,12 @@ class Booking_Plugin {
         wp_localize_script('booking-frontend', 'booking_ajax', array(
             'ajax_url' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('wp_rest')
+        ));
+        
+        // Pass appearance settings to frontend
+        wp_localize_script('booking-frontend', 'appointeaseSettings', array(
+            'buttonText' => Booking_Settings::get_button_text(),
+            'primaryColor' => Booking_Settings::get_primary_color()
         ));
         
         // Add admin scripts

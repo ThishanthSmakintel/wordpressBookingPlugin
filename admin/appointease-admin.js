@@ -217,20 +217,30 @@ jQuery(document).ready(function($) {
 
     // Delete Service
     window.deleteService = function(id) {
-        if (confirm('Are you sure you want to delete this service?')) {
-            $.post(appointeaseAdmin.ajaxurl, {
-                action: 'delete_service',
-                _wpnonce: appointeaseAdmin.nonce,
-                id: id
-            }, function(response) {
-                if (response.success) {
-                    showSuccessToast('Service Deleted', 'Service deleted successfully!');
-                    location.reload();
-                } else {
-                    showErrorToast('Delete Failed', 'Error deleting service');
+        showWarningToast('Delete Service', 'This service will be permanently deleted. This action cannot be undone.', [
+            {
+                text: 'Delete',
+                type: 'primary',
+                callback: function() {
+                    $.post(appointeaseAdmin.ajaxurl, {
+                        action: 'delete_service',
+                        _wpnonce: appointeaseAdmin.nonce,
+                        id: id
+                    }, function(response) {
+                        if (response.success) {
+                            showSuccessToast('Service Deleted', 'Service deleted successfully!');
+                            location.reload();
+                        } else {
+                            showErrorToast('Delete Failed', 'Error deleting service');
+                        }
+                    });
                 }
-            });
-        }
+            },
+            {
+                text: 'Cancel',
+                type: 'secondary'
+            }
+        ]);
     };
 
     // Delete Staff
@@ -269,20 +279,30 @@ jQuery(document).ready(function($) {
 
     // Delete Appointment
     window.deleteAppointment = function(id) {
-        if (confirm('Are you sure you want to delete this appointment?')) {
-            $.post(appointeaseAdmin.ajaxurl, {
-                action: 'delete_appointment',
-                _wpnonce: appointeaseAdmin.nonce,
-                id: id
-            }, function(response) {
-                if (response.success) {
-                    showSuccessToast('Appointment Deleted', 'Appointment deleted successfully!');
-                    location.reload();
-                } else {
-                    showErrorToast('Delete Failed', 'Error deleting appointment');
+        showWarningToast('Delete Appointment', 'This appointment will be permanently deleted. This action cannot be undone.', [
+            {
+                text: 'Delete',
+                type: 'primary',
+                callback: function() {
+                    $.post(appointeaseAdmin.ajaxurl, {
+                        action: 'delete_appointment',
+                        _wpnonce: appointeaseAdmin.nonce,
+                        id: id
+                    }, function(response) {
+                        if (response.success) {
+                            showSuccessToast('Appointment Deleted', 'Appointment deleted successfully!');
+                            location.reload();
+                        } else {
+                            showErrorToast('Delete Failed', 'Error deleting appointment');
+                        }
+                    });
                 }
-            });
-        }
+            },
+            {
+                text: 'Cancel',
+                type: 'secondary'
+            }
+        ]);
     };
     
     // Reschedule Appointment
@@ -595,21 +615,34 @@ jQuery(document).ready(function($) {
             return;
         }
         
-        if (confirm('Are you sure you want to apply this action to ' + selectedIds.length + ' appointments?')) {
-            $.post(appointeaseAdmin.ajaxurl, {
-                action: 'bulk_appointment_action',
-                _wpnonce: appointeaseAdmin.nonce,
-                bulk_action: action,
-                appointment_ids: selectedIds
-            }, function(response) {
-                if (response.success) {
-                    showSuccessToast('Bulk Action Complete', 'Bulk action applied successfully!');
-                    location.reload();
-                } else {
-                    showErrorToast('Bulk Action Failed', 'Bulk action failed');
+        const actionText = action === 'confirm' ? 'confirm' : action === 'delete' ? 'delete' : action;
+        const message = `This will ${actionText} ${selectedIds.length} appointment${selectedIds.length > 1 ? 's' : ''}. This action cannot be undone.`;
+        
+        showWarningToast('Confirm Bulk Action', message, [
+            {
+                text: 'Proceed',
+                type: 'primary',
+                callback: function() {
+                    $.post(appointeaseAdmin.ajaxurl, {
+                        action: 'bulk_appointment_action',
+                        _wpnonce: appointeaseAdmin.nonce,
+                        bulk_action: action,
+                        appointment_ids: selectedIds
+                    }, function(response) {
+                        if (response.success) {
+                            showSuccessToast('Bulk Action Complete', `Successfully ${actionText}ed ${selectedIds.length} appointment${selectedIds.length > 1 ? 's' : ''}!`);
+                            location.reload();
+                        } else {
+                            showErrorToast('Bulk Action Failed', 'Failed to apply bulk action');
+                        }
+                    });
                 }
-            });
-        }
+            },
+            {
+                text: 'Cancel',
+                type: 'secondary'
+            }
+        ]);
     };
     
     // Select all checkbox

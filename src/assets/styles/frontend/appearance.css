@@ -1,0 +1,189 @@
+/* AppointEase Appearance Customization */
+
+/* Custom CSS Variables - These will be overridden by PHP settings */
+:root {
+    --appointease-primary: #1CBC9B;
+    --appointease-primary-dark: #16a085;
+    --appointease-primary-light: #20c997;
+    --appointease-primary-alpha: rgba(28, 188, 155, 0.1);
+    --appointease-secondary: #6c757d;
+    --appointease-success: #28a745;
+    --appointease-border-radius: 8px;
+    --appointease-font-size: 16px;
+}
+
+/* Font Size Application */
+.appointease-booking,
+.wp-block-appointease-booking-form {
+    font-size: var(--appointease-font-size) !important;
+}
+
+/* Border Radius Application */
+.service-card,
+.employee-card,
+.calendar-day,
+.time-slot,
+.confirm-btn,
+.primary-btn,
+.new-appointment-btn,
+.reschedule-btn,
+.form-group input,
+.appointment-card,
+.verification-card {
+    border-radius: var(--appointease-border-radius) !important;
+}
+
+/* Primary Color Applications */
+.appointease-booking-header,
+.appointment-id,
+.appointment-header {
+    background: var(--appointease-primary) !important;
+}
+
+.confirm-btn,
+.primary-btn,
+.new-appointment-btn,
+.reschedule-btn {
+    background: var(--appointease-primary) !important;
+    color: white !important;
+}
+
+.confirm-btn:hover,
+.primary-btn:hover,
+.new-appointment-btn:hover,
+.reschedule-btn:hover {
+    background: var(--appointease-primary-dark) !important;
+}
+
+/* Selected cards with proper contrast */
+.service-card.selected,
+.employee-card.selected,
+.calendar-day.selected,
+.time-slot.selected {
+    background: var(--appointease-primary) !important;
+    border-color: var(--appointease-primary) !important;
+    color: white !important;
+}
+
+/* Secondary/Ghost buttons for login */
+.login-btn,
+.secondary-btn {
+    background: transparent !important;
+    border: 2px solid var(--appointease-primary) !important;
+    color: var(--appointease-primary) !important;
+}
+
+.login-btn:hover,
+.secondary-btn:hover {
+    background: var(--appointease-primary) !important;
+    color: white !important;
+}
+
+.step.active .step-number,
+.step.completed .step-number {
+    background: var(--appointease-primary) !important;
+}
+
+.step.active .step-label {
+    color: var(--appointease-primary) !important;
+}
+
+.service-card:hover,
+.employee-card:hover,
+.calendar-day:hover,
+.time-slot:hover:not(.unavailable) {
+    border-color: var(--appointease-primary) !important;
+}
+
+.form-group input:focus {
+    border-color: var(--appointease-primary) !important;
+    box-shadow: 0 0 0 3px var(--appointease-primary-alpha) !important;
+}
+
+.stat-number {
+    color: var(--appointease-primary) !important;
+}
+
+.refresh-btn:hover:not(:disabled) {
+    background: var(--appointease-primary) !important;
+    border-color: var(--appointease-primary) !important;
+}
+
+/* Success Color Applications */
+.success-icon,
+.success-title {
+    color: var(--appointease-success) !important;
+}
+
+.status-badge.confirmed {
+    background: color-mix(in srgb, var(--appointease-success) 20%, white) !important;
+    color: var(--appointease-success) !important;
+}
+
+.countdown-badge {
+    background: var(--appointease-success) !important;
+}
+
+/* Secondary Color Applications */
+.back-btn {
+    background: var(--appointease-secondary) !important;
+}
+
+.back-btn:hover {
+    background: color-mix(in srgb, var(--appointease-secondary) 80%, black) !important;
+}
+
+/* Button Text Customization */
+.confirm-btn::before {
+    content: attr(data-text);
+}
+
+/* Responsive Design for Custom Colors */
+@media (max-width: 768px) {
+    .appointease-booking-header {
+        background: var(--appointease-primary) !important;
+    }
+}
+
+/* High Contrast Mode Support */
+@media (prefers-contrast: high) {
+    .service-card:hover,
+    .employee-card:hover,
+    .calendar-day:hover,
+    .time-slot:hover {
+        border-width: 3px !important;
+        border-color: var(--appointease-primary) !important;
+    }
+}
+
+/* Print Styles */
+@media print {
+    .appointment-id,
+    .appointment-header {
+        background: var(--appointease-primary) !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+    }
+}
+
+/* WordPress Block Editor Support */
+.wp-block-appointease-booking-form {
+    --header-bg: var(--appointease-primary);
+    --button-bg: var(--appointease-primary);
+    --text-secondary: var(--appointease-secondary);
+}
+
+/* Animation Support */
+@keyframes primaryPulse {
+    0%, 100% {
+        box-shadow: 0 0 0 0 var(--appointease-primary-alpha);
+    }
+    50% {
+        box-shadow: 0 0 0 10px transparent;
+    }
+}
+
+.confirm-btn:focus,
+.primary-btn:focus {
+    animation: primaryPulse 1.5s infinite;
+}

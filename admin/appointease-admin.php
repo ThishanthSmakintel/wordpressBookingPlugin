@@ -42,7 +42,7 @@ class AppointEase_Admin {
             wp_enqueue_script('toastr-js', 'https://cdnjs.cloudflare.com/ajax/libs/toastr.js/latest/toastr.min.js', array('jquery'), '2.1.4', true);
             
             wp_enqueue_style('appointease-admin', BOOKING_PLUGIN_URL . 'admin/appointease-admin.css', array('toastr-css'), '1.0.0');
-            wp_enqueue_script('appointease-admin', BOOKING_PLUGIN_URL . 'admin/appointease-admin.js', array('jquery', 'toastr-js'), '1.0.0', true);
+            wp_enqueue_script('appointease-admin', BOOKING_PLUGIN_URL . 'admin/appointease-admin.js', array('jquery', 'toastr-js'), '1.0.1', true);
             wp_enqueue_script('appointease-calendar', BOOKING_PLUGIN_URL . 'admin/calendar-integration.js', array('jquery'), '1.0.0', true);
             
             wp_localize_script('appointease-admin', 'appointeaseAdmin', array(
@@ -150,7 +150,16 @@ class AppointEase_Admin {
             'Settings',
             'manage_options',
             'appointease-settings',
-            array($this, 'settings_page')
+            array($this, 'enhanced_settings_page')
+        );
+        
+        add_submenu_page(
+            'appointease',
+            'Appearance',
+            'Appearance',
+            'manage_options',
+            'appointease-appearance',
+            array($this, 'appearance_page')
         );
     }
     
@@ -1343,11 +1352,16 @@ class AppointEase_Admin {
     public function reports_page() {
         global $wpdb;
         $total_appointments = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}appointments");
-        $total_revenue = $wpdb->get_var("SELECT SUM(total_amount) FROM {$wpdb->prefix}appointments WHERE payment_status = 'paid'");
+        $total_revenue = $wpdb->get_var(
+            "SELECT SUM(s.price) FROM {$wpdb->prefix}appointments a 
+             LEFT JOIN {$wpdb->prefix}appointease_services s ON a.service_id = s.id 
+             WHERE a.status IN ('confirmed', 'completed')"
+        );
         $monthly_stats = $wpdb->get_results(
-            "SELECT DATE_FORMAT(appointment_date, '%Y-%m') as month, COUNT(*) as count, SUM(total_amount) as revenue 
-             FROM {$wpdb->prefix}appointments 
-             WHERE appointment_date >= DATE_SUB(NOW(), INTERVAL 12 MONTH) 
+            "SELECT DATE_FORMAT(appointment_date, '%Y-%m') as month, COUNT(*) as count, SUM(s.price) as revenue 
+             FROM {$wpdb->prefix}appointments a
+             LEFT JOIN {$wpdb->prefix}appointease_services s ON a.service_id = s.id
+             WHERE appointment_date >= DATE_SUB(NOW(), INTERVAL 12 MONTH) AND a.status IN ('confirmed', 'completed')
              GROUP BY DATE_FORMAT(appointment_date, '%Y-%m') 
              ORDER BY month DESC"
         );
@@ -1934,6 +1948,19 @@ class AppointEase_Admin {
                 array('name' => 'Mike Wilson', 'email' => 'mike@appointease.com', 'phone' => '555-0124'),
                 array('%s', '%s', '%s')
             );
+        }
+    }
+    
+    public function enhanced_settings_page() {
+        $this->settings_page();
+    }
+    
+    public function appearance_page() {
+        if (class_exists('Booking_Settings')) {
+            $booking_settings = new Booking_Settings();
+            $booking_settings->appearance_only_page();
+        } else {
+            echo '<div class="wrap"><h1>Appearance Settings</h1><p>Booking Settings class not found.</p></div>';
         }
     }
 }
