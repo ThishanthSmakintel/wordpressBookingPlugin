@@ -66,8 +66,11 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
         unavailableSlots,
         timezone,
         bookingDetails,
-        selectedDate
+        selectedDate,
+        isRescheduling,
+        currentAppointment
     });
+    console.log('[TimeSelector] Current appointment time:', currentAppointmentTime);
     
     const handleTimeSelect = (time: string) => {
         if (unavailableSlots !== 'all' && (!Array.isArray(unavailableSlots) || !unavailableSlots.includes(time))) {

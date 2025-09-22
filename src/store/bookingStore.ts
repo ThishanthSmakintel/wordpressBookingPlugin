@@ -21,6 +21,8 @@ interface BookingState {
     apiError: string | null;
     serverDate: string | null;
     refreshTrigger: number;
+    unavailableSlots: string[] | 'all';
+    bookingDetails: Record<string, any>;
     
     setStep: (step: number) => void;
     setSelectedService: (service: Service | null) => void;
@@ -43,6 +45,8 @@ interface BookingState {
     triggerRefresh: () => void;
     clearError: (field: string) => void;
     reset: () => void;
+    setUnavailableSlots: (slots: string[] | 'all') => void;
+    setBookingDetails: (details: Record<string, any>) => void;
 }
 
 export const useBookingStore = create<BookingState>((set, get) => ({
@@ -65,6 +69,8 @@ export const useBookingStore = create<BookingState>((set, get) => ({
     apiError: null,
     serverDate: null,
     refreshTrigger: 0,
+    unavailableSlots: [],
+    bookingDetails: {},
     
     setStep: (step) => set({ step }),
     setSelectedService: (selectedService) => set({ selectedService }),
@@ -90,6 +96,8 @@ export const useBookingStore = create<BookingState>((set, get) => ({
         delete newErrors[field];
         return { errors: newErrors };
     }),
+    setUnavailableSlots: (unavailableSlots) => set({ unavailableSlots }),
+    setBookingDetails: (bookingDetails) => set({ bookingDetails }),
     reset: () => set({
         step: 1,
         selectedService: null,

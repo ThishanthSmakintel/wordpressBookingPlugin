@@ -5,12 +5,16 @@ import { sanitizeInput, generateStrongId } from '../utils';
 export const useBookingActions = (bookingState: any) => {
     const {
         step, selectedService, selectedEmployee, selectedDate, selectedTime, formData,
-        setStep, setAppointments, setAppointmentsLoading, setErrors, setIsSubmitting
+        setStep, setAppointments, setAppointmentsLoading, setErrors, setIsSubmitting,
+        setUnavailableSlots, setBookingDetails
     } = useBookingStore();
 
     const checkAvailability = useCallback(async (date: string, employeeId: number) => {
+        console.log('[checkAvailability] Called with:', { date, employeeId, isRescheduling: bookingState.isRescheduling, currentAppointmentId: bookingState.currentAppointment?.id });
+        
         if (!window.bookingAPI || !date || !employeeId) {
-            bookingState.setUnavailableSlots([]);
+            console.log('[checkAvailability] Missing required data, setting empty unavailable slots');
+            setUnavailableSlots([]);
             return;
         }
         
@@ -20,12 +24,15 @@ export const useBookingActions = (bookingState: any) => {
                 employee_id: employeeId
             };
             
-            // When rescheduling, exclude current appointment from unavailable slots
+            // Use different endpoint for rescheduling
+            let endpoint = `${window.bookingAPI.root}booking/v1/availability`;
+            
             if (bookingState.isRescheduling && bookingState.currentAppointment?.id) {
+                endpoint = `${window.bookingAPI.root}appointease/v1/reschedule-availability`;
                 requestBody.exclude_appointment_id = bookingState.currentAppointment.id;
             }
             
-            const response = await fetch(`${window.bookingAPI.root}booking/v1/availability`, {
+            const response = await fetch(endpoint, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -36,19 +43,27 @@ export const useBookingActions = (bookingState: any) => {
             
             if (response.ok) {
                 const data = await response.json();
+                console.log('[checkAvailability] API Response:', data);
+                console.log('[checkAvailability] Endpoint used:', endpoint);
+                console.log('[checkAvailability] Request body:', requestBody);
+                
                 if (data.unavailable === 'all') {
-                    bookingState.setUnavailableSlots('all');
-                    bookingState.setBookingDetails({});
+                    setUnavailableSlots('all');
+                    setBookingDetails({});
                 } else if (Array.isArray(data.unavailable)) {
-                    bookingState.setUnavailableSlots(data.unavailable);
-                    bookingState.setBookingDetails(data.booking_details || {});
+                    console.log('[checkAvailability] Setting unavailable slots:', data.unavailable);
+                    setUnavailableSlots(data.unavailable);
+                    setBookingDetails(data.booking_details || {});
                 } else {
-                    bookingState.setUnavailableSlots([]);
-                    bookingState.setBookingDetails({});
+                    console.log('[checkAvailability] No unavailable slots found, setting empty array');
+                    setUnavailableSlots([]);
+                    setBookingDetails({});
                 }
+            } else {
+                console.error('[checkAvailability] API request failed:', response.status, response.statusText);
             }
         } catch (error) {
-            bookingState.setUnavailableSlots([]);
+            setUnavailableSlots([]);
         }
     }, [bookingState]);
 
