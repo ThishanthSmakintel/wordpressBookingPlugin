@@ -95,8 +95,15 @@ class ApiService {
     });
   }
 
-  async checkAvailability(data: { date: string; employee_id: number }): Promise<AvailabilityResponse> {
+  async checkAvailability(data: { date: string; employee_id: number; exclude_appointment_id?: string }): Promise<AvailabilityResponse> {
     return this.request<AvailabilityResponse>('booking/v1/availability', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async checkRescheduleAvailability(data: { date: string; employee_id: number; exclude_appointment_id: string }): Promise<AvailabilityResponse> {
+    return this.request<AvailabilityResponse>('appointease/v1/reschedule-availability', {
       method: 'POST',
       body: JSON.stringify(data),
     });
@@ -118,5 +125,6 @@ export const getUserAppointments = (email: string) => apiService.getUserAppointm
 export const createAppointment = (data: any) => apiService.createAppointment(data);
 export const cancelAppointment = (id: string) => apiService.cancelAppointment(id);
 export const rescheduleAppointment = (id: string, newDate: string) => apiService.rescheduleAppointment(id, newDate);
-export const checkAvailability = (data: { date: string; employee_id: number }): Promise<AvailabilityResponse> => apiService.checkAvailability(data);
+export const checkAvailability = (data: { date: string; employee_id: number; exclude_appointment_id?: string }): Promise<AvailabilityResponse> => apiService.checkAvailability(data);
+export const checkRescheduleAvailability = (data: { date: string; employee_id: number; exclude_appointment_id: string }): Promise<AvailabilityResponse> => apiService.checkRescheduleAvailability(data);
 export const checkCustomer = (email: string) => apiService.checkCustomer(email);

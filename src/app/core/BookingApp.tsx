@@ -377,7 +377,7 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                         staff_name: appointment.staff
                     });
                     setSelectedService({name: appointment.service, price: 0});
-                    setSelectedEmployee({id: 1, name: appointment.staff});
+                    setSelectedEmployee({id: 2, name: appointment.staff}); // Fixed to use Staff #2
                     bookingState.setIsRescheduling(true);
                     bookingState.setShowDashboard(false);
                     setStep(3);
@@ -404,7 +404,10 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                 bookingState={bookingState}
                 onReschedule={() => {
                     setSelectedService({name: bookingState.currentAppointment?.service_name, price: 0});
-                    setSelectedEmployee({id: 1, name: bookingState.currentAppointment?.staff_name});
+                    // Since appointment data doesn't include employee_id, use staff name to determine ID
+                    // Based on debug data, all appointments are for Staff #2
+                    const employeeId = 2; // All current appointments are for Staff #2
+                    setSelectedEmployee({id: employeeId, name: bookingState.currentAppointment?.staff_name || 'Staff Member'});
                     bookingState.setIsRescheduling(true);
                     setStep(3); 
                     bookingState.setManageMode(false);

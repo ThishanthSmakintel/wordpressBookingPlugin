@@ -62,11 +62,22 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState
                 <div>Customer: {bookingState.isLoggedIn ? bookingState.loginEmail : formData.firstName || 'None'}</div>
             </div>
             
+            {bookingState.isRescheduling && (
+                <div style={{marginBottom: '8px', background: 'rgba(255,165,0,0.2)', padding: '5px', borderRadius: '3px'}}>
+                    <div style={{color: '#ffa500'}}>🔄 RESCHEDULE MODE:</div>
+                    <div>Current Apt: {bookingState.currentAppointment?.id || 'None'}</div>
+                    <div>Original Date: {bookingState.currentAppointment?.appointment_date ? new Date(bookingState.currentAppointment.appointment_date).toLocaleDateString() : 'None'}</div>
+                    <div>API Endpoint: reschedule-availability</div>
+                    <div>Excluding: {bookingState.currentAppointment?.id || 'None'}</div>
+                </div>
+            )}
+            
             <div style={{marginBottom: '8px'}}>
                 <div style={{color: '#0ff'}}>💼 Database Config:</div>
                 <div>Services: {debugState.debugServices.length} | Staff: {debugState.debugStaff.length}</div>
                 <div>Working Days: [{debugState.workingDays.join(',')}]</div>
                 <div>Time Slots: {debugState.debugTimeSlots.length} slots</div>
+                <div>API Mode: {bookingState.isRescheduling ? 'RESCHEDULE' : 'NORMAL'}</div>
             </div>
             
             <div style={{borderTop: '1px solid #333', paddingTop: '8px'}}>
@@ -84,8 +95,8 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState
                                 borderRadius: '2px'
                             }}>
                                 <div>👤 {booking.name} | 📧 {booking.email}</div>
-                                <div>📅 {new Date(booking.appointment_date).toLocaleDateString()}</div>
-                                <div>🏷 {booking.strong_id || `ID-${booking.id}`} | 🟢 {booking.status}</div>
+                                <div>📅 {new Date(booking.appointment_date).toLocaleDateString()} ⏰ {new Date(booking.appointment_date).toLocaleTimeString('en', {hour: '2-digit', minute: '2-digit'})}</div>
+                                <div>🏷 {booking.strong_id || `ID-${booking.id}`} | 🟢 {booking.status} | 👨⚕️ Staff #{booking.employee_id}</div>
                             </div>
                         ))}
                     </div>

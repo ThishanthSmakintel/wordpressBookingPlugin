@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useBookingStore } from '../../store/bookingStore';
 import { useBookingState } from '../../hooks/useBookingState';
-import { checkAvailability } from '../../services/api';
+import { checkAvailability, checkRescheduleAvailability } from '../../services/api';
 
 // Date utility functions
 const createDate = (year: number, month: number, day: number) => {
@@ -117,29 +117,41 @@ const DateSelector: React.FC<DateSelectorProps> = ({ isReschedule = false }) => 
                 const dateString = formatDateString(date);
                 
                 try {
-                    const requestData: any = {
-                        date: dateString,
-                        employee_id: employeeId
-                    };
+                    let response;
                     
-                    // When rescheduling, exclude current appointment from count
                     if (isReschedule && bookingState.currentAppointment?.id) {
-                        requestData.exclude_appointment_id = bookingState.currentAppointment.id;
+                        // Use reschedule endpoint that excludes current appointment
+                        response = await checkRescheduleAvailability({
+                            date: dateString,
+                            employee_id: employeeId,
+                            exclude_appointment_id: bookingState.currentAppointment.id
+                        });
+                    } else {
+                        // Use regular availability endpoint
+                        response = await checkAvailability({
+                            date: dateString,
+                            employee_id: employeeId
+                        });
                     }
                     
-                    const response = await checkAvailability(requestData);
-                    
                     console.log(`[DateSelector] ${dateString} response:`, response);
+                    console.log(`[DateSelector] API endpoint used:`, isReschedule ? 'reschedule-availability' : 'availability');
+                    console.log(`[DateSelector] Exclude appointment ID:`, isReschedule ? bookingState.currentAppointment?.id : 'none');
                     
                     const isAvailable = response.unavailable !== 'all';
                     const reason = response.reason;
                     let bookingCount = 0;
                     
+                    // Get actual booking count from API response
                     if (Array.isArray(response.unavailable)) {
                         bookingCount = response.unavailable.length;
                     } else if (response.booking_details && typeof response.booking_details === 'object') {
                         bookingCount = Object.keys(response.booking_details).length;
                     }
+                    
+                    // Debug: Log the actual counts
+                    console.log(`[DateSelector] ${dateString} - Raw bookingCount: ${bookingCount}, unavailable:`, response.unavailable, 'booking_details:', response.booking_details);
+                    console.log(`[DateSelector] ${dateString} - Reschedule mode:`, isReschedule, 'Current appointment:', bookingState.currentAppointment?.id);
                     
                     console.log(`[DateSelector] ${dateString} - Available: ${isAvailable}, Count: ${bookingCount}, Rescheduling: ${isReschedule}, Response:`, response);
                     
@@ -192,9 +204,11 @@ const DateSelector: React.FC<DateSelectorProps> = ({ isReschedule = false }) => 
         
         if (status.isAvailable) {
             const bookingCount = status.bookingCount || 0;
+            const totalSlots = 12; // Total available slots per day
+            const availableSlots = totalSlots - bookingCount;
             return (
                 <div style={{ fontSize: '0.7rem', color: '#10b981', marginTop: '4px', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
-                    <span>✅</span><span>{bookingCount > 0 ? `${bookingCount} booked` : 'Available'}</span>
+                    <span>✅</span><span>{availableSlots} available</span>
                 </div>
             );
         }

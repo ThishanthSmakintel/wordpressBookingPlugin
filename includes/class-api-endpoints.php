@@ -192,6 +192,13 @@ class Booking_API_Endpoints {
             'permission_callback' => '__return_true'
         ));
         
+        // Reschedule availability check (excludes current appointment)
+        register_rest_route('appointease/v1', '/reschedule-availability', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'check_reschedule_availability'),
+            'permission_callback' => array($this, 'public_permission')
+        ));
+        
         // Settings endpoint for dynamic configuration
         register_rest_route('appointease/v1', '/settings', array(
             'methods' => 'GET',
@@ -311,6 +318,11 @@ class Booking_API_Endpoints {
         
         // Check existing appointments for this staff member on this date
         $appointments_table = $wpdb->prefix . 'appointments';
+        
+        // Debug: Log table name and check if it exists
+        error_log("[AppointEase] Using table: {$appointments_table}");
+        $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$appointments_table}'") === $appointments_table;
+        error_log("[AppointEase] Table exists: " . ($table_exists ? 'YES' : 'NO'));
         
         // Build query with optional exclusion for rescheduling
         $exclude_appointment_id = isset($params['exclude_appointment_id']) ? sanitize_text_field($params['exclude_appointment_id']) : null;
@@ -1152,5 +1164,78 @@ class Booking_API_Endpoints {
         }
         
         return rest_ensure_response(array('success' => true, 'updated' => $result));
+    }
+    
+    public function check_reschedule_availability($request) {
+        global $wpdb;
+        $params = $request->get_json_params();
+        
+        if (!isset($params['date'], $params['employee_id'], $params['exclude_appointment_id'])) {
+            return new WP_Error('missing_params', 'Date, employee ID, and exclude appointment ID are required', array('status' => 400));
+        }
+        
+        $date = sanitize_text_field($params['date']);
+        $employee_id = intval($params['employee_id']);
+        $exclude_appointment_id = sanitize_text_field($params['exclude_appointment_id']);
+        
+        // Validate date format
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
+            return new WP_Error('invalid_date', 'Invalid date format', array('status' => 400));
+        }
+        
+        // Check working days and business rules (same as regular availability)
+        $options = get_option('appointease_options', array());
+        
+        // Check if date is in the past
+        $today = date('Y-m-d');
+        if ($date < $today) {
+            return rest_ensure_response(array('unavailable' => 'all', 'reason' => 'past_date'));
+        }
+        
+        // Check working days
+        $working_days = ['1','2','3','4','5']; // Default: Monday-Friday
+        if (isset($options['working_days']) && is_array($options['working_days']) && !empty($options['working_days'])) {
+            $working_days = $options['working_days'];
+        }
+        $day_of_week = date('w', strtotime($date));
+        
+        if (!in_array((string)$day_of_week, $working_days)) {
+            return rest_ensure_response(array('unavailable' => 'all', 'reason' => 'non_working_day'));
+        }
+        
+        // Get existing appointments EXCLUDING the current appointment being rescheduled
+        $appointments_table = $wpdb->prefix . 'appointments';
+        
+        if (strpos($exclude_appointment_id, 'APT-') === 0) {
+            $booked_appointments = $wpdb->get_results($wpdb->prepare(
+                "SELECT TIME_FORMAT(appointment_date, '%%H:%%i') as time_slot, name, email, status, strong_id, id FROM {$appointments_table} WHERE employee_id = %d AND DATE(appointment_date) = %s AND status IN ('confirmed', 'created') AND strong_id != %s",
+                $employee_id, $date, $exclude_appointment_id
+            ));
+        } else {
+            $booked_appointments = $wpdb->get_results($wpdb->prepare(
+                "SELECT TIME_FORMAT(appointment_date, '%%H:%%i') as time_slot, name, email, status, strong_id, id FROM {$appointments_table} WHERE employee_id = %d AND DATE(appointment_date) = %s AND status IN ('confirmed', 'created') AND id != %d",
+                $employee_id, $date, intval($exclude_appointment_id)
+            ));
+        }
+        
+        $booked_times = array();
+        $booking_details = array();
+        
+        foreach ($booked_appointments as $appointment) {
+            $time_slot = $appointment->time_slot;
+            $booked_times[] = $time_slot;
+            $booking_details[$time_slot] = array(
+                'customer_name' => $appointment->name,
+                'customer_email' => $appointment->email,
+                'status' => $appointment->status,
+                'booking_id' => $appointment->strong_id ?: $appointment->id
+            );
+        }
+        
+        return rest_ensure_response(array(
+            'unavailable' => $booked_times,
+            'booking_details' => $booking_details,
+            'excluded_appointment' => $exclude_appointment_id
+        ));
     }
 }
