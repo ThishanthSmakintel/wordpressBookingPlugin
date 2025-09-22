@@ -39,6 +39,7 @@ import { useBookingActions } from '../../hooks/useBookingActions';
 import { useBookingStore } from '../../store/bookingStore';
 import { sanitizeInput, generateStrongId } from '../../utils';
 import { checkCustomer } from '../../services/api';
+import { sessionService } from '../../services/sessionService';
 
 declare global {
     interface Window {
@@ -129,6 +130,33 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
             setEmployeesLoading(false);
         }
     }, [isOnline, bookingState.retryCount]);
+
+    // ✅ Session check on app load
+    useEffect(() => {
+        const checkExistingSession = async () => {
+            const token = sessionService.getSessionToken();
+            const email = sessionService.getUserEmail();
+            
+            if (token && email) {
+                bookingState.setIsCheckingSession(true);
+                const validation = await sessionService.validateSession(token);
+                
+                if (validation.valid) {
+                    bookingState.setIsLoggedIn(true);
+                    bookingState.setLoginEmail(email);
+                    bookingState.setSessionToken(token);
+                    bookingState.setShowDashboard(true);
+                    loadUserAppointmentsRealtime(email);
+                } else {
+                    sessionService.clearSession();
+                    bookingState.setSessionToken(null);
+                }
+                bookingState.setIsCheckingSession(false);
+            }
+        };
+        
+        checkExistingSession();
+    }, []);
 
     // ✅ Effects
     useEffect(() => {
@@ -262,6 +290,18 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
         }
     };
 
+    // Show loading while checking session
+    if (bookingState.isCheckingSession) {
+        return (
+            <div className="appointease-booking wp-block-group booking-app-container" style={{display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '200px'}}>
+                <div style={{textAlign: 'center'}}>
+                    <div style={{fontSize: '1.2rem', marginBottom: '10px'}}>⏳</div>
+                    <div>Checking login status...</div>
+                </div>
+            </div>
+        );
+    }
+
     // Render logic
     if (bookingState.showLogin) {
         return (
@@ -285,11 +325,16 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                         bookingState.setIsLoadingOTP(false);
                     }, 1500);
                 }}
-                onVerifyOTP={() => {
-                    bookingState.setIsLoggedIn(true);
-                    bookingState.setShowLogin(false);
-                    bookingState.setShowDashboard(true);
-                    loadUserAppointmentsRealtime(bookingState.loginEmail);
+                onVerifyOTP={async () => {
+                    // Create persistent session
+                    const sessionResult = await sessionService.createSession(bookingState.loginEmail);
+                    if (sessionResult.success && sessionResult.token) {
+                        bookingState.setSessionToken(sessionResult.token);
+                        bookingState.setIsLoggedIn(true);
+                        bookingState.setShowLogin(false);
+                        bookingState.setShowDashboard(true);
+                        loadUserAppointmentsRealtime(bookingState.loginEmail);
+                    }
                 }}
                 onBack={() => {
                     bookingState.setOtpSent(false);
@@ -311,10 +356,14 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                     bookingState.setShowDashboard(false);
                     setStep(1);
                 }}
-                onLogout={() => {
+                onLogout={async () => {
+                    if (bookingState.sessionToken) {
+                        await sessionService.destroySession(bookingState.sessionToken);
+                    }
                     bookingState.setIsLoggedIn(false);
                     bookingState.setShowDashboard(false);
                     bookingState.setLoginEmail('');
+                    bookingState.setSessionToken(null);
                     setStep(1);
                 }}
                 onReschedule={(appointment) => {
@@ -387,10 +436,14 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                     bookingState={bookingState}
                     onLogin={handleLogin}
                     onDashboard={() => bookingState.setShowDashboard(true)}
-                    onLogout={() => {
+                    onLogout={async () => {
+                        if (bookingState.sessionToken) {
+                            await sessionService.destroySession(bookingState.sessionToken);
+                        }
                         bookingState.setIsLoggedIn(false);
                         bookingState.setShowDashboard(false);
                         bookingState.setLoginEmail('');
+                        bookingState.setSessionToken(null);
                         setStep(1);
                     }}
                 />
@@ -650,6 +703,7 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                                             bookingState.setAppointmentId('');
                                             bookingState.setManageMode(false);
                                             bookingState.setCurrentAppointment(null);
+                                            bookingState.setSessionToken(null);
                                             setErrors({});
                                         }
                                     }}>
@@ -713,6 +767,7 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                                             bookingState.setManageMode(false);
                                             bookingState.setCurrentAppointment(null);
                                             bookingState.setIsRescheduling(false);
+                                            bookingState.setSessionToken(null);
                                             setErrors({});
                                         }
                                     }}>

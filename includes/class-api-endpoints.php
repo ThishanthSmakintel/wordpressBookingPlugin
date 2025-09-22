@@ -861,7 +861,11 @@ class Booking_API_Endpoints {
             return new WP_Error('session_failed', 'Failed to create session', array('status' => 500));
         }
         
-        return rest_ensure_response(array('success' => true));
+        return rest_ensure_response(array(
+            'success' => true,
+            'token' => $session['token'],
+            'expires_in' => $session['expires_in']
+        ));
     }
     
     public function get_secure_session($request) {
