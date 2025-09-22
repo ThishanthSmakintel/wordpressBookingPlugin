@@ -4,12 +4,20 @@
 
 export const sessionService = {
     /**
-     * Store session token
+     * Store session token securely
      */
     setSession(token: string, email: string) {
         if (typeof window !== 'undefined') {
-            localStorage.setItem('booking_session_token', token);
-            localStorage.setItem('booking_user_email', email);
+            // Sanitize inputs
+            const sanitizedToken = token.replace(/[<>"'&]/g, '');
+            const sanitizedEmail = email.replace(/[<>"'&]/g, '');
+            
+            try {
+                sessionStorage.setItem('booking_session_token', sanitizedToken);
+                sessionStorage.setItem('booking_user_email', sanitizedEmail);
+            } catch (e) {
+                console.warn('Session storage unavailable');
+            }
         }
     },
 
@@ -18,7 +26,11 @@ export const sessionService = {
      */
     getSessionToken(): string | null {
         if (typeof window !== 'undefined') {
-            return localStorage.getItem('booking_session_token');
+            try {
+                return sessionStorage.getItem('booking_session_token');
+            } catch (e) {
+                return null;
+            }
         }
         return null;
     },
@@ -28,7 +40,11 @@ export const sessionService = {
      */
     getUserEmail(): string | null {
         if (typeof window !== 'undefined') {
-            return localStorage.getItem('booking_user_email');
+            try {
+                return sessionStorage.getItem('booking_user_email');
+            } catch (e) {
+                return null;
+            }
         }
         return null;
     },
@@ -38,8 +54,12 @@ export const sessionService = {
      */
     clearSession() {
         if (typeof window !== 'undefined') {
-            localStorage.removeItem('booking_session_token');
-            localStorage.removeItem('booking_user_email');
+            try {
+                sessionStorage.removeItem('booking_session_token');
+                sessionStorage.removeItem('booking_user_email');
+            } catch (e) {
+                // Ignore storage errors
+            }
         }
     },
 

@@ -351,6 +351,8 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
             <Dashboard
                 loginEmail={bookingState.loginEmail}
                 dashboardRef={dashboardRef}
+                currentAppointmentId={bookingState.currentAppointment?.id}
+                isRescheduling={bookingState.isRescheduling}
                 onRefresh={() => loadUserAppointmentsRealtime()}
                 onNewAppointment={() => {
                     bookingState.setShowDashboard(false);
@@ -497,6 +499,8 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                             unavailableSlots={bookingState.unavailableSlots}
                             timezone={bookingState.timezone}
                             bookingDetails={bookingState.bookingDetails}
+                            currentAppointment={bookingState.currentAppointment}
+                            isRescheduling={bookingState.isRescheduling}
                         />
                     )}
 
@@ -582,20 +586,89 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                             )}
                             
                             {bookingState.isRescheduling && (
-                                <div className="reschedule-summary">
-                                    <div className="booking-summary">
-                                        <h3>New Appointment Time</h3>
-                                        <div className="summary-item">
-                                            <span>Date:</span>
-                                            <span>{new Date(selectedDate).toLocaleDateString()}</span>
+                                <div className="reschedule-summary" style={{
+                                    width: '100%',
+                                    boxSizing: 'border-box'
+                                }}>
+                                    <div className="booking-summary" style={{
+                                        backgroundColor: '#f0fdf4',
+                                        border: '1px solid #bbf7d0',
+                                        borderRadius: '12px',
+                                        padding: '24px',
+                                        marginBottom: '24px',
+                                        width: '100%',
+                                        boxSizing: 'border-box'
+                                    }}>
+                                        <h3 style={{
+                                            fontSize: '1.5rem',
+                                            fontWeight: '700',
+                                            color: '#166534',
+                                            marginBottom: '16px',
+                                            display: 'flex',
+                                            alignItems: 'center'
+                                        }}>
+                                            <i className="fas fa-calendar-check" style={{marginRight: '8px'}}></i>
+                                            New Appointment Time
+                                        </h3>
+                                        <div className="summary-item" style={{
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
+                                            padding: '12px 0',
+                                            borderBottom: '1px solid #dcfce7'
+                                        }}>
+                                            <span style={{fontWeight: '600', color: '#374151', display: 'flex', alignItems: 'center'}}>
+                                                <i className="fas fa-calendar" style={{marginRight: '8px', color: '#16a34a'}}></i>
+                                                Date:
+                                            </span>
+                                            <span style={{fontWeight: '500', color: '#16a34a'}}>
+                                                {new Date(selectedDate).toLocaleDateString('en', { 
+                                                    weekday: 'long', 
+                                                    year: 'numeric', 
+                                                    month: 'long', 
+                                                    day: 'numeric' 
+                                                })}
+                                            </span>
                                         </div>
-                                        <div className="summary-item">
-                                            <span>Time:</span>
-                                            <span>{selectedTime}</span>
+                                        <div className="summary-item" style={{
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
+                                            padding: '12px 0'
+                                        }}>
+                                            <span style={{fontWeight: '600', color: '#374151', display: 'flex', alignItems: 'center'}}>
+                                                <i className="fas fa-clock" style={{marginRight: '8px', color: '#16a34a'}}></i>
+                                                Time:
+                                            </span>
+                                            <span style={{fontWeight: '500', color: '#16a34a'}}>
+                                                {new Date(`${selectedDate} ${selectedTime}`).toLocaleTimeString('en', { 
+                                                    hour: '2-digit', 
+                                                    minute: '2-digit' 
+                                                })}
+                                            </span>
                                         </div>
                                     </div>
-                                    <div className="form-actions">
-                                        <button type="button" className="back-btn" onClick={() => setStep(4)}>← Back</button>
+                                    <div className="form-actions" style={{
+                                        display: 'flex',
+                                        justifyContent: 'space-between',
+                                        alignItems: 'center',
+                                        marginTop: '24px'
+                                    }}>
+                                        <button type="button" className="back-btn" onClick={() => setStep(4)} style={{
+                                            backgroundColor: '#f3f4f6',
+                                            color: '#374151',
+                                            border: 'none',
+                                            borderRadius: '8px',
+                                            padding: '12px 24px',
+                                            cursor: 'pointer',
+                                            fontSize: '1rem',
+                                            fontWeight: '500',
+                                            display: 'flex',
+                                            alignItems: 'center'
+                                        }}>
+                                            <i className="fas fa-arrow-left" style={{marginRight: '8px'}}></i>
+                                            Back
+                                        </button>
                                         <button type="button" className="confirm-btn" onClick={() => {
                                             bookingState.setIsReschedulingSubmit(true);
                                             setTimeout(() => {
@@ -605,8 +678,30 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                                                 setStep(9);
                                                 bookingState.setIsReschedulingSubmit(false);
                                             }, 1000);
-                                        }} disabled={bookingState.isReschedulingSubmit}>
-                                            {bookingState.isReschedulingSubmit ? 'RESCHEDULING...' : 'CONFIRM RESCHEDULE'}
+                                        }} disabled={bookingState.isReschedulingSubmit} style={{
+                                            backgroundColor: bookingState.isReschedulingSubmit ? '#d1d5db' : '#10b981',
+                                            color: 'white',
+                                            border: 'none',
+                                            borderRadius: '12px',
+                                            padding: '16px 32px',
+                                            fontSize: '1.1rem',
+                                            fontWeight: '600',
+                                            cursor: bookingState.isReschedulingSubmit ? 'not-allowed' : 'pointer',
+                                            transition: 'all 0.2s ease',
+                                            display: 'flex',
+                                            alignItems: 'center'
+                                        }}>
+                                            {bookingState.isReschedulingSubmit ? (
+                                                <>
+                                                    <i className="fas fa-spinner fa-spin" style={{marginRight: '8px'}}></i>
+                                                    RESCHEDULING...
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <i className="fas fa-check" style={{marginRight: '8px'}}></i>
+                                                    CONFIRM RESCHEDULE
+                                                </>
+                                            )}
                                         </button>
                                     </div>
                                 </div>
@@ -727,21 +822,22 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                                 <h1 className="success-title">Appointment Rescheduled!</h1>
                                 <div className="success-subtitle">
                                     <p>Your appointment has been successfully rescheduled.</p>
+                                    <p>We have sent a confirmation email to:</p>
                                     <div className="email-display">
                                         <i className="ri-mail-line"></i>
-                                        <strong>{bookingState.currentAppointment?.email || bookingState.loginEmail}</strong>
+                                        <strong>{bookingState.loginEmail}</strong>
                                     </div>
                                 </div>
                             
                                 <div className="appointment-card">
                                     <div className="appointment-id">
                                         <span className="id-label">Your Booking Reference</span>
-                                        <span className="id-number">{bookingState.appointmentId}</span>
+                                        <span className="id-number">{bookingState.currentAppointment?.id}</span>
                                     </div>
                                     
                                     <div className="appointment-details">
                                         <div className="detail-item">
-                                            <span className="detail-label">New Date & Time:</span>
+                                            <span className="detail-label">New Date and Time:</span>
                                             <span className="detail-value">
                                                 {new Date(selectedDate).toLocaleDateString('en', { 
                                                     weekday: 'long', 

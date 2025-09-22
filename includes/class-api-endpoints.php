@@ -255,17 +255,23 @@ class Booking_API_Endpoints {
         $date = sanitize_text_field($params['date']);
         $employee_id = intval($params['employee_id']);
         
-        // Validate date format
+        // Validate date format and ensure it's a valid date
         if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
             return new WP_Error('invalid_date', 'Invalid date format', array('status' => 400));
+        }
+        
+        $date_parts = explode('-', $date);
+        if (!checkdate($date_parts[1], $date_parts[2], $date_parts[0])) {
+            return new WP_Error('invalid_date', 'Invalid date', array('status' => 400));
+        }
+        
+        if ($employee_id <= 0) {
+            return new WP_Error('invalid_employee', 'Invalid employee ID', array('status' => 400));
         }
         
         // Load options at the beginning
         $options = get_option('appointease_options', array());
         $unavailable_times = array();
-        
-        // Debug: Log the loaded options
-        error_log("[AppointEase] Loaded options: " . print_r($options, true));
         
         // Check if date is in the past
         $today = date('Y-m-d');
@@ -293,17 +299,9 @@ class Booking_API_Endpoints {
         }
         $day_of_week = date('w', strtotime($date)); // 0 = Sunday, 1 = Monday, etc.
         
-        // Debug logging
-        error_log("[AppointEase] Date: $date, Day of week: $day_of_week, Working days: " . print_r($working_days, true));
-        error_log("[AppointEase] Options working_days value: " . print_r($options['working_days'] ?? 'NOT SET', true));
-        error_log("[AppointEase] Is array check: " . (is_array($options['working_days'] ?? null) ? 'YES' : 'NO'));
-        
         if (!in_array((string)$day_of_week, $working_days)) {
-            error_log("[AppointEase] Day $day_of_week not in working days, returning non_working_day");
             return rest_ensure_response(array('unavailable' => 'all', 'reason' => 'non_working_day'));
         }
-        
-        error_log("[AppointEase] Day $day_of_week is a working day, continuing...");
         
         // Check blackout dates
         $blackout_table = $wpdb->prefix . 'appointease_blackout_dates';
@@ -318,11 +316,6 @@ class Booking_API_Endpoints {
         
         // Check existing appointments for this staff member on this date
         $appointments_table = $wpdb->prefix . 'appointments';
-        
-        // Debug: Log table name and check if it exists
-        error_log("[AppointEase] Using table: {$appointments_table}");
-        $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$appointments_table}'") === $appointments_table;
-        error_log("[AppointEase] Table exists: " . ($table_exists ? 'YES' : 'NO'));
         
         // Build query with optional exclusion for rescheduling
         $exclude_appointment_id = isset($params['exclude_appointment_id']) ? sanitize_text_field($params['exclude_appointment_id']) : null;
@@ -347,10 +340,6 @@ class Booking_API_Endpoints {
             ));
         }
         
-        // Enhanced debug logging
-        error_log("[AppointEase] SQL Query: SELECT TIME_FORMAT(appointment_date, '%H:%i') as time_slot, name, email, status, strong_id, id, appointment_date FROM {$appointments_table} WHERE employee_id = {$employee_id} AND DATE(appointment_date) = '{$date}' AND status IN ('confirmed', 'created')");
-        error_log("[AppointEase] Raw query result: " . print_r($booked_appointments, true));
-        
         $booked_times = array();
         $booking_details = array();
         
@@ -365,19 +354,6 @@ class Booking_API_Endpoints {
                 'booked_at' => $time_slot
             );
         }
-        
-        // Enhanced debug logging
-        error_log("[AppointEase] Checking availability for date: $date, employee: $employee_id");
-        error_log("[AppointEase] Found booked times: " . print_r($booked_times, true));
-        error_log("[AppointEase] Booking details: " . print_r($booking_details, true));
-        error_log("[AppointEase] Total appointments found: " . count($booked_appointments));
-        
-        // Additional debug: Check if there are ANY appointments for this employee
-        $all_employee_appointments = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$appointments_table} WHERE employee_id = %d",
-            $employee_id
-        ));
-        error_log("[AppointEase] All appointments for employee {$employee_id}: " . print_r($all_employee_appointments, true));
         
         if ($wpdb->last_error) {
             return new WP_Error('db_error', 'Database error occurred', array('status' => 500));
@@ -404,13 +380,29 @@ class Booking_API_Endpoints {
         $service_id = intval($params['service_id'] ?? 1);
         $employee_id = intval($params['employee_id'] ?? 1);
         
+        // Validate required fields
         if (empty($name) || empty($email) || empty($date)) {
             return new WP_Error('invalid_data', 'Name, email and date are required', array('status' => 400));
         }
         
+        // Validate name length and characters
+        if (strlen($name) > 100 || !preg_match('/^[a-zA-Z\s\-\.]+$/', $name)) {
+            return new WP_Error('invalid_name', 'Invalid name format', array('status' => 400));
+        }
+        
         // Validate email format
-        if (!is_email($email)) {
+        if (!is_email($email) || strlen($email) > 100) {
             return new WP_Error('invalid_email', 'Invalid email format', array('status' => 400));
+        }
+        
+        // Validate phone if provided
+        if (!empty($phone) && !preg_match('/^[\d\s\-\+\(\)]+$/', $phone)) {
+            return new WP_Error('invalid_phone', 'Invalid phone format', array('status' => 400));
+        }
+        
+        // Validate IDs
+        if ($service_id <= 0 || $employee_id <= 0) {
+            return new WP_Error('invalid_ids', 'Invalid service or employee ID', array('status' => 400));
         }
         
         // Validate date format and ensure it's in the future
@@ -970,6 +962,7 @@ class Booking_API_Endpoints {
         // Default time slots if not configured
         $default_slots = array(
             '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
+            '12:00', '12:30', '13:00', '13:30',
             '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'
         );
         

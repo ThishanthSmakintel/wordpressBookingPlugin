@@ -12,6 +12,8 @@ interface DashboardProps {
     onLogout: () => void;
     onReschedule: (appointment: Appointment) => void;
     onCancel: (appointment: Appointment) => void;
+    currentAppointmentId?: string;
+    isRescheduling?: boolean;
 }
 
 const Dashboard: React.FC<DashboardProps> = ({
@@ -21,7 +23,9 @@ const Dashboard: React.FC<DashboardProps> = ({
     onNewAppointment,
     onLogout,
     onReschedule,
-    onCancel
+    onCancel,
+    currentAppointmentId,
+    isRescheduling
 }) => {
     const { appointments, appointmentsLoading } = useBookingStore();
     const [currentPage, setCurrentPage] = useState(1);
@@ -222,9 +226,14 @@ const Dashboard: React.FC<DashboardProps> = ({
                                     const appointmentDate = new Date(appointment.date);
                                     const isUpcoming = appointmentDate > new Date() && appointment.status === 'confirmed';
                                     const isPast = appointmentDate < new Date();
+                                    const isCurrentAppointment = isRescheduling && appointment.id === currentAppointmentId;
                                     
                                     return (
-                                        <div key={appointment.id} className="p-3" style={{borderBottom: index < paginatedAppointments.length - 1 ? '1px solid #f8f9fa' : 'none'}}>
+                                        <div key={appointment.id} className="p-3" style={{
+                                            borderBottom: index < paginatedAppointments.length - 1 ? '1px solid #f8f9fa' : 'none',
+                                            backgroundColor: isCurrentAppointment ? '#fff7ed' : 'transparent',
+                                            borderLeft: isCurrentAppointment ? '4px solid #f97316' : 'none'
+                                        }}>
                                             <div className="d-flex justify-content-between align-items-center mb-2">
                                                 <div className="d-flex align-items-center">
                                                     <Badge bg="secondary" className="small me-2">
@@ -289,10 +298,19 @@ const Dashboard: React.FC<DashboardProps> = ({
                                         const isUpcoming = appointmentDate > new Date() && appointment.status === 'confirmed';
                                         const isPast = appointmentDate < new Date();
                                         const timeUntil = isUpcoming ? Math.ceil((appointmentDate.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)) : null;
+                                        const isCurrentAppointment = isRescheduling && appointment.id === currentAppointmentId;
                                         
                                         return (
                                             <Col key={appointment.id} xs={12} md={6} className="mb-2 mb-md-3 d-flex">
-                                                <Card className={`appointment-card border shadow-sm d-flex flex-column h-100 ${isUpcoming ? 'border-start border-success border-3' : ''} ${isPast ? 'opacity-75 border-secondary' : ''}`} style={{boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', border: '1px solid #dee2e6'}}>
+                                                <Card className={`appointment-card border shadow-sm d-flex flex-column h-100 ${
+                                                    isCurrentAppointment ? 'border-start border-warning border-3' :
+                                                    isUpcoming ? 'border-start border-success border-3' : ''
+                                                } ${isPast ? 'opacity-75 border-secondary' : ''}`} 
+                                                style={{
+                                                    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)', 
+                                                    border: '1px solid #dee2e6',
+                                                    backgroundColor: isCurrentAppointment ? '#fff7ed' : 'white'
+                                                }}>
                                                 <Card.Header className="d-flex justify-content-between align-items-center p-3 bg-light">
                                                     <Badge bg="secondary" className="small">
                                                         {appointment.id}

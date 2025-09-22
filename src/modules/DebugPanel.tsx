@@ -86,19 +86,31 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState
                     <div style={{color: '#888', fontSize: '10px'}}>No bookings found</div>
                 ) : (
                     <div style={{maxHeight: '120px', overflow: 'auto'}}>
-                        {debugState.allBookings.slice(0, 6).map((booking: any) => (
-                            <div key={booking.id} style={{
-                                fontSize: '9px',
-                                marginBottom: '2px',
-                                padding: '2px',
-                                background: booking.status === 'confirmed' ? 'rgba(0,255,0,0.1)' : 'rgba(255,0,0,0.1)',
-                                borderRadius: '2px'
-                            }}>
-                                <div>👤 {booking.name} | 📧 {booking.email}</div>
-                                <div>📅 {new Date(booking.appointment_date).toLocaleDateString()} ⏰ {new Date(booking.appointment_date).toLocaleTimeString('en', {hour: '2-digit', minute: '2-digit'})}</div>
-                                <div>🏷 {booking.strong_id || `ID-${booking.id}`} | 🟢 {booking.status} | 👨⚕️ Staff #{booking.employee_id}</div>
-                            </div>
-                        ))}
+                        {debugState.allBookings.slice(0, 6).map((booking: any) => {
+                            const isCurrentAppointment = bookingState.isRescheduling && 
+                                (booking.strong_id === bookingState.currentAppointment?.id || 
+                                 booking.id === bookingState.currentAppointment?.id);
+                            
+                            return (
+                                <div key={booking.id} style={{
+                                    fontSize: '9px',
+                                    marginBottom: '2px',
+                                    padding: '2px',
+                                    background: isCurrentAppointment 
+                                        ? 'rgba(255,165,0,0.3)' 
+                                        : booking.status === 'confirmed' 
+                                            ? 'rgba(0,255,0,0.1)' 
+                                            : 'rgba(255,0,0,0.1)',
+                                    border: isCurrentAppointment ? '1px solid #ffa500' : 'none',
+                                    borderRadius: '2px'
+                                }}>
+                                    <div>👤 {booking.name} | 📧 {booking.email}</div>
+                                    <div>📅 {new Date(booking.appointment_date).toLocaleDateString()} ⏰ {new Date(booking.appointment_date).toLocaleTimeString('en', {hour: '2-digit', minute: '2-digit'})}</div>
+                                    <div>🏷 {booking.strong_id || `ID-${booking.id}`} | {isCurrentAppointment ? '🟠' : '🟢'} {booking.status} | 👨⚕️ Staff #{booking.employee_id}</div>
+                                    {isCurrentAppointment && <div style={{color: '#ffa500', fontSize: '8px'}}>📍 CURRENT APPOINTMENT</div>}
+                                </div>
+                            );
+                        })}
                     </div>
                 )}
             </div>

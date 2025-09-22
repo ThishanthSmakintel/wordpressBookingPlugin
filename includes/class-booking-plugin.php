@@ -200,6 +200,14 @@ class Booking_Plugin {
                 animation: spin 1s linear infinite;
                 margin: 0 auto 20px;
             }
+            .appointment-card.current-appointment {
+                background-color: #fff7ed !important;
+                border-left: 4px solid #f97316 !important;
+            }
+            .appointment-list-item.current-appointment {
+                background-color: #fff7ed !important;
+                border-left: 4px solid #f97316 !important;
+            }
         ');
         
         // Enqueue frontend styles for editor preview

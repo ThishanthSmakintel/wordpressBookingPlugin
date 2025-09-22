@@ -1,22 +1,65 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useBookingStore } from '../../store/bookingStore';
 import { useBookingState } from '../../hooks/useBookingState';
 import { SettingsService } from '../../app/shared/services/settings.service';
+
+// Helper function to get time slot styles
+const getTimeSlotStyles = (isCurrentAppointment: boolean, isUnavailable: boolean, isSelected: boolean) => {
+    if (isCurrentAppointment) {
+        return {
+            backgroundColor: '#fff7ed',
+            border: '2px solid #f97316',
+            color: '#ea580c'
+        };
+    }
+    if (isUnavailable) {
+        return {
+            backgroundColor: '#fef2f2',
+            border: '2px solid #fecaca',
+            color: '#ef4444'
+        };
+    }
+    if (isSelected) {
+        return {
+            backgroundColor: 'white',
+            border: '3px solid #10b981',
+            color: '#10b981'
+        };
+    }
+    return {
+        backgroundColor: 'white',
+        border: '2px solid #e5e7eb',
+        color: '#1f2937'
+    };
+};
 
 interface TimeSelectorProps {
     unavailableSlots: string[] | 'all';
     timezone: string;
     bookingDetails?: Record<string, any>;
+    currentAppointment?: any;
+    isRescheduling?: boolean;
 }
 
 const TimeSelector: React.FC<TimeSelectorProps> = ({
     unavailableSlots,
     timezone,
-    bookingDetails = {}
+    bookingDetails = {},
+    currentAppointment,
+    isRescheduling
 }) => {
     const { selectedDate, selectedTime, selectedService, setSelectedTime, setStep } = useBookingStore();
     const bookingState = useBookingState();
     const [tempSelected, setTempSelected] = useState<string>(selectedTime || '');
+    
+    // Memoize current appointment time calculation
+    const currentAppointmentTime = useMemo(() => {
+        if (isRescheduling && currentAppointment?.appointment_date) {
+            const aptDate = new Date(currentAppointment.appointment_date);
+            return `${aptDate.getHours().toString().padStart(2, '0')}:${aptDate.getMinutes().toString().padStart(2, '0')}`;
+        }
+        return null;
+    }, [isRescheduling, currentAppointment?.appointment_date]);
     
     // Debug logging
     console.log('[TimeSelector] Props received:', {
@@ -67,19 +110,19 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
 
     return (
         <div className="appointease-step-content">
-            {bookingState.isRescheduling && bookingState.currentAppointment && (
+            {isRescheduling && currentAppointment && (
                 <div className="reschedule-header">
                     <h2><i className="fas fa-calendar-alt"></i> Rescheduling Appointment</h2>
                     <div className="current-appointment-info">
                         <p><strong>Current Appointment:</strong></p>
-                        <p>{bookingState.currentAppointment?.appointment_date && 
-                            new Date(bookingState.currentAppointment.appointment_date).toLocaleDateString('en', { 
+                        <p>{currentAppointment?.appointment_date && 
+                            new Date(currentAppointment.appointment_date).toLocaleDateString('en', { 
                                 weekday: 'long', 
                                 year: 'numeric', 
                                 month: 'long', 
                                 day: 'numeric' 
-                            })} at {bookingState.currentAppointment?.appointment_date && 
-                            new Date(bookingState.currentAppointment.appointment_date).toLocaleTimeString('en', { 
+                            })} at {currentAppointment?.appointment_date && 
+                            new Date(currentAppointment.appointment_date).toLocaleTimeString('en', { 
                                 hour: '2-digit', 
                                 minute: '2-digit' 
                             })}
@@ -89,7 +132,7 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                 </div>
             )}
             <h2 style={{fontSize: '2rem', fontWeight: '700', textAlign: 'center', marginBottom: '1rem', color: '#1f2937'}}>
-                {bookingState.isRescheduling ? 'Choose New Time' : 'Choose Your Time'}
+                {isRescheduling ? 'Choose New Time' : 'Choose Your Time'}
             </h2>
             
             {/* Selected Date Info */}
@@ -127,30 +170,33 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                         const isUnavailable = unavailableSlots === 'all' || (Array.isArray(unavailableSlots) && unavailableSlots.includes(time));
                         const serviceDuration = selectedService?.duration || 30;
                         const isSelected = tempSelected === time;
+                        const isCurrentAppointment = currentAppointmentTime === time;
+                        const isDisabled = isUnavailable || isCurrentAppointment;
+                        
+                        const slotStyles = getTimeSlotStyles(isCurrentAppointment, isUnavailable, isSelected);
                         
                         return (
                             <div 
                                 key={time}
-                                onClick={() => handleTimeSelect(time)}
+                                onClick={() => !isDisabled && handleTimeSelect(time)}
                                 style={{
                                     padding: '20px 16px',
-                                    backgroundColor: isUnavailable ? '#fef2f2' : 'white',
-                                    border: isSelected ? '3px solid #10b981' : isUnavailable ? '2px solid #fecaca' : '2px solid #e5e7eb',
+                                    ...slotStyles,
                                     borderRadius: '12px',
                                     textAlign: 'center',
-                                    cursor: isUnavailable ? 'not-allowed' : 'pointer',
+                                    cursor: isDisabled ? 'not-allowed' : 'pointer',
                                     transition: 'all 0.2s ease',
-                                    opacity: isUnavailable ? 0.6 : 1,
+                                    opacity: isDisabled ? 0.6 : 1,
                                     boxShadow: isSelected ? '0 4px 12px rgba(16, 185, 129, 0.15)' : '0 2px 4px rgba(0, 0, 0, 0.05)'
                                 }}
                                 onMouseEnter={(e) => {
-                                    if (!isUnavailable && !isSelected) {
+                                    if (!isDisabled && !isSelected) {
                                         e.currentTarget.style.borderColor = '#d1d5db';
                                         e.currentTarget.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.1)';
                                     }
                                 }}
                                 onMouseLeave={(e) => {
-                                    if (!isUnavailable && !isSelected) {
+                                    if (!isDisabled && !isSelected) {
                                         e.currentTarget.style.borderColor = '#e5e7eb';
                                         e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
                                     }
@@ -159,7 +205,7 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                                 <div style={{
                                     fontSize: '1.25rem',
                                     fontWeight: '700',
-                                    color: isUnavailable ? '#ef4444' : isSelected ? '#10b981' : '#1f2937',
+                                    color: slotStyles.color,
                                     marginBottom: '8px'
                                 }}>
                                     {time}
@@ -174,11 +220,11 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                                 <div style={{
                                     fontSize: '0.625rem',
                                     fontWeight: '500',
-                                    color: isUnavailable ? '#ef4444' : '#10b981',
+                                    color: slotStyles.color,
                                     textTransform: 'uppercase',
                                     letterSpacing: '0.05em'
                                 }}>
-                                    {isUnavailable ? 'Booked' : 'Available'}
+                                    {isCurrentAppointment ? 'Your Current Time' : isUnavailable ? 'Booked' : 'Available'}
                                 </div>
                             </div>
                         );

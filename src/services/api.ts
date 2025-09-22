@@ -76,6 +76,27 @@ class ApiService {
     service_id: number;
     employee_id: number;
   }) {
+    // Validate required fields
+    if (!data.name || !data.email || !data.date) {
+      throw new Error('Name, email, and date are required');
+    }
+    
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(data.email)) {
+      throw new Error('Invalid email format');
+    }
+    
+    // Validate name (letters, spaces, hyphens, dots only)
+    if (!/^[a-zA-Z\s\-\.]+$/.test(data.name) || data.name.length > 100) {
+      throw new Error('Invalid name format');
+    }
+    
+    // Validate IDs
+    if (data.service_id <= 0 || data.employee_id <= 0) {
+      throw new Error('Invalid service or employee ID');
+    }
+    
     return this.request('appointease/v1/appointments', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -110,6 +131,12 @@ class ApiService {
   }
 
   async checkCustomer(email: string): Promise<{exists: boolean; name?: string; phone?: string}> {
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      throw new Error('Invalid email format');
+    }
+    
     return this.publicRequest(`booking/v1/check-customer/${encodeURIComponent(email)}`, {
       method: 'GET',
     });

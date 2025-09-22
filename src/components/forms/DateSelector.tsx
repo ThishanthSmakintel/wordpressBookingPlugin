@@ -206,6 +206,15 @@ const DateSelector: React.FC<DateSelectorProps> = ({ isReschedule = false }) => 
             const bookingCount = status.bookingCount || 0;
             const totalSlots = 12; // Total available slots per day
             const availableSlots = totalSlots - bookingCount;
+            
+            if (availableSlots <= 0) {
+                return (
+                    <div style={{ fontSize: '0.625rem', color: '#ef4444', marginTop: '4px', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
+                        <span>❌</span><span>Fully booked</span>
+                    </div>
+                );
+            }
+            
             return (
                 <div style={{ fontSize: '0.7rem', color: '#10b981', marginTop: '4px', fontWeight: '500', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '2px' }}>
                     <span>✅</span><span>{availableSlots} available</span>
@@ -309,7 +318,9 @@ const DateSelector: React.FC<DateSelectorProps> = ({ isReschedule = false }) => 
                         const dateString = formatDateString(date);
                         const status = dateStatuses.get(dateString);
                         const isPast = date < new Date(new Date().setHours(0,0,0,0));
-                        const isDisabled = isPast || (status && !status.isAvailable && !status.isLoading);
+                        const totalSlots = 12;
+                        const availableSlots = status ? totalSlots - (status.bookingCount || 0) : 0;
+                        const isDisabled = isPast || (status && !status.isLoading && (!status.isAvailable || availableSlots <= 0));
                         const isSelected = tempSelected === dateString;
                         
                         return (

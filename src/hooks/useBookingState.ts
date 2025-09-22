@@ -52,12 +52,7 @@ export const useBookingState = () => {
     const [appointmentsPerPage, setAppointmentsPerPage] = useState(2);
     const [isCheckingEmail, setIsCheckingEmail] = useState(false);
     const [existingUser, setExistingUser] = useState<any>(null);
-    const [sessionToken, setSessionToken] = useState<string | null>(() => {
-        if (typeof window !== 'undefined') {
-            return localStorage.getItem('booking_session_token');
-        }
-        return null;
-    });
+    const [sessionToken, setSessionToken] = useState<string | null>(null);
     const [isCheckingSession, setIsCheckingSession] = useState(false);
 
     return {

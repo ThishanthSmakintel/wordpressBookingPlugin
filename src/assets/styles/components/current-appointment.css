@@ -1,0 +1,43 @@
+/* Current Appointment Highlighting */
+.appointment-card.current-appointment,
+.appointment-list-item.current-appointment {
+    background-color: #fff7ed !important;
+    border-left: 4px solid #f97316 !important;
+}
+
+.appointment-card.current-appointment .card-header,
+.appointment-list-item.current-appointment .list-header {
+    background-color: #fed7aa !important;
+}
+
+.current-appointment-badge {
+    background-color: #f97316 !important;
+    color: white !important;
+    font-size: 0.75rem;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-left: 8px;
+}
+
+/* Dashboard current appointment highlighting */
+.dashboard .appointment-item.current-appointment {
+    background-color: #fff7ed;
+    border-left: 4px solid #f97316;
+}
+
+.dashboard .appointment-item.current-appointment .appointment-status {
+    color: #f97316;
+}
+
+/* Time selector current appointment highlighting */
+.time-slot.current-appointment {
+    background-color: #fff7ed !important;
+    border: 2px solid #f97316 !important;
+    color: #ea580c !important;
+}
+
+.time-slot.current-appointment .slot-label::after {
+    content: " (Current)";
+    font-size: 0.75rem;
+    color: #f97316;
+}
