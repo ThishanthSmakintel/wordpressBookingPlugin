@@ -169,7 +169,7 @@ class Booking_API_Endpoints {
         register_rest_route('appointease/v1', '/server-date', array(
             'methods' => 'GET',
             'callback' => array($this, 'get_server_date'),
-            'permission_callback' => '__return_true'
+            'permission_callback' => array($this, 'public_permission')
         ));
         
         // Time slots endpoint
@@ -183,14 +183,14 @@ class Booking_API_Endpoints {
         register_rest_route('appointease/v1', '/business-hours', array(
             'methods' => 'GET',
             'callback' => array($this, 'get_business_hours'),
-            'permission_callback' => '__return_true'
+            'permission_callback' => array($this, 'public_permission')
         ));
         
         // Check specific slot booking status
         register_rest_route('appointease/v1', '/check-slot', array(
             'methods' => 'POST',
             'callback' => array($this, 'check_slot_booking'),
-            'permission_callback' => '__return_true'
+            'permission_callback' => array($this, 'public_permission')
         ));
         
         // Reschedule availability check (excludes current appointment)
@@ -202,6 +202,13 @@ class Booking_API_Endpoints {
         
         // Settings endpoint for dynamic configuration
         register_rest_route('appointease/v1', '/settings', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_settings'),
+            'permission_callback' => '__return_true'
+        ));
+        
+        // Backup settings endpoint with different namespace for compatibility
+        register_rest_route('booking/v1', '/settings', array(
             'methods' => 'GET',
             'callback' => array($this, 'get_settings'),
             'permission_callback' => '__return_true'
@@ -281,14 +288,14 @@ class Booking_API_Endpoints {
         }
         
         // Check if date is too far in advance
-        $advance_booking_days = isset($options['advance_booking']) ? intval($options['advance_booking']) : 30;
+        $advance_booking_days = isset($options['advance_booking']) ? intval($options['advance_booking']) : intval(get_option('appointease_advance_booking_days', 30));
         $max_date = strtotime("+{$advance_booking_days} days");
         if (strtotime($date) > $max_date) {
             return rest_ensure_response(array('unavailable' => 'all', 'reason' => 'too_far_advance'));
         }
         
         // Check working days - get from database with proper fallback
-        $working_days = ['1','2','3','4','5']; // Default: Monday-Friday
+        $working_days = get_option('appointease_working_days', ['1','2','3','4','5']);
         if (isset($options['working_days'])) {
             if (is_array($options['working_days']) && !empty($options['working_days'])) {
                 $working_days = $options['working_days'];
@@ -842,8 +849,9 @@ class Booking_API_Endpoints {
         $email = sanitize_email($params['email']);
         $otp = sanitize_text_field($params['otp']);
         
-        // For demo purposes, accept 123456 as valid OTP
-        if ($otp !== '123456') {
+        // Get valid OTP from settings or use default for demo
+        $valid_otp = get_option('appointease_demo_otp', '123456');
+        if ($otp !== $valid_otp) {
             return new WP_Error('invalid_otp', 'Invalid OTP code', array('status' => 400));
         }
         
@@ -970,25 +978,15 @@ class Booking_API_Endpoints {
     public function get_time_slots($request) {
         $options = get_option('appointease_options', array());
         
-        // Default time slots if not configured
-        $default_slots = array(
-            '09:00', '09:30', '10:00', '10:30', '11:00', '11:30',
-            '12:00', '12:30', '13:00', '13:30',
-            '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'
-        );
+        $start_time = isset($options['start_time']) ? $options['start_time'] : get_option('appointease_start_time', '09:00');
+        $end_time = isset($options['end_time']) ? $options['end_time'] : get_option('appointease_end_time', '17:00');
+        $slot_duration = isset($options['slot_duration']) ? intval($options['slot_duration']) : intval(get_option('appointease_slot_duration', 60));
         
-        $time_slots = isset($options['time_slots']) && !empty($options['time_slots']) 
-            ? $options['time_slots'] 
-            : $default_slots;
-            
-        // Ensure we always return the default slots if nothing is configured
-        if (empty($time_slots)) {
-            $time_slots = $default_slots;
-        }
+        $time_slots = $this->generate_time_slots($start_time, $end_time, $slot_duration);
             
         return rest_ensure_response(array(
             'time_slots' => $time_slots,
-            'slot_duration' => isset($options['slot_duration']) ? intval($options['slot_duration']) : 30
+            'slot_duration' => $slot_duration
         ));
     }
     
@@ -998,11 +996,11 @@ class Booking_API_Endpoints {
         return rest_ensure_response(array(
             'working_days' => isset($options['working_days']) && !empty($options['working_days']) 
                 ? $options['working_days'] 
-                : array('1','2','3','4','5'),
-            'start_time' => isset($options['start_time']) ? $options['start_time'] : '09:00',
-            'end_time' => isset($options['end_time']) ? $options['end_time'] : '17:00',
-            'lunch_start' => isset($options['lunch_start']) ? $options['lunch_start'] : '12:00',
-            'lunch_end' => isset($options['lunch_end']) ? $options['lunch_end'] : '14:00'
+                : get_option('appointease_working_days', array('1','2','3','4','5')),
+            'start_time' => isset($options['start_time']) ? $options['start_time'] : get_option('appointease_start_time', '09:00'),
+            'end_time' => isset($options['end_time']) ? $options['end_time'] : get_option('appointease_end_time', '17:00'),
+            'lunch_start' => isset($options['lunch_start']) ? $options['lunch_start'] : get_option('appointease_lunch_start', '12:00'),
+            'lunch_end' => isset($options['lunch_end']) ? $options['lunch_end'] : get_option('appointease_lunch_end', '14:00')
         ));
     }
     
@@ -1045,26 +1043,37 @@ class Booking_API_Endpoints {
     }
     
     public function get_settings($request) {
+        error_log('[AppointEase] get_settings called');
+        error_log('[AppointEase] Request method: ' . $request->get_method());
+        error_log('[AppointEase] Request route: ' . $request->get_route());
+        
         $options = get_option('appointease_options', array());
+        error_log('[AppointEase] Options: ' . print_r($options, true));
         
         // Generate time slots based on settings
-        $start_time = isset($options['start_time']) ? $options['start_time'] : '09:00';
-        $end_time = isset($options['end_time']) ? $options['end_time'] : '17:00';
-        $slot_duration = isset($options['slot_duration']) ? intval($options['slot_duration']) : 30;
+        $start_time = isset($options['start_time']) ? $options['start_time'] : get_option('appointease_start_time', '09:00');
+        $end_time = isset($options['end_time']) ? $options['end_time'] : get_option('appointease_end_time', '17:00');
+        $slot_duration = isset($options['slot_duration']) ? intval($options['slot_duration']) : intval(get_option('appointease_slot_duration', 60));
+        
+        error_log('[AppointEase] Time settings: start=' . $start_time . ', end=' . $end_time . ', duration=' . $slot_duration);
         
         $time_slots = $this->generate_time_slots($start_time, $end_time, $slot_duration);
+        error_log('[AppointEase] Generated slots: ' . print_r($time_slots, true));
         
-        return rest_ensure_response(array(
+        $response = array(
             'business_hours' => array(
                 'start' => $start_time,
                 'end' => $end_time
             ),
             'working_days' => isset($options['working_days']) && !empty($options['working_days']) 
                 ? $options['working_days'] 
-                : array('1','2','3','4','5'),
+                : get_option('appointease_working_days', array('1','2','3','4','5')),
             'time_slots' => $time_slots,
             'slot_duration' => $slot_duration
-        ));
+        );
+        
+        error_log('[AppointEase] Final response: ' . print_r($response, true));
+        return rest_ensure_response($response);
     }
     
     private function generate_time_slots($start_time, $end_time, $duration_minutes) {
@@ -1369,7 +1378,7 @@ class Booking_API_Endpoints {
         }
         
         // Check working days
-        $working_days = ['1','2','3','4','5']; // Default: Monday-Friday
+        $working_days = get_option('appointease_working_days', ['1','2','3','4','5']);
         if (isset($options['working_days']) && is_array($options['working_days']) && !empty($options['working_days'])) {
             $working_days = $options['working_days'];
         }

@@ -22,8 +22,11 @@ jest.mock('../../../src/hooks/useBookingState', () => ({
 jest.mock('../../../src/app/shared/services/settings.service', () => ({
   SettingsService: {
     getInstance: () => ({
-      getSettings: () => Promise.resolve({
-        time_slots: ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00']
+      getSettings: jest.fn().mockResolvedValue({
+        business_hours: { start: '09:00', end: '17:00' },
+        working_days: ['1','2','3','4','5'],
+        time_slots: ['09:00', '10:00', '11:00', '14:00', '15:00', '16:00'],
+        slot_duration: 60
       })
     })
   }
@@ -100,5 +103,19 @@ describe('TimeSelector Component', () => {
     
     expect(mockSetSelectedTime).toHaveBeenCalledWith('09:00');
     expect(mockSetStep).toHaveBeenCalledWith(5);
+  });
+
+  test('shows detailed error when API fails', async () => {
+    // Mock settings service to throw error
+    const mockSettingsService = require('../../../src/app/shared/services/settings.service').SettingsService;
+    mockSettingsService.getInstance().getSettings.mockRejectedValue(
+      new Error('Settings API failed: 404 - No route was found')
+    );
+    
+    render(<TimeSelector {...defaultProps} />);
+    
+    // Should show error message instead of time slots
+    await screen.findByText(/Time Slots Not Available/i);
+    expect(screen.getByText(/API Error/i)).toBeInTheDocument();
   });
 });

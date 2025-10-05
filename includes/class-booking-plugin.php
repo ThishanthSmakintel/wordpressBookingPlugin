@@ -257,7 +257,7 @@ class Booking_Plugin {
         
 
         wp_localize_script('booking-frontend', 'bookingAPI', array(
-            'root' => esc_url_raw(rest_url('appointease/v1/')),
+            'root' => esc_url_raw(rest_url()),
             'nonce' => wp_create_nonce('wp_rest')
         ));
         
@@ -280,7 +280,7 @@ class Booking_Plugin {
         // Add admin scripts
         if (is_admin()) {
             wp_localize_script('appointease-admin', 'appointeaseAPI', array(
-                'root' => esc_url_raw(rest_url('appointease/v1/')),
+                'root' => esc_url_raw(rest_url()),
                 'nonce' => wp_create_nonce('wp_rest')
             ));
         }

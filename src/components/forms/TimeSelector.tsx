@@ -61,7 +61,8 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
         return null;
     }, [isRescheduling, currentAppointment?.appointment_date]);
     
-    // Debug logging
+    // BOOKING DEBUG - API Testing
+    console.log('=== BOOKING DEBUG - API TESTING ===');
     console.log('[TimeSelector] Props received:', {
         unavailableSlots,
         timezone,
@@ -71,6 +72,46 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
         currentAppointment
     });
     console.log('[TimeSelector] Current appointment time:', currentAppointmentTime);
+    console.log('[TimeSelector] window.bookingAPI available:', !!(window as any).bookingAPI);
+    if ((window as any).bookingAPI) {
+        console.log('[TimeSelector] API root:', (window as any).bookingAPI.root);
+    }
+    
+    // Test all available API endpoints
+    React.useEffect(() => {
+        const testAllAPIs = async () => {
+            console.log('=== BOOKING DEBUG - TESTING ALL APIs ===');
+            const baseUrl = window.location.origin;
+            const endpoints = [
+                '/wp-json/appointease/v1/settings',
+                '/wp-json/appointease/v1/time-slots', 
+                '/wp-json/appointease/v1/business-hours',
+                '/wp-json/booking/v1/services',
+                '/wp-json/booking/v1/staff',
+                '/wp-json/booking/v1/availability',
+                '/wp-json/appointease/v1/server-date'
+            ];
+            
+            for (const endpoint of endpoints) {
+                try {
+                    const response = await fetch(`${baseUrl}${endpoint}`);
+                    console.log(`API TEST ${endpoint}: ${response.status}`);
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log(`  SUCCESS:`, data);
+                    } else {
+                        const error = await response.text();
+                        console.log(`  ERROR:`, error);
+                    }
+                } catch (e) {
+                    console.log(`API TEST ${endpoint}: FAILED -`, e.message);
+                }
+            }
+            console.log('=== END API TESTING ===');
+        };
+        
+        testAllAPIs();
+    }, []);
     
     const handleTimeSelect = (time: string) => {
         if (unavailableSlots !== 'all' && (!Array.isArray(unavailableSlots) || !unavailableSlots.includes(time))) {
@@ -91,18 +132,48 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
     
     const [timeSlots, setTimeSlots] = useState<string[]>([]);
     const [isLoadingSlots, setIsLoadingSlots] = useState(true);
+    const [errorDetails, setErrorDetails] = useState<string>('');
     
     // Load time slots from settings API
     useEffect(() => {
         const loadTimeSlots = async () => {
             try {
+                console.log('[TimeSelector] Loading time slots from API...');
+                
+                console.log('=== BOOKING DEBUG - LOADING TIME SLOTS ===');
+                
+                // Check API availability first
                 const settingsService = SettingsService.getInstance();
+                const apiAvailable = await settingsService.checkAPIAvailability();
+                
+                console.log('[TimeSelector] API availability check result:', apiAvailable);
+                
                 const settings = await settingsService.getSettings();
-                setTimeSlots(settings.time_slots);
+                console.log('[TimeSelector] Settings loaded:', settings);
+                
+                if (settings.time_slots && settings.time_slots.length > 0) {
+                    setTimeSlots(settings.time_slots);
+                    console.log('[TimeSelector] Time slots set:', settings.time_slots);
+                } else {
+                    console.error('[TimeSelector] No time slots in settings response');
+                    setTimeSlots([]);
+                }
             } catch (error) {
-                console.error('Failed to load time slots:', error);
-                // Fallback to default slots
-                setTimeSlots(['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30']);
+                console.error('[TimeSelector] API Error Details:');
+                console.error('Error object:', error);
+                console.error('Error message:', error.message);
+                console.error('Error stack:', error.stack);
+                if (error.response) {
+                    console.error('Response status:', error.response.status);
+                    console.error('Response data:', error.response.data);
+                }
+                
+                // Capture error details for display
+                console.log('=== BOOKING DEBUG - ERROR OCCURRED ===');
+                console.log('Full error object:', error);
+                const errorMsg = `Error: ${error.message}\nType: ${typeof error}\nStack: ${error.stack?.substring(0, 200) || 'No stack trace'}`;
+                setErrorDetails(errorMsg);
+                setTimeSlots([]);
             } finally {
                 setIsLoadingSlots(false);
             }
@@ -161,6 +232,35 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                 {isLoadingSlots ? (
                     <div style={{textAlign: 'center', padding: '40px'}}>
                         <div style={{fontSize: '16px', color: '#666'}}>Loading available times...</div>
+                    </div>
+                ) : timeSlots.length === 0 ? (
+                    <div style={{textAlign: 'center', padding: '40px'}}>
+                        <div style={{fontSize: '16px', color: '#ef4444', marginBottom: '16px'}}>⚠️ Time Slots Not Available</div>
+                        <div style={{fontSize: '14px', color: '#666', marginBottom: '16px'}}>API Error: Unable to load time slots from server</div>
+                        <div style={{fontSize: '12px', color: '#999', marginBottom: '16px'}}>Error Details:</div>
+                        <div style={{fontSize: '11px', color: '#666', marginBottom: '16px', fontFamily: 'monospace', backgroundColor: '#f5f5f5', padding: '8px', borderRadius: '4px', textAlign: 'left', maxHeight: '100px', overflow: 'auto', whiteSpace: 'pre-wrap'}}>
+                            {errorDetails || 'No error details captured yet'}
+                        </div>
+                        <button 
+                            onClick={() => {
+                                setIsLoadingSlots(true);
+                                const settingsService = SettingsService.getInstance();
+                                settingsService.clearCache();
+                                // Trigger reload
+                                window.location.reload();
+                            }}
+                            style={{
+                                backgroundColor: '#10b981',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '8px',
+                                padding: '8px 16px',
+                                fontSize: '12px',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            Retry Loading
+                        </button>
                     </div>
                 ) : (
                     <div style={{
