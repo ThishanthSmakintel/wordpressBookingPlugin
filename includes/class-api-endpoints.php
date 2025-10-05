@@ -4,6 +4,7 @@ class Booking_API_Endpoints {
     
     public function __construct() {
         add_action('rest_api_init', array($this, 'register_routes'));
+        add_action('rest_api_init', array($this, 'register_webhook_routes'));
     }
     
     public function register_routes() {
@@ -442,6 +443,16 @@ class Booking_API_Endpoints {
             if ($update_result === false) {
                 return new WP_Error('update_failed', 'Failed to generate appointment ID', array('status' => 500));
             }
+            
+            // Trigger webhook for new appointment
+            $this->trigger_appointment_webhook($appointment_id, $strong_id, array(
+                'name' => $name,
+                'email' => $email,
+                'phone' => $phone,
+                'appointment_date' => $date,
+                'service_id' => $service_id,
+                'employee_id' => $employee_id
+            ));
             
             return rest_ensure_response(array(
                 'id' => $appointment_id, 
@@ -1159,6 +1170,178 @@ class Booking_API_Endpoints {
         return rest_ensure_response(array('success' => true, 'updated' => $result));
     }
     
+    /**
+     * Trigger webhook when new appointment is created
+     */
+    private function trigger_appointment_webhook($appointment_id, $strong_id, $appointment_data) {
+        // Get service and staff details
+        global $wpdb;
+        
+        $service = $wpdb->get_row($wpdb->prepare(
+            "SELECT name FROM {$wpdb->prefix}appointease_services WHERE id = %d",
+            $appointment_data['service_id']
+        ));
+        
+        $staff = $wpdb->get_row($wpdb->prepare(
+            "SELECT name, email FROM {$wpdb->prefix}appointease_staff WHERE id = %d",
+            $appointment_data['employee_id']
+        ));
+        
+        // Prepare webhook payload
+        $webhook_data = array(
+            'event' => 'appointment.created',
+            'appointment_id' => $strong_id,
+            'customer' => array(
+                'name' => $appointment_data['name'],
+                'email' => $appointment_data['email'],
+                'phone' => $appointment_data['phone']
+            ),
+            'appointment' => array(
+                'date' => $appointment_data['appointment_date'],
+                'service' => $service ? $service->name : 'Unknown Service',
+                'staff' => $staff ? $staff->name : 'Unknown Staff'
+            ),
+            'timestamp' => current_time('mysql')
+        );
+        
+        // Send admin email notification
+        $this->send_admin_notification($webhook_data);
+        
+        // Add to notification queue for admin panel
+        $this->add_to_notification_queue($webhook_data);
+        
+        // Trigger WordPress action hook for custom integrations
+        do_action('appointease_new_appointment', $webhook_data);
+        
+        // Send to external webhook URL if configured
+        $webhook_url = get_option('appointease_webhook_url');
+        if (!empty($webhook_url)) {
+            $this->send_webhook($webhook_url, $webhook_data);
+        }
+    }
+    
+    /**
+     * Send admin email notification
+     */
+    private function send_admin_notification($data) {
+        $admin_email = get_option('admin_email');
+        $site_name = get_bloginfo('name');
+        
+        $subject = sprintf('[%s] New Appointment Booked - %s', $site_name, $data['appointment_id']);
+        
+        $message = sprintf(
+            "New appointment has been booked:\n\n" .
+            "Appointment ID: %s\n" .
+            "Customer: %s\n" .
+            "Email: %s\n" .
+            "Phone: %s\n" .
+            "Service: %s\n" .
+            "Staff: %s\n" .
+            "Date & Time: %s\n\n" .
+            "View all appointments: %s",
+            $data['appointment_id'],
+            $data['customer']['name'],
+            $data['customer']['email'],
+            $data['customer']['phone'],
+            $data['appointment']['service'],
+            $data['appointment']['staff'],
+            date('F j, Y \\a\\t g:i A', strtotime($data['appointment']['date'])),
+            admin_url('admin.php?page=appointease-admin')
+        );
+        
+        wp_mail($admin_email, $subject, $message);
+    }
+    
+    /**
+     * Send webhook to external URL
+     */
+    private function send_webhook($url, $data) {
+        wp_remote_post($url, array(
+            'headers' => array(
+                'Content-Type' => 'application/json',
+                'X-Webhook-Source' => 'AppointEase'
+            ),
+            'body' => json_encode($data),
+            'timeout' => 15
+        ));
+    }
+    
+    /**
+     * Register webhook URL endpoint
+     */
+    public function register_webhook_routes() {
+        register_rest_route('appointease/v1', '/webhook/config', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'configure_webhook'),
+            'permission_callback' => function() { return current_user_can('manage_options'); }
+        ));
+        
+        register_rest_route('appointease/v1', '/webhook/test', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'test_webhook'),
+            'permission_callback' => function() { return current_user_can('manage_options'); }
+        ));
+    }
+    
+    public function configure_webhook($request) {
+        $params = $request->get_json_params();
+        
+        if (!isset($params['webhook_url'])) {
+            return new WP_Error('missing_url', 'Webhook URL is required', array('status' => 400));
+        }
+        
+        $webhook_url = esc_url_raw($params['webhook_url']);
+        
+        if (!filter_var($webhook_url, FILTER_VALIDATE_URL)) {
+            return new WP_Error('invalid_url', 'Invalid webhook URL', array('status' => 400));
+        }
+        
+        update_option('appointease_webhook_url', $webhook_url);
+        
+        return rest_ensure_response(array(
+            'success' => true,
+            'message' => 'Webhook URL configured successfully',
+            'webhook_url' => $webhook_url
+        ));
+    }
+    
+    public function test_webhook($request) {
+        $webhook_url = get_option('appointease_webhook_url');
+        
+        if (empty($webhook_url)) {
+            return new WP_Error('no_webhook', 'No webhook URL configured', array('status' => 400));
+        }
+        
+        $test_data = array(
+            'event' => 'webhook.test',
+            'message' => 'This is a test webhook from AppointEase',
+            'timestamp' => current_time('mysql'),
+            'site_url' => home_url()
+        );
+        
+        $response = wp_remote_post($webhook_url, array(
+            'headers' => array(
+                'Content-Type' => 'application/json',
+                'X-Webhook-Source' => 'AppointEase'
+            ),
+            'body' => json_encode($test_data),
+            'timeout' => 15
+        ));
+        
+        if (is_wp_error($response)) {
+            return new WP_Error('webhook_failed', $response->get_error_message(), array('status' => 500));
+        }
+        
+        $response_code = wp_remote_retrieve_response_code($response);
+        
+        return rest_ensure_response(array(
+            'success' => true,
+            'message' => 'Test webhook sent successfully',
+            'response_code' => $response_code,
+            'webhook_url' => $webhook_url
+        ));
+    }
+    
     public function check_reschedule_availability($request) {
         global $wpdb;
         $params = $request->get_json_params();
@@ -1230,5 +1413,29 @@ class Booking_API_Endpoints {
             'booking_details' => $booking_details,
             'excluded_appointment' => $exclude_appointment_id
         ));
+    }
+    
+    /**
+     * Add notification to transient queue
+     */
+    private function add_to_notification_queue($webhook_data) {
+        $queue = get_transient('appointease_notification_queue');
+        if (!$queue) {
+            $queue = [];
+        }
+        
+        $notification = array(
+            'id' => $webhook_data['appointment_id'],
+            'name' => $webhook_data['customer']['name'],
+            'service_name' => $webhook_data['appointment']['service'],
+            'appointment_date' => $webhook_data['appointment']['date'],
+            'timestamp' => time()
+        );
+        
+        $queue[] = $notification;
+        
+        // Keep only last 10 notifications and expire after 1 hour
+        $queue = array_slice($queue, -10);
+        set_transient('appointease_notification_queue', $queue, HOUR_IN_SECONDS);
     }
 }

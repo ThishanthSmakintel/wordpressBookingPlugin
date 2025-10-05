@@ -13,14 +13,29 @@
     "lint:js": "wp-scripts lint-js",
     "packages-update": "wp-scripts packages-update",
     "plugin-zip": "wp-scripts plugin-zip",
-    "format": "wp-scripts format"
+    "format": "wp-scripts format",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:e2e": "cypress run",
+    "test:e2e:open": "cypress open",
+    "test:php": "phpunit",
+    "test:all": "npm run test:php && npm run test && npm run test:e2e"
   },
   "devDependencies": {
     "@types/react": "^18.0.0",
     "@types/react-big-calendar": "^1.8.0",
     "@wordpress/scripts": "^27.0.0",
     "minimist": "^1.2.8",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "@testing-library/react": "^13.4.0",
+    "@testing-library/jest-dom": "^5.16.5",
+    "@testing-library/user-event": "^14.4.3",
+    "jest": "^29.0.0",
+    "jest-environment-jsdom": "^29.0.0",
+    "cypress": "^12.0.0",
+    "identity-obj-proxy": "^3.0.0",
+    "babel-jest": "^29.0.0"
   },
   "dependencies": {
     "@wordpress/block-editor": "^12.0.0",

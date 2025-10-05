@@ -1,0 +1,27 @@
+<?xml version="1.0"?>
+<phpunit
+    bootstrap="tests/bootstrap.php"
+    backupGlobals="false"
+    colors="true"
+    convertErrorsToExceptions="true"
+    convertNoticesToExceptions="true"
+    convertWarningsToExceptions="true"
+    >
+    <testsuites>
+        <testsuite name="unit">
+            <directory prefix="test-" suffix=".php">./tests/php/unit/</directory>
+        </testsuite>
+        <testsuite name="integration">
+            <directory prefix="test-" suffix=".php">./tests/php/integration/</directory>
+        </testsuite>
+        <testsuite name="api">
+            <directory prefix="test-" suffix=".php">./tests/php/api/</directory>
+        </testsuite>
+    </testsuites>
+    <coverage>
+        <include>
+            <directory suffix=".php">./includes/</directory>
+            <directory suffix=".php">./admin/</directory>
+        </include>
+    </coverage>
+</phpunit>

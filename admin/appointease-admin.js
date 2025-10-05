@@ -756,6 +756,66 @@ jQuery(document).ready(function($) {
         }
     };
     
+    // Webhook functions
+    window.saveWebhookUrl = function() {
+        const webhookUrl = $('#webhook-url').val();
+        
+        if (!webhookUrl) {
+            showErrorToast('URL Required', 'Please enter a webhook URL');
+            return;
+        }
+        
+        // Basic URL validation
+        try {
+            new URL(webhookUrl);
+        } catch (e) {
+            showErrorToast('Invalid URL', 'Please enter a valid URL');
+            return;
+        }
+        
+        $.ajax({
+            url: '/wp-json/appointease/v1/webhook/config',
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-WP-Nonce': appointeaseAdmin.nonce
+            },
+            data: JSON.stringify({
+                webhook_url: webhookUrl
+            }),
+            success: function(response) {
+                showSuccessToast('Webhook Saved', 'Webhook URL configured successfully!', [
+                    {
+                        text: 'Test Webhook',
+                        type: 'primary',
+                        callback: function() { testWebhook(); }
+                    }
+                ]);
+            },
+            error: function(xhr) {
+                const response = xhr.responseJSON;
+                showErrorToast('Save Failed', response?.message || 'Failed to save webhook URL');
+            }
+        });
+    };
+    
+    window.testWebhook = function() {
+        $.ajax({
+            url: '/wp-json/appointease/v1/webhook/test',
+            method: 'POST',
+            headers: {
+                'X-WP-Nonce': appointeaseAdmin.nonce
+            },
+            success: function(response) {
+                showSuccessToast('Test Sent', 'Test webhook sent successfully! Check your endpoint for the test payload.');
+            },
+            error: function(xhr) {
+                const response = xhr.responseJSON;
+                showErrorToast('Test Failed', response?.message || 'Failed to send test webhook');
+            }
+        });
+    };
+    
     // Working days validation
     $('input[name="appointease_options[working_days][]"]').change(function() {
         const dayValue = $(this).val();

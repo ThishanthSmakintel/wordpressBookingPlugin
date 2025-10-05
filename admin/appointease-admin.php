@@ -32,6 +32,8 @@ class AppointEase_Admin {
         add_action('wp_ajax_sync_customers', array($this, 'ajax_sync_customers'));
         add_action('wp_ajax_check_day_appointments', array($this, 'ajax_check_day_appointments'));
         add_action('wp_ajax_check_customer_email', array($this, 'ajax_check_customer_email'));
+        add_action('wp_ajax_get_recent_appointments', array($this, 'ajax_get_recent_appointments'));
+        add_action('wp_ajax_get_notification_queue', array($this, 'ajax_get_notification_queue'));
         add_action('admin_init', array($this, 'init_settings'));
     }
     
@@ -44,6 +46,7 @@ class AppointEase_Admin {
             wp_enqueue_style('appointease-admin', BOOKING_PLUGIN_URL . 'admin/appointease-admin.css', array('toastr-css'), '1.0.0');
             wp_enqueue_script('appointease-admin', BOOKING_PLUGIN_URL . 'admin/appointease-admin.js', array('jquery', 'toastr-js'), '1.0.1', true);
             wp_enqueue_script('appointease-calendar', BOOKING_PLUGIN_URL . 'admin/calendar-integration.js', array('jquery'), '1.0.0', true);
+            wp_enqueue_script('appointease-notifications', BOOKING_PLUGIN_URL . 'admin/admin-notifications.js', array('jquery'), '1.0.0', true);
             
             wp_localize_script('appointease-admin', 'appointeaseAdmin', array(
                 'nonce' => wp_create_nonce('appointease_nonce'),
@@ -1264,6 +1267,20 @@ class AppointEase_Admin {
                                 </div>
                             </div>
                         </div>
+                        
+                        <div class="ae-card">
+                            <h3><i class="dashicons dashicons-admin-links"></i> Webhook Notifications</h3>
+                            <p style="margin-bottom: 15px; color: #666;">Configure webhook URL to receive real-time notifications when new appointments are created.</p>
+                            <div class="form-group">
+                                <label>Webhook URL</label>
+                                <input type="url" id="webhook-url" placeholder="https://your-site.com/webhook-endpoint" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px;" value="<?php echo esc_attr(get_option('appointease_webhook_url', '')); ?>" />
+                                <small style="color: #666; display: block; margin-top: 5px;">Enter the URL where you want to receive webhook notifications for new appointments.</small>
+                            </div>
+                            <div style="margin-top: 15px;">
+                                <button type="button" class="ae-btn primary" onclick="saveWebhookUrl()" style="margin-right: 10px;">Save Webhook URL</button>
+                                <button type="button" class="ae-btn ghost" onclick="testWebhook()">Test Webhook</button>
+                            </div>
+                        </div>
                     </div>
                     
                     <div style="text-align: center; margin-top: 30px;">
@@ -1841,6 +1858,40 @@ class AppointEase_Admin {
         } else {
             wp_send_json_success(['exists' => false]);
         }
+    }
+    
+    public function ajax_get_recent_appointments() {
+        check_ajax_referer('appointease_nonce', '_wpnonce');
+        
+        $since = intval($_POST['since']) / 1000;
+        $since_date = date('Y-m-d H:i:s', $since);
+        
+        global $wpdb;
+        $appointments = $wpdb->get_results($wpdb->prepare(
+            "SELECT a.*, s.name as service_name, st.name as staff_name 
+             FROM {$wpdb->prefix}appointments a 
+             LEFT JOIN {$wpdb->prefix}appointease_services s ON a.service_id = s.id 
+             LEFT JOIN {$wpdb->prefix}appointease_staff st ON a.employee_id = st.id 
+             WHERE a.created_at > %s 
+             ORDER BY a.created_at DESC",
+            $since_date
+        ));
+        
+        wp_send_json_success($appointments);
+    }
+    
+    public function ajax_get_notification_queue() {
+        check_ajax_referer('appointease_nonce', '_wpnonce');
+        
+        $queue = get_transient('appointease_notification_queue');
+        if (!$queue) {
+            $queue = [];
+        }
+        
+        // Clear the queue after retrieving
+        delete_transient('appointease_notification_queue');
+        
+        wp_send_json_success($queue);
     }
     
     private function validate_working_days($new_working_days) {

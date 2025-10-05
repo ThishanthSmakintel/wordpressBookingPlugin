@@ -353,6 +353,9 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                 onRefresh={() => loadUserAppointmentsRealtime()}
                 onNewAppointment={() => {
                     bookingState.setShowDashboard(false);
+                    bookingState.setExistingUser({ exists: false });
+                    setFormData({ firstName: '', lastName: '', email: '', phone: '' });
+                    setErrors({});
                     setStep(1);
                 }}
                 onLogout={async () => {

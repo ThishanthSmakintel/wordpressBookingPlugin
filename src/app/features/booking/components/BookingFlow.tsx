@@ -223,6 +223,7 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
             setStep(1);
             setFormData({ firstName: '', lastName: '', email: '', phone: '' });
             bookingState.setAppointmentId('');
+            bookingState.setExistingUser({ exists: false });
             setErrors({});
           }}
         />
@@ -243,6 +244,7 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
               bookingState.setManageMode(false);
               bookingState.setCurrentAppointment(null);
               bookingState.setSessionToken(null);
+              bookingState.setExistingUser({ exists: false });
               setErrors({});
             }
           }}
@@ -269,6 +271,7 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
               bookingState.setCurrentAppointment(null);
               bookingState.setIsRescheduling(false);
               bookingState.setSessionToken(null);
+              bookingState.setExistingUser({ exists: false });
               setErrors({});
             }
           }}
