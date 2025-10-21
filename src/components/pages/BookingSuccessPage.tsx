@@ -81,10 +81,10 @@ const BookingSuccessPage: React.FC<BookingSuccessPageProps> = ({
                         alignItems: 'center',
                         justifyContent: 'center',
                         fontSize: '48px',
-                        color: 'white',
+                        color: '#ffffff',
                         margin: '0 auto'
                     }}>
-                        <i className="fas fa-check"></i>
+                        <i className="fas fa-check" style={{ color: '#ffffff' }}></i>
                     </div>
                 </div>
                 

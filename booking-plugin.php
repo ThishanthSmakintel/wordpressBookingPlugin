@@ -96,7 +96,7 @@ if (is_admin()) {
 }
 
 function booking_plugin_seeder_page() {
-    if (isset($_POST['seed_data']) && wp_verify_nonce($_POST['_wpnonce'], 'seed_data_action')) {
+    if (isset($_POST['seed_data']) && wp_verify_nonce($_POST['_wpnonce'], 'appointease_seed_database_' . get_current_user_id())) {
         if (class_exists('Booking_DB_Seeder')) {
             Booking_DB_Seeder::seed_data();
             echo '<div class="notice notice-success"><p>Database seeded successfully!</p></div>';
@@ -104,7 +104,7 @@ function booking_plugin_seeder_page() {
             echo '<div class="notice notice-error"><p>Seeder class not found!</p></div>';
         }
     }
-    if (isset($_POST['clear_data']) && wp_verify_nonce($_POST['_wpnonce'], 'clear_data_action')) {
+    if (isset($_POST['clear_data']) && wp_verify_nonce($_POST['_wpnonce'], 'appointease_clear_database_' . get_current_user_id())) {
         if (class_exists('Booking_DB_Seeder')) {
             Booking_DB_Seeder::clear_data();
             echo '<div class="notice notice-success"><p>Database cleared successfully!</p></div>';
@@ -116,14 +116,14 @@ function booking_plugin_seeder_page() {
     <div class="wrap">
         <h1>Database Seeder</h1>
         <form method="post">
-            <?php wp_nonce_field('seed_data_action'); ?>
+            <?php wp_nonce_field('appointease_seed_database_' . get_current_user_id()); ?>
             <p>Populate the database with sample data for testing.</p>
             <p class="submit">
                 <input type="submit" name="seed_data" class="button-primary" value="Seed Database" />
             </p>
         </form>
         <form method="post">
-            <?php wp_nonce_field('clear_data_action'); ?>
+            <?php wp_nonce_field('appointease_clear_database_' . get_current_user_id()); ?>
             <p class="submit">
                 <input type="submit" name="clear_data" class="button-secondary" value="Clear Data" onclick="return confirm('Are you sure?')" />
             </p>

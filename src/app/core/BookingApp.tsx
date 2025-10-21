@@ -15,6 +15,7 @@ if (typeof document !== 'undefined' && !document.querySelector('link[href*="remi
 // New Modular Components
 import { BookingFlow } from '../features/booking/components/BookingFlow';
 import { SuccessPage } from '../shared/components/SuccessPage';
+import { ErrorBoundary } from '../shared/components/ErrorBoundary';
 
 // Legacy Components (to be migrated)
 import Dashboard from '../../components/pages/Dashboard';
@@ -116,9 +117,7 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                 const staffData = await staffResponse.json();
                 setEmployees((staffData || []).map((member: any) => ({
                     ...member,
-                    avatar: member.name.split(' ').map((n: string) => n[0]).join(''),
-                    rating: 4.8,
-                    reviews: 50
+                    avatar: member.name?.split(' ').map((n: string) => n[0]).join('') || '?'
                 })));
             }
         } catch (error) {
@@ -248,8 +247,18 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                     debugState.setDebugStaff(staffData || []);
                 }
                 
-                debugState.setWorkingDays(['1', '2', '3', '4', '5']);
-                debugState.setDebugTimeSlots(['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30']);
+                // Fetch working days and time slots from API
+                const settingsRes = await fetch(`${window.bookingAPI.root}appointease/v1/business-hours`);
+                if (settingsRes.ok) {
+                    const settingsData = await settingsRes.json();
+                    debugState.setWorkingDays(settingsData.working_days || ['1', '2', '3', '4', '5']);
+                }
+                
+                const timeSlotsRes = await fetch(`${window.bookingAPI.root}appointease/v1/time-slots`);
+                if (timeSlotsRes.ok) {
+                    const timeSlotsData = await timeSlotsRes.json();
+                    debugState.setDebugTimeSlots(timeSlotsData.time_slots || []);
+                }
                 
                 if (selectedEmployee && selectedDate) {
                     const availRes = await fetch(`${window.bookingAPI.root}booking/v1/availability`, {
@@ -379,7 +388,9 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                         staff_name: appointment.staff
                     });
                     setSelectedService({name: appointment.service, price: 0});
-                    setSelectedEmployee({id: 2, name: appointment.staff}); // Fixed to use Staff #2
+                    // Fetch actual employee ID from staff list
+                    const matchingEmployee = employees.find(emp => emp.name === appointment.staff);
+                    setSelectedEmployee(matchingEmployee || {id: 1, name: appointment.staff});
                     bookingState.setIsRescheduling(true);
                     bookingState.setShowDashboard(false);
                     setStep(3);
@@ -406,10 +417,9 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                 bookingState={bookingState}
                 onReschedule={() => {
                     setSelectedService({name: bookingState.currentAppointment?.service_name, price: 0});
-                    // Since appointment data doesn't include employee_id, use staff name to determine ID
-                    // Based on debug data, all appointments are for Staff #2
-                    const employeeId = 2; // All current appointments are for Staff #2
-                    setSelectedEmployee({id: employeeId, name: bookingState.currentAppointment?.staff_name || 'Staff Member'});
+                    // Match employee by name from staff list
+                    const matchingEmployee = employees.find(emp => emp.name === bookingState.currentAppointment?.staff_name);
+                    setSelectedEmployee(matchingEmployee || {id: 1, name: bookingState.currentAppointment?.staff_name || 'Staff Member'});
                     bookingState.setIsRescheduling(true);
                     setStep(3); 
                     bookingState.setManageMode(false);
@@ -482,7 +492,11 @@ function initBookingApp(containerId: string) {
     const root = createRoot(bookingContainer);
     const appRef = React.createRef();
     activeRoots.set(containerId, root);
-    root.render(<BookingApp ref={appRef} />);
+    root.render(
+        <ErrorBoundary>
+            <BookingApp ref={appRef} />
+        </ErrorBoundary>
+    );
     
     setTimeout(() => {
         if (appRef.current) {

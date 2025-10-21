@@ -34,6 +34,7 @@ class AppointEase_Admin {
         add_action('wp_ajax_check_customer_email', array($this, 'ajax_check_customer_email'));
         add_action('wp_ajax_get_recent_appointments', array($this, 'ajax_get_recent_appointments'));
         add_action('wp_ajax_get_notification_queue', array($this, 'ajax_get_notification_queue'));
+        add_action('wp_ajax_bulk_customer_action', array($this, 'bulk_customer_action'));
         add_action('admin_init', array($this, 'init_settings'));
     }
     
@@ -1461,8 +1462,14 @@ class AppointEase_Admin {
                     <h1><i class="dashicons dashicons-groups"></i> Customers</h1>
                     <p class="page-subtitle">Manage customer database</p>
                 </div>
-                <div class="page-actions">
-                    <button class="ae-btn ghost" onclick="syncCustomers()" style="margin-right: 10px;">Sync from Appointments</button>
+                <div class="ae-header-actions">
+                    <select id="customer-bulk-action" class="ae-filter-select">
+                        <option value="">Bulk Actions</option>
+                        <option value="delete">Delete Selected</option>
+                        <option value="export">Export Selected</option>
+                    </select>
+                    <button class="ae-btn" onclick="applyCustomerBulkAction()">Apply</button>
+                    <button class="ae-btn ghost" onclick="syncCustomers()" style="margin-left: 10px;">Sync from Appointments</button>
                     <button class="ae-btn primary" onclick="openCustomerModal()">Add Customer</button>
                 </div>
             </div>
@@ -1471,6 +1478,7 @@ class AppointEase_Admin {
                 <table class="ae-table">
                     <thead>
                         <tr>
+                            <th><input type="checkbox" id="select-all-customers" /></th>
                             <th>Name</th>
                             <th>Email</th>
                             <th>Phone</th>
@@ -1482,6 +1490,7 @@ class AppointEase_Admin {
                     <tbody>
                         <?php foreach($customers as $customer): ?>
                         <tr>
+                            <td><input type="checkbox" class="customer-checkbox" value="<?php echo $customer->id; ?>" /></td>
                             <td><?php echo esc_html($customer->name); ?></td>
                             <td><?php echo esc_html($customer->email); ?></td>
                             <td><?php echo esc_html($customer->phone); ?></td>
@@ -1892,6 +1901,62 @@ class AppointEase_Admin {
         delete_transient('appointease_notification_queue');
         
         wp_send_json_success($queue);
+    }
+    
+    public function bulk_customer_action() {
+        check_ajax_referer('appointease_nonce', '_wpnonce');
+        global $wpdb;
+        
+        $action = sanitize_text_field($_POST['bulk_action']);
+        $customer_ids = array_map('intval', $_POST['customer_ids']);
+        
+        if (empty($customer_ids)) {
+            wp_send_json_error('No customers selected');
+            return;
+        }
+        
+        if ($action === 'delete') {
+            $placeholders = implode(',', array_fill(0, count($customer_ids), '%d'));
+            $result = $wpdb->query($wpdb->prepare(
+                "DELETE FROM {$wpdb->prefix}appointease_customers WHERE id IN ($placeholders)",
+                $customer_ids
+            ));
+            
+            if ($result !== false) {
+                wp_send_json_success(['message' => $result . ' customer(s) deleted successfully']);
+            } else {
+                wp_send_json_error('Failed to delete customers');
+            }
+        } elseif ($action === 'export') {
+            $placeholders = implode(',', array_fill(0, count($customer_ids), '%d'));
+            $customers = $wpdb->get_results($wpdb->prepare(
+                "SELECT c.*, COUNT(a.id) as appointment_count, SUM(s.price) as total_spent
+                 FROM {$wpdb->prefix}appointease_customers c
+                 LEFT JOIN {$wpdb->prefix}appointments a ON c.email = a.email
+                 LEFT JOIN {$wpdb->prefix}appointease_services s ON a.service_id = s.id
+                 WHERE c.id IN ($placeholders)
+                 GROUP BY c.id",
+                $customer_ids
+            ));
+            
+            $csv_data = "ID,Name,Email,Phone,Appointments,Total Spent,Created At\n";
+            foreach ($customers as $customer) {
+                $csv_data .= sprintf(
+                    "%d,%s,%s,%s,%d,%.2f,%s\n",
+                    $customer->id,
+                    $customer->name,
+                    $customer->email,
+                    $customer->phone,
+                    $customer->appointment_count,
+                    $customer->total_spent ?: 0,
+                    $customer->created_at
+                );
+            }
+            
+            wp_send_json_success(['csv' => $csv_data]);
+        } else {
+            wp_send_json_error('Invalid bulk action');
+        }
     }
     
     private function validate_working_days($new_working_days) {

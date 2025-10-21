@@ -101,21 +101,21 @@ class Booking_API_Endpoints {
         register_rest_route('appointease/v1', '/debug/appointments', array(
             'methods' => 'GET',
             'callback' => array($this, 'debug_appointments'),
-            'permission_callback' => array($this, 'public_permission')
+            'permission_callback' => function() { return current_user_can('manage_options'); }
         ));
         
         // Clear all appointments endpoint for testing
         register_rest_route('appointease/v1', '/clear-appointments', array(
             'methods' => 'POST',
             'callback' => array($this, 'clear_all_appointments'),
-            'permission_callback' => array($this, 'public_permission')
+            'permission_callback' => function() { return current_user_can('manage_options'); }
         ));
         
         // Fix existing appointments without strong_id
         register_rest_route('appointease/v1', '/fix-appointments', array(
             'methods' => 'POST',
             'callback' => array($this, 'fix_existing_appointments'),
-            'permission_callback' => array($this, 'public_permission')
+            'permission_callback' => function() { return current_user_can('manage_options'); }
         ));
         
         // Real-time appointments endpoint
@@ -155,14 +155,14 @@ class Booking_API_Endpoints {
         register_rest_route('appointease/v1', '/debug/working-days', array(
             'methods' => 'GET',
             'callback' => array($this, 'debug_working_days'),
-            'permission_callback' => '__return_true'
+            'permission_callback' => function() { return current_user_can('manage_options'); }
         ));
         
         // Fix working days endpoint
         register_rest_route('appointease/v1', '/fix-working-days', array(
             'methods' => 'POST',
             'callback' => array($this, 'fix_working_days'),
-            'permission_callback' => '__return_true'
+            'permission_callback' => function() { return current_user_can('manage_options'); }
         ));
         
         // Server date endpoint for time sync
@@ -404,8 +404,14 @@ class Booking_API_Endpoints {
         }
         
         // Validate phone if provided
-        if (!empty($phone) && !preg_match('/^[\d\s\-\+\(\)]+$/', $phone)) {
-            return new WP_Error('invalid_phone', 'Invalid phone format', array('status' => 400));
+        if (!empty($phone)) {
+            $phone_clean = preg_replace('/[^0-9]/', '', $phone);
+            if (strlen($phone_clean) < 10 || strlen($phone_clean) > 15) {
+                return new WP_Error('invalid_phone', 'Phone must be 10-15 digits', array('status' => 400));
+            }
+            if (!preg_match('/^[\d\s\-\+\(\)]+$/', $phone)) {
+                return new WP_Error('invalid_phone', 'Invalid phone format', array('status' => 400));
+            }
         }
         
         // Validate IDs
@@ -583,11 +589,11 @@ class Booking_API_Endpoints {
         $table = $wpdb->prefix . 'appointments';
         $email_prefix = explode('@', $email)[0];
         
-        // Create flexible search patterns
-        $base_name = str_replace('.', '', $email_prefix); // Remove dots
-        $pattern1 = '%' . $email_prefix . '%';           // Original with dots
-        $pattern2 = '%' . $base_name . '%';              // Without dots
-        $pattern3 = '%' . str_replace('a', 's', $base_name) . '%'; // Handle a/s typos
+        // Create flexible search patterns with proper escaping
+        $base_name = str_replace('.', '', $email_prefix);
+        $pattern1 = '%' . $wpdb->esc_like($email_prefix) . '%';
+        $pattern2 = '%' . $wpdb->esc_like($base_name) . '%';
+        $pattern3 = '%' . $wpdb->esc_like(str_replace('a', 's', $base_name)) . '%';
         
         $query = $wpdb->prepare(
             "SELECT * FROM {$table} WHERE email = %s OR name LIKE %s OR name LIKE %s OR name LIKE %s ORDER BY appointment_date DESC",

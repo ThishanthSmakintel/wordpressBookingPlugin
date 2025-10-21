@@ -29,7 +29,6 @@ wp-config.php
 .env.production
 
 # Package manager files
-package-lock.json
 composer.lock
 
 # Backup files

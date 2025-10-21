@@ -650,6 +650,81 @@ jQuery(document).ready(function($) {
         $('.appointment-checkbox').prop('checked', $(this).prop('checked'));
     });
     
+    // Select all customers checkbox
+    $(document).on('change', '#select-all-customers', function() {
+        $('.customer-checkbox').prop('checked', $(this).prop('checked'));
+    });
+    
+    // Update select-all state when individual checkboxes change
+    $(document).on('change', '.customer-checkbox', function() {
+        const total = $('.customer-checkbox').length;
+        const checked = $('.customer-checkbox:checked').length;
+        $('#select-all-customers').prop('checked', total === checked);
+    });
+    
+    // Customer bulk actions
+    window.applyCustomerBulkAction = function() {
+        const action = $('#customer-bulk-action').val();
+        const selectedIds = $('.customer-checkbox:checked').map(function() {
+            return $(this).val();
+        }).get();
+        
+        if (!action || selectedIds.length === 0) {
+            showErrorToast('Selection Required', 'Please select an action and customers');
+            return;
+        }
+        
+        if (action === 'delete') {
+            const message = `This will delete ${selectedIds.length} customer${selectedIds.length > 1 ? 's' : ''}. This action cannot be undone.`;
+            
+            showWarningToast('Confirm Bulk Delete', message, [
+                {
+                    text: 'Delete',
+                    type: 'primary',
+                    callback: function() {
+                        $.post(appointeaseAdmin.ajaxurl, {
+                            action: 'bulk_customer_action',
+                            _wpnonce: appointeaseAdmin.nonce,
+                            bulk_action: action,
+                            customer_ids: selectedIds
+                        }, function(response) {
+                            if (response.success) {
+                                showSuccessToast('Bulk Delete Complete', response.data.message);
+                                location.reload();
+                            } else {
+                                showErrorToast('Bulk Delete Failed', response.data || 'Failed to delete customers');
+                            }
+                        });
+                    }
+                },
+                {
+                    text: 'Cancel',
+                    type: 'secondary'
+                }
+            ]);
+        } else if (action === 'export') {
+            $.post(appointeaseAdmin.ajaxurl, {
+                action: 'bulk_customer_action',
+                _wpnonce: appointeaseAdmin.nonce,
+                bulk_action: action,
+                customer_ids: selectedIds
+            }, function(response) {
+                if (response.success) {
+                    const blob = new Blob([response.data.csv], { type: 'text/csv' });
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'customers-' + new Date().toISOString().split('T')[0] + '.csv';
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    showSuccessToast('Export Complete', `${selectedIds.length} customer${selectedIds.length > 1 ? 's' : ''} exported successfully!`);
+                } else {
+                    showErrorToast('Export Failed', 'Failed to export customers');
+                }
+            });
+        }
+    };
+    
     // Form submissions
     $('#category-form').submit(function(e) {
         e.preventDefault();

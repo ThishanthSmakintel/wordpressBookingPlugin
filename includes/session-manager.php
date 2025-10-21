@@ -33,8 +33,8 @@ class BookingSessionManager {
         $token = bin2hex(random_bytes(32));
         $expiry = time() + $this->token_expiry;
         
-        // Store token with expiry
-        update_user_meta($user->ID, '_booking_session_token', $token);
+        // Store hashed token with expiry
+        update_user_meta($user->ID, '_booking_session_token', hash('sha256', $token));
         update_user_meta($user->ID, '_booking_session_expiry', $expiry);
         update_user_meta($user->ID, '_booking_last_activity', time());
         
@@ -60,10 +60,10 @@ class BookingSessionManager {
             return false;
         }
         
-        // Find user by token
+        // Find user by hashed token
         $user_query = new WP_User_Query([
             'meta_key' => '_booking_session_token',
-            'meta_value' => sanitize_text_field($token),
+            'meta_value' => hash('sha256', sanitize_text_field($token)),
             'number' => 1
         ]);
         
