@@ -424,12 +424,15 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                     setStep(3); 
                     bookingState.setManageMode(false);
                 }}
-                onCancel={() => {
+                onCancel={async () => {
                     bookingState.setIsCancelling(true);
+                    // Reload appointments to get updated status
+                    await loadUserAppointmentsRealtime(bookingState.loginEmail);
                     setTimeout(() => {
                         bookingState.setManageMode(false);
                         bookingState.setCurrentAppointment(null);
                         bookingState.setShowCancelConfirm(false);
+                        bookingState.setShowDashboard(true);
                         setStep(8);
                         bookingState.setIsCancelling(false);
                     }, 500);

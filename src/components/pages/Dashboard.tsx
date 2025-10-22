@@ -1,8 +1,9 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Container, Row, Col, Card, Button, Badge } from 'react-bootstrap';
 import { useBookingStore } from '../../store/bookingStore';
 import { sanitizeInput } from '../../utils';
 import { Appointment } from '../../types';
+import { captureScreenshot } from '../../utils/screenshotCapture';
 
 interface DashboardProps {
     loginEmail: string;
@@ -418,7 +419,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                             <Button 
                                 variant="outline-primary"
                                 size="sm"
-                                onClick={() => setCurrentPage(Math.max(currentPage - 1, 1))}
+                                onClick={() => {
+                                    setCurrentPage(Math.max(currentPage - 1, 1));
+                                    setTimeout(() => captureScreenshot(dashboardRef.current, 'dashboard-page'), 300);
+                                }}
                                 disabled={currentPage === 1}
                             >
                                 <i className="fas fa-chevron-left"></i>
@@ -430,7 +434,10 @@ const Dashboard: React.FC<DashboardProps> = ({
                             <Button 
                                 variant="outline-primary"
                                 size="sm"
-                                onClick={() => setCurrentPage(Math.min(currentPage + 1, totalPages))}
+                                onClick={() => {
+                                    setCurrentPage(Math.min(currentPage + 1, totalPages));
+                                    setTimeout(() => captureScreenshot(dashboardRef.current, 'dashboard-page'), 300);
+                                }}
                                 disabled={currentPage === totalPages}
                             >
                                 <span className="d-none d-sm-inline me-1">Next</span>

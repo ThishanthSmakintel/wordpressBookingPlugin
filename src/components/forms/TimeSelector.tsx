@@ -228,7 +228,7 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                 </div>
             </div>
             
-            <div style={{maxWidth: '600px', margin: '0 auto'}}>
+            <div style={{maxWidth: '100%', margin: '0 auto', padding: '0 20px'}}>
                 {isLoadingSlots ? (
                     <div style={{textAlign: 'center', padding: '40px'}}>
                         <div style={{fontSize: '16px', color: '#666'}}>Loading available times...</div>
@@ -265,8 +265,8 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                 ) : (
                     <div style={{
                         display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
-                        gap: '16px',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
+                        gap: '12px',
                         marginBottom: '32px'
                     }}>
                     {timeSlots.map(time => {

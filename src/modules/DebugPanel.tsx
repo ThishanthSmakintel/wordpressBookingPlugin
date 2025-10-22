@@ -45,7 +45,59 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState
         }}>
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
                 <strong>🔍 BOOKING DEBUG</strong>
-                <button onClick={() => debugState.setShowDebug(false)} style={{background: 'none', border: 'none', color: '#fff', cursor: 'pointer'}}>✕</button>
+                <div style={{display: 'flex', gap: '8px'}}>
+                    <button onClick={async () => {
+                        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
+                        const stepNames = ['service', 'employee', 'date', 'time', 'form', 'review', 'success', 'cancelled', 'rescheduled'];
+                        const stepName = stepNames[step - 1] || 'unknown';
+                        const userState = bookingState.isLoggedIn ? 'logged-in' : 'guest';
+                        const mode = bookingState.isRescheduling ? 'reschedule' : 'booking';
+                        const filename = `fullscreen-step-${step}-${stepName}-${mode}-${userState}-${timestamp}.png`;
+                        
+                        try {
+                            const html2canvas = await import('html2canvas');
+                            const canvas = await html2canvas.default(document.body, {
+                                backgroundColor: '#ffffff',
+                                scale: 1.5,
+                                logging: false,
+                                useCORS: true,
+                                allowTaint: true,
+                                width: window.innerWidth,
+                                height: document.documentElement.scrollHeight
+                            });
+                            
+                            const imageData = canvas.toDataURL('image/png');
+                            
+                            // Save to server
+                            const response = await fetch(`${window.bookingAPI?.root || '/wp-json/'}appointease/v1/screenshot/save`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    image: imageData,
+                                    filename: filename,
+                                    step: step,
+                                    mode: mode,
+                                    userState: userState,
+                                    notes: `Auto-captured at step ${step}`
+                                })
+                            });
+                            
+                            const result = await response.json();
+                            
+                            if (result.success) {
+                                const notification = document.createElement('div');
+                                notification.innerHTML = `✅ Screenshot saved to:<br/><small>debug-screenshots/${result.path}</small>`;
+                                notification.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:#10b981;color:#fff;padding:16px 24px;border-radius:8px;z-index:999999;font-size:14px;box-shadow:0 4px 12px rgba(0,0,0,0.3);text-align:center';
+                                document.body.appendChild(notification);
+                                setTimeout(() => notification.remove(), 4000);
+                            }
+                        } catch (err) {
+                            alert('Screenshot failed: ' + err.message);
+                            console.error('Screenshot error:', err);
+                        }
+                    }} style={{background: '#10b981', border: 'none', color: '#fff', cursor: 'pointer', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold'}} title="Take Full Screen Screenshot">📸</button>
+                    <button onClick={() => debugState.setShowDebug(false)} style={{background: 'none', border: 'none', color: '#fff', cursor: 'pointer'}}>✕</button>
+                </div>
             </div>
             
             <div style={{marginBottom: '8px'}}>
@@ -53,6 +105,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState
                 <div>Step: {step} | Employee: {selectedEmployee?.id || 'None'}</div>
                 <div>Date: {selectedDate || 'None'} | Time: {selectedTime || 'None'}</div>
                 <div>Server: {serverDate || 'Not synced'} | Online: {isOnline ? '✅' : '❌'}</div>
+                <div>Logged In: {bookingState.isLoggedIn ? '✅' : '❌'} {bookingState.isLoggedIn && `(${bookingState.loginEmail})`}</div>
             </div>
             
             <div style={{marginBottom: '8px'}}>

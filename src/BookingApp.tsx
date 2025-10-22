@@ -303,6 +303,10 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                 onNewAppointment={() => {
                     bookingState.setShowDashboard(false);
                     setStep(1);
+                    setSelectedService(null);
+                    setSelectedEmployee(null);
+                    setSelectedDate('');
+                    setSelectedTime('');
                 }}
                 onLogout={() => {
                     bookingState.setIsLoggedIn(false);
@@ -423,7 +427,9 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                         />
                     )}
 
-                    {step === 5 && (
+                    {step === 5 && (() => {
+                        console.log('[Step 5 Render] isLoggedIn:', bookingState.isLoggedIn, 'isRescheduling:', bookingState.isRescheduling, 'showEmailVerification:', bookingState.showEmailVerification);
+                        return (
                         <div className="appointease-step-content">
                             {bookingState.isRescheduling && (
                                 <>
@@ -435,15 +441,46 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                                     <p className="step-description">Review your new appointment details</p>
                                 </>
                             )}
-                            {!bookingState.isRescheduling && !bookingState.isLoggedIn && !bookingState.showEmailVerification && (
-                                <CustomerInfoForm
-                                    isLoggedIn={bookingState.isLoggedIn}
-                                    isCheckingEmail={bookingState.isCheckingEmail}
-                                    existingUser={bookingState.existingUser}
-                                    onSubmit={handleSubmit}
-                                    onBack={() => setStep(4)}
-                                    checkExistingEmail={() => {}}
-                                />
+                            {!bookingState.isRescheduling && !bookingState.showEmailVerification && (
+                                bookingState.isLoggedIn ? (
+                                    <div className="reschedule-summary">
+                                        <h2 style={{fontSize: '2rem', fontWeight: '700', textAlign: 'center', marginBottom: '1rem', color: '#1f2937'}}>Review & Confirm</h2>
+                                        <div className="booking-summary">
+                                            <h3>Appointment Details</h3>
+                                            <div className="summary-item">
+                                                <span>Service:</span>
+                                                <span>{selectedService?.name}</span>
+                                            </div>
+                                            <div className="summary-item">
+                                                <span>Staff:</span>
+                                                <span>{selectedEmployee?.name}</span>
+                                            </div>
+                                            <div className="summary-item">
+                                                <span>Date:</span>
+                                                <span>{new Date(selectedDate).toLocaleDateString()}</span>
+                                            </div>
+                                            <div className="summary-item">
+                                                <span>Time:</span>
+                                                <span>{selectedTime}</span>
+                                            </div>
+                                        </div>
+                                        <div className="form-actions">
+                                            <button type="button" className="back-btn" onClick={() => setStep(4)}>← Back</button>
+                                            <button type="button" className="confirm-btn" onClick={handleSubmit} disabled={isSubmitting}>
+                                                {isSubmitting ? 'BOOKING...' : 'CONFIRM BOOKING'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <CustomerInfoForm
+                                        isLoggedIn={bookingState.isLoggedIn}
+                                        isCheckingEmail={bookingState.isCheckingEmail}
+                                        existingUser={bookingState.existingUser}
+                                        onSubmit={handleSubmit}
+                                        onBack={() => setStep(4)}
+                                        checkExistingEmail={() => {}}
+                                    />
+                                )
                             )}
                             
                             {!bookingState.isRescheduling && !bookingState.isLoggedIn && bookingState.showEmailVerification && (
@@ -499,7 +536,8 @@ const BookingApp = React.forwardRef<any, any>((props, ref) => {
                                 </div>
                             )}
                         </div>
-                    )}
+                        );
+                    })()}
 
                     {step === 6 && (
                         <div className="appointease-step-content">

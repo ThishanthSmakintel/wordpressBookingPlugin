@@ -75,7 +75,7 @@ class Appointease_Heartbeat_Handler {
         $table_name = $wpdb->prefix . 'appointments';
         
         $appointments = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM $table_name WHERE email = %s AND status != 'cancelled' ORDER BY appointment_date ASC",
+            "SELECT id, name, email, service_id, staff_id, appointment_date, status, created_at, rescheduled_at, original_date FROM $table_name WHERE email = %s AND status != 'cancelled' ORDER BY appointment_date ASC LIMIT 100",
             $data['user_email']
         ));
 
@@ -158,7 +158,7 @@ class Appointease_Heartbeat_Handler {
         
         $booked_slots = $wpdb->get_col($wpdb->prepare(
             "SELECT TIME(appointment_date) as time_slot FROM $table_name 
-             WHERE DATE(appointment_date) = %s AND staff_id = %d AND status != 'cancelled'",
+             WHERE DATE(appointment_date) = %s AND staff_id = %d AND status != 'cancelled' AND appointment_date >= NOW()",
             $data['date'],
             $data['staff_id']
         ));
@@ -199,6 +199,11 @@ class Appointease_Heartbeat_Handler {
     }
 
     private function generate_time_slots() {
+        static $cached_slots = null;
+        if ($cached_slots !== null) {
+            return $cached_slots;
+        }
+        
         $slots = array();
         $start = new DateTime('09:00');
         $end = new DateTime('17:00');
@@ -209,6 +214,7 @@ class Appointease_Heartbeat_Handler {
             $start->add($interval);
         }
 
+        $cached_slots = $slots;
         return $slots;
     }
 

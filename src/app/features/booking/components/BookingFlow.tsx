@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { useBookingStore } from '../../../../store/bookingStore';
 import { useBookingState } from '../../../../hooks/useBookingState';
 import { StepWrapper } from '../../../shared/components/StepWrapper';
@@ -51,6 +51,18 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
     bookingDetails
   } = useBookingStore();
   const bookingState = useBookingState();
+
+  // Auto-skip step 5 if logged in and not rescheduling
+  useEffect(() => {
+    if (step === 5 && bookingState.isLoggedIn && !bookingState.isRescheduling) {
+      setFormData({
+        email: bookingState.loginEmail,
+        firstName: bookingState.loginEmail.split('@')[0],
+        phone: ''
+      });
+      setStep(6);
+    }
+  }, [step, bookingState.isLoggedIn, bookingState.isRescheduling]);
 
   return (
     <div className="appointease-booking-content wp-block-group">

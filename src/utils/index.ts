@@ -29,3 +29,6 @@ export const generateStrongId = (): string => {
 // Re-export constants for backward compatibility
 export const timeSlots = TIME_SLOTS;
 export const businessHours = BUSINESS_HOURS;
+
+// Screenshot utility
+export { captureScreenshot } from './screenshotCapture';

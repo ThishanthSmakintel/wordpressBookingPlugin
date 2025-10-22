@@ -357,6 +357,20 @@ class Booking_Plugin {
     public function __construct() {
         $this->init_hooks();
         $this->init_ajax_hooks();
+        
+        // Flush rewrite rules if needed
+        add_action('rest_api_init', array($this, 'maybe_flush_rewrite_rules'), 999);
+    }
+    
+    public function maybe_flush_rewrite_rules() {
+        // Check if we need to flush (only once after plugin update/activation)
+        $version_option = 'appointease_routes_version';
+        $current_version = get_option($version_option);
+        
+        if ($current_version !== BOOKING_PLUGIN_VERSION) {
+            flush_rewrite_rules();
+            update_option($version_option, BOOKING_PLUGIN_VERSION);
+        }
     }
     
     private function init_ajax_hooks() {

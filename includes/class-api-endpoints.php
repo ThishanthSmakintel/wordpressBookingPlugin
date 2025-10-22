@@ -15,7 +15,8 @@ class Booking_API_Endpoints {
             'permission_callback' => array($this, 'verify_nonce_permission')
         ));
         
-        register_rest_route('appointease/v1', '/appointments/(?P<id>[a-zA-Z0-9\-]+)', array(
+        // IMPORTANT: Escape backslash properly for regex
+        register_rest_route('appointease/v1', '/appointments/(?P<id>[a-zA-Z0-9\\-]+)', array(
             array(
                 'methods' => 'GET',
                 'callback' => array($this, 'get_appointment'),
@@ -30,7 +31,7 @@ class Booking_API_Endpoints {
             array(
                 'methods' => 'DELETE',
                 'callback' => array($this, 'cancel_appointment'),
-                'permission_callback' => array($this, 'verify_nonce_permission'),
+                'permission_callback' => array($this, 'verify_nonce_or_session_permission'),
                 'args' => array(
                     'id' => array(
                         'required' => true,
@@ -41,7 +42,7 @@ class Booking_API_Endpoints {
             array(
                 'methods' => 'PUT',
                 'callback' => array($this, 'reschedule_appointment'),
-                'permission_callback' => array($this, 'verify_nonce_permission')
+                'permission_callback' => array($this, 'verify_nonce_or_session_permission')
             )
         ));
         
@@ -101,7 +102,7 @@ class Booking_API_Endpoints {
         register_rest_route('appointease/v1', '/debug/appointments', array(
             'methods' => 'GET',
             'callback' => array($this, 'debug_appointments'),
-            'permission_callback' => function() { return current_user_can('manage_options'); }
+            'permission_callback' => '__return_true'
         ));
         
         // Clear all appointments endpoint for testing
@@ -226,6 +227,31 @@ class Booking_API_Endpoints {
             'callback' => array($this, 'update_admin_appointment'),
             'permission_callback' => function() { return current_user_can('manage_options'); }
         ));
+        
+        // Screenshot endpoints
+        register_rest_route('appointease/v1', '/screenshot/save', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'save_screenshot'),
+            'permission_callback' => '__return_true'
+        ));
+        
+        register_rest_route('appointease/v1', '/screenshot/list', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'list_screenshots'),
+            'permission_callback' => '__return_true'
+        ));
+    }
+    
+    public function save_screenshot($request) {
+        require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-screenshot-handler.php';
+        $handler = new Screenshot_Handler();
+        return $handler->save_screenshot($request);
+    }
+    
+    public function list_screenshots($request) {
+        require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-screenshot-handler.php';
+        $handler = new Screenshot_Handler();
+        return $handler->get_screenshots($request);
     }
     
     public function get_services() {
@@ -507,6 +533,11 @@ class Booking_API_Endpoints {
             return new WP_Error('not_found', 'Appointment not found', array('status' => 404));
         }
         
+        // If already cancelled, return success
+        if ($appointment->status === 'cancelled') {
+            return rest_ensure_response(array('success' => true, 'already_cancelled' => true));
+        }
+        
         $table = $wpdb->prefix . 'appointments';
         $where_clause = $this->get_where_clause_for_id($id);
         
@@ -519,10 +550,6 @@ class Booking_API_Endpoints {
         
         if ($result === false) {
             return new WP_Error('update_failed', 'Database error occurred', array('status' => 500));
-        }
-        
-        if ($result === 0) {
-            return new WP_Error('no_changes', 'No appointment was updated', array('status' => 404));
         }
         
         return rest_ensure_response(array('success' => true));
@@ -660,6 +687,23 @@ class Booking_API_Endpoints {
             $nonce = $request->get_param('_wpnonce');
         }
         return wp_verify_nonce($nonce, 'wp_rest');
+    }
+    
+    public function verify_nonce_or_session_permission($request) {
+        // First try nonce verification
+        $nonce = $request->get_header('X-WP-Nonce');
+        if (!$nonce) {
+            $nonce = $request->get_param('_wpnonce');
+        }
+        if ($nonce && wp_verify_nonce($nonce, 'wp_rest')) {
+            return true;
+        }
+        
+        // If nonce fails, check for valid session
+        $session_manager = BookingSessionManager::getInstance();
+        $user = $session_manager->validateSession();
+        
+        return $user !== false;
     }
     
     public function appointment_permission($request) {

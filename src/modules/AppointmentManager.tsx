@@ -13,6 +13,41 @@ export const AppointmentManager: React.FC<AppointmentManagerProps> = ({
     onCancel, 
     onBack 
 }) => {
+    const handleCancelAppointment = async () => {
+        if (!bookingState.currentAppointment?.id) return;
+        
+        bookingState.setIsCancelling(true);
+        
+        try {
+            const apiRoot = window.bookingAPI?.root || '/wp-json/';
+            const url = `${apiRoot}appointease/v1/appointments/${bookingState.currentAppointment.id}`;
+            
+            const headers: HeadersInit = {
+                'Content-Type': 'application/json'
+            };
+            
+            if (window.bookingAPI?.nonce) {
+                headers['X-WP-Nonce'] = window.bookingAPI.nonce;
+            }
+            
+            const response = await fetch(url, {
+                method: 'DELETE',
+                headers,
+                credentials: 'same-origin'
+            });
+            
+            if (response.ok) {
+                onCancel();
+            } else {
+                console.error('Failed to cancel appointment:', response.status);
+                bookingState.setIsCancelling(false);
+            }
+        } catch (error) {
+            console.error('Error cancelling appointment:', error);
+            bookingState.setIsCancelling(false);
+        }
+    }
+    
     return (
         <div className="appointease-booking">
             <div className="appointease-booking-header">
@@ -63,7 +98,7 @@ export const AppointmentManager: React.FC<AppointmentManagerProps> = ({
                                 <button 
                                     className="action-btn" 
                                     style={{background: '#dc3545'}} 
-                                    onClick={onCancel}
+                                    onClick={handleCancelAppointment}
                                     disabled={bookingState.isCancelling}
                                 >
                                     {bookingState.isCancelling ? 'Cancelling...' : 'Yes, Cancel Appointment'}

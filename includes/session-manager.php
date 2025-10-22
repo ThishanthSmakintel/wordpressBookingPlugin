@@ -60,11 +60,27 @@ class BookingSessionManager {
             return false;
         }
         
+        // Cache check
+        $cache_key = 'booking_session_' . md5($token);
+        $cached_user_id = wp_cache_get($cache_key, 'booking_sessions');
+        
+        if ($cached_user_id !== false) {
+            $user = get_user_by('id', $cached_user_id);
+            if ($user) {
+                $expiry = get_user_meta($user->ID, '_booking_session_expiry', true);
+                if (time() <= $expiry) {
+                    update_user_meta($user->ID, '_booking_last_activity', time());
+                    return $user;
+                }
+            }
+        }
+        
         // Find user by hashed token
         $user_query = new WP_User_Query([
             'meta_key' => '_booking_session_token',
             'meta_value' => hash('sha256', sanitize_text_field($token)),
-            'number' => 1
+            'number' => 1,
+            'fields' => 'ID'
         ]);
         
         $users = $user_query->get_results();
@@ -72,7 +88,8 @@ class BookingSessionManager {
             return false;
         }
         
-        $user = $users[0];
+        $user = get_user_by('id', $users[0]);
+        wp_cache_set($cache_key, $user->ID, 'booking_sessions', 300);
         $expiry = get_user_meta($user->ID, '_booking_session_expiry', true);
         
         // Check if token expired
@@ -94,6 +111,9 @@ class BookingSessionManager {
         if (!$user_id) {
             $token = $this->getTokenFromRequest();
             if ($token) {
+                $cache_key = 'booking_session_' . md5($token);
+                wp_cache_delete($cache_key, 'booking_sessions');
+                
                 $user = $this->validateSession($token);
                 if ($user) {
                     $user_id = $user->ID;
@@ -174,7 +194,8 @@ class BookingSessionManager {
         $expired_users = $wpdb->get_results($wpdb->prepare("
             SELECT user_id FROM {$wpdb->usermeta} 
             WHERE meta_key = '_booking_session_expiry' 
-            AND meta_value < %d
+            AND CAST(meta_value AS UNSIGNED) < %d
+            LIMIT 100
         ", $expired_time));
         
         foreach ($expired_users as $user) {

@@ -108,74 +108,62 @@ const DateSelector: React.FC<DateSelectorProps> = ({ isReschedule = false }) => 
         });
         setDateStatuses(newStatuses);
         
-        // Debug log for rescheduling
-        console.log('[DateSelector] Checking availability - isReschedule:', isReschedule, 'currentAppointment:', bookingState.currentAppointment?.id, 'employeeId:', employeeId);
-        
-        // Check each date
+        // Check dates in batches for better performance
         const checkDates = async () => {
-            for (const date of dates) {
-                const dateString = formatDateString(date);
-                
-                try {
-                    let response;
+            const batchSize = 5;
+            for (let i = 0; i < dates.length; i += batchSize) {
+                const batch = dates.slice(i, i + batchSize);
+                await Promise.all(batch.map(async (date) => {
+                    const dateString = formatDateString(date);
                     
-                    if (isReschedule && bookingState.currentAppointment?.id) {
-                        // Use reschedule endpoint that excludes current appointment
-                        response = await checkRescheduleAvailability({
-                            date: dateString,
-                            employee_id: employeeId,
-                            exclude_appointment_id: bookingState.currentAppointment.id
+                    try {
+                        let response;
+                        
+                        if (isReschedule && bookingState.currentAppointment?.id) {
+                            response = await checkRescheduleAvailability({
+                                date: dateString,
+                                employee_id: employeeId,
+                                exclude_appointment_id: bookingState.currentAppointment.id
+                            });
+                        } else {
+                            response = await checkAvailability({
+                                date: dateString,
+                                employee_id: employeeId
+                            });
+                        }
+                        
+                        const isAvailable = response.unavailable !== 'all';
+                        const reason = response.reason;
+                        let bookingCount = 0;
+                        
+                        if (Array.isArray(response.unavailable)) {
+                            bookingCount = response.unavailable.length;
+                        } else if (response.booking_details && typeof response.booking_details === 'object') {
+                            bookingCount = Object.keys(response.booking_details).length;
+                        }
+                        
+                        setDateStatuses(prev => {
+                            const updated = new Map(prev);
+                            updated.set(dateString, {
+                                isAvailable,
+                                reason: isAvailable ? undefined : reason,
+                                isLoading: false,
+                                bookingCount
+                            });
+                            return updated;
                         });
-                    } else {
-                        // Use regular availability endpoint
-                        response = await checkAvailability({
-                            date: dateString,
-                            employee_id: employeeId
+                    } catch (error) {
+                        setDateStatuses(prev => {
+                            const updated = new Map(prev);
+                            updated.set(dateString, {
+                                isAvailable: false,
+                                reason: 'error',
+                                isLoading: false
+                            });
+                            return updated;
                         });
                     }
-                    
-                    console.log(`[DateSelector] ${dateString} response:`, response);
-                    console.log(`[DateSelector] API endpoint used:`, isReschedule ? 'reschedule-availability' : 'availability');
-                    console.log(`[DateSelector] Exclude appointment ID:`, isReschedule ? bookingState.currentAppointment?.id : 'none');
-                    
-                    const isAvailable = response.unavailable !== 'all';
-                    const reason = response.reason;
-                    let bookingCount = 0;
-                    
-                    // Get actual booking count from API response
-                    if (Array.isArray(response.unavailable)) {
-                        bookingCount = response.unavailable.length;
-                    } else if (response.booking_details && typeof response.booking_details === 'object') {
-                        bookingCount = Object.keys(response.booking_details).length;
-                    }
-                    
-                    // Debug: Log the actual counts
-                    console.log(`[DateSelector] ${dateString} - Raw bookingCount: ${bookingCount}, unavailable:`, response.unavailable, 'booking_details:', response.booking_details);
-                    console.log(`[DateSelector] ${dateString} - Reschedule mode:`, isReschedule, 'Current appointment:', bookingState.currentAppointment?.id);
-                    
-                    console.log(`[DateSelector] ${dateString} - Available: ${isAvailable}, Count: ${bookingCount}, Rescheduling: ${isReschedule}, Response:`, response);
-                    
-                    setDateStatuses(prev => {
-                        const updated = new Map(prev);
-                        updated.set(dateString, {
-                            isAvailable,
-                            reason: isAvailable ? undefined : reason,
-                            isLoading: false,
-                            bookingCount
-                        });
-                        return updated;
-                    });
-                } catch (error) {
-                    setDateStatuses(prev => {
-                        const updated = new Map(prev);
-                        updated.set(dateString, {
-                            isAvailable: false,
-                            reason: 'error',
-                            isLoading: false
-                        });
-                        return updated;
-                    });
-                }
+                }));
             }
         };
         
@@ -307,11 +295,11 @@ const DateSelector: React.FC<DateSelectorProps> = ({ isReschedule = false }) => 
                 </button>
             </div>
             
-            <div style={{maxWidth: '800px', margin: '0 auto'}}>
+            <div style={{maxWidth: '100%', margin: '0 auto', padding: '0 20px'}}>
                 <div style={{
                     display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
-                    gap: '16px',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
+                    gap: '12px',
                     marginBottom: '32px'
                 }}>
                     {generateCalendar.map((date: Date, index: number) => {

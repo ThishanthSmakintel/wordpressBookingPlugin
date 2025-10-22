@@ -36,6 +36,12 @@ composer.lock
 *.backup
 *~
 
+# Debug screenshots (local only)
+debug-screenshots/*.png
+debug-screenshots/ui-states/*.png
+debug-screenshots/errors/*.png
+debug-screenshots/flows/*.png
+
 # OS generated files
 .DS_Store
 .DS_Store?

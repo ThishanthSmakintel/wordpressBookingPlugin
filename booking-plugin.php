@@ -33,6 +33,7 @@ function booking_plugin_require_file($file) {
     }
 }
 
+booking_plugin_require_file('includes/class-security-helper.php');
 booking_plugin_require_file('includes/class-activator.php');
 booking_plugin_require_file('includes/class-deactivator.php');
 booking_plugin_require_file('includes/class-booking-plugin.php');

@@ -36,7 +36,7 @@ const CustomerInfoForm: React.FC<CustomerInfoFormProps> = ({
     return (
         <div className="appointease-step-content">
             <h2 style={{fontSize: '2rem', fontWeight: '700', textAlign: 'center', marginBottom: '1rem', color: '#1f2937'}}>Almost Done!</h2>
-            <p style={{textAlign: 'center', color: '#6b7280', marginBottom: '2rem', fontSize: '1.1rem'}}>Please provide your contact information</p>
+            {!isLoggedIn && <p style={{textAlign: 'center', color: '#6b7280', marginBottom: '2rem', fontSize: '1.1rem'}}>Please provide your contact information</p>}
             
             <div style={{maxWidth: '600px', margin: '0 auto'}}>
                 <form onSubmit={onSubmit} noValidate>
@@ -52,7 +52,8 @@ const CustomerInfoForm: React.FC<CustomerInfoFormProps> = ({
                                     if (errors.email) clearError('email');
                                     
                                     if (sanitized && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(sanitized)) {
-                                        setTimeout(() => checkExistingEmail(sanitized), 500);
+                                        const timeoutId = setTimeout(() => checkExistingEmail(sanitized), 800);
+                                        return () => clearTimeout(timeoutId);
                                     }
                                 }}
                                 style={{
