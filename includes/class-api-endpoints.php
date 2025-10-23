@@ -407,10 +407,11 @@ class Booking_API_Endpoints {
             return new WP_Error('missing_fields', 'Required fields missing', array('status' => 400));
         }
         
-        $name = sanitize_text_field($params['name']);
-        $email = sanitize_email($params['email']);
-        $phone = sanitize_text_field($params['phone'] ?? '');
-        $date = sanitize_text_field($params['date']);
+        // Sanitize and trim all inputs
+        $name = trim(sanitize_text_field($params['name']));
+        $email = trim(strtolower(sanitize_email($params['email'])));
+        $phone = trim(sanitize_text_field($params['phone'] ?? ''));
+        $date = trim(sanitize_text_field($params['date']));
         $service_id = intval($params['service_id'] ?? 1);
         $employee_id = intval($params['employee_id'] ?? 1);
         
@@ -419,21 +420,33 @@ class Booking_API_Endpoints {
             return new WP_Error('invalid_data', 'Name, email and date are required', array('status' => 400));
         }
         
-        // Validate name length and characters
-        if (strlen($name) > 100 || !preg_match('/^[a-zA-Z\s\-\.]+$/', $name)) {
-            return new WP_Error('invalid_name', 'Invalid name format', array('status' => 400));
+        // Validate name
+        if (strlen($name) < 2) {
+            return new WP_Error('invalid_name', 'Name must be at least 2 characters', array('status' => 400));
+        }
+        if (strlen($name) > 100) {
+            return new WP_Error('invalid_name', 'Name must not exceed 100 characters', array('status' => 400));
+        }
+        if (!preg_match('/^[a-zA-Z\s\-\.]+$/', $name)) {
+            return new WP_Error('invalid_name', 'Name must contain only letters, spaces, hyphens, and dots', array('status' => 400));
         }
         
-        // Validate email format
-        if (!is_email($email) || strlen($email) > 100) {
+        // Validate email
+        if (!is_email($email)) {
             return new WP_Error('invalid_email', 'Invalid email format', array('status' => 400));
+        }
+        if (strlen($email) > 100) {
+            return new WP_Error('invalid_email', 'Email must not exceed 100 characters', array('status' => 400));
         }
         
         // Validate phone if provided
         if (!empty($phone)) {
             $phone_clean = preg_replace('/[^0-9]/', '', $phone);
-            if (strlen($phone_clean) < 10 || strlen($phone_clean) > 15) {
-                return new WP_Error('invalid_phone', 'Phone must be 10-15 digits', array('status' => 400));
+            if (strlen($phone_clean) < 10) {
+                return new WP_Error('invalid_phone', 'Phone must have at least 10 digits', array('status' => 400));
+            }
+            if (strlen($phone_clean) > 15) {
+                return new WP_Error('invalid_phone', 'Phone must not exceed 15 digits', array('status' => 400));
             }
             if (!preg_match('/^[\d\s\-\+\(\)]+$/', $phone)) {
                 return new WP_Error('invalid_phone', 'Invalid phone format', array('status' => 400));

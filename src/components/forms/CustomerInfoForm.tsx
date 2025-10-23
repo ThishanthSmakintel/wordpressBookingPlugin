@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { useAppointmentStore as useBookingStore } from '../../hooks/useAppointmentStore';
 import { useBookingState } from '../../hooks/useBookingState';
 import { sanitizeInput } from '../../utils';
+import { validateBookingForm, sanitizeFormData, sanitizeString } from '../../utils/validation';
 import { FormData, FormErrors, Service, Employee } from '../../types';
 import { checkCustomer } from '../../services/api';
 
@@ -45,26 +46,18 @@ const CustomerInfoForm: React.FC<CustomerInfoFormProps> = ({
     });
     
     const validateForm = () => {
-        const newErrors: any = {};
-        
-        if (!formData?.email?.trim()) {
-            newErrors.email = 'Email is required';
-        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
-            newErrors.email = 'Please enter a valid email address';
-        }
-        
-        if (!formData?.firstName?.trim()) {
-            newErrors.firstName = 'Name is required';
-        }
-        
-        setErrors(newErrors);
-        return Object.keys(newErrors).length === 0;
+        const validation = validateBookingForm(formData);
+        setErrors(validation.errors);
+        return validation.valid;
     };
     
     const handleFormSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         
         if (validateForm()) {
+            // Sanitize data before submission
+            const sanitized = sanitizeFormData(formData);
+            setFormData(sanitized);
             onSubmit(e);
         }
     };
