@@ -134,9 +134,10 @@
         },
         {
           "id": "C13",
-          "title": "Verified Environment Reference",
-          "
+          "title": "Use Development Build Commands",
+          "description": "Always use 'npm run dev' for real-time development builds with watch mode. Only use 'npm run build' when specifically needed for production deployment."
         }
+      ]
     }
   }
 }

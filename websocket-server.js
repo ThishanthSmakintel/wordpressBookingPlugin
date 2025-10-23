@@ -7,7 +7,7 @@ const DB_CONFIG = {
     host: 'localhost',
     user: 'root',
     password: '',
-    database: 'wordpress'
+    database: 'blog_promoplus_com'  // Updated to match your WordPress database
 };
 
 const server = http.createServer();
@@ -18,31 +18,35 @@ const clients = new Map();
 wss.on('connection', (ws, req) => {
     const url = new URL(req.url, `http://${req.headers.host}`);
     const email = url.searchParams.get('email');
+    const clientId = email || `anonymous_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    if (!email) {
-        ws.close(1008, 'Email required');
-        return;
-    }
-    
-    clients.set(email, ws);
-    console.log(`[WebSocket] Client connected: ${email}`);
+    clients.set(clientId, { ws, email, isAnonymous: !email });
+    console.log(`[WebSocket] Client connected: ${email || 'Anonymous'} (ID: ${clientId})`);
     
     ws.send(JSON.stringify({
         type: 'connection',
+        mode: 'websocket',
         status: 'connected',
+        clientId: clientId,
+        isAnonymous: !email,
         timestamp: Date.now()
     }));
     
     ws.on('message', async (message) => {
         try {
             const data = JSON.parse(message);
-            console.log(`[WebSocket] Message from ${email}:`, data);
+            console.log(`[WebSocket] Message from ${email || 'Anonymous'}:`, data);
             
-            if (data.type === 'subscribe') {
+            if (data.type === 'subscribe' && email) {
                 const appointments = await getAppointments(email);
                 ws.send(JSON.stringify({
                     type: 'update',
                     data: { appointments },
+                    timestamp: Date.now()
+                }));
+            } else if (data.type === 'ping') {
+                ws.send(JSON.stringify({
+                    type: 'pong',
                     timestamp: Date.now()
                 }));
             }
@@ -52,12 +56,12 @@ wss.on('connection', (ws, req) => {
     });
     
     ws.on('close', () => {
-        clients.delete(email);
-        console.log(`[WebSocket] Client disconnected: ${email}`);
+        clients.delete(clientId);
+        console.log(`[WebSocket] Client disconnected: ${email || 'Anonymous'} (ID: ${clientId})`);
     });
     
     ws.on('error', (error) => {
-        console.error(`[WebSocket] Error for ${email}:`, error);
+        console.error(`[WebSocket] Error for ${email || 'Anonymous'}:`, error);
     });
 });
 
@@ -75,33 +79,40 @@ async function getAppointments(email) {
 }
 
 async function broadcastUpdate(email, data) {
-    const client = clients.get(email);
-    if (client && client.readyState === WebSocket.OPEN) {
-        client.send(JSON.stringify({
-            type: 'update',
-            data,
-            timestamp: Date.now()
-        }));
+    for (const [clientId, client] of clients.entries()) {
+        if (client.email === email && client.ws.readyState === WebSocket.OPEN) {
+            client.ws.send(JSON.stringify({
+                type: 'update',
+                data,
+                timestamp: Date.now()
+            }));
+        }
     }
 }
 
 setInterval(async () => {
-    for (const [email, ws] of clients.entries()) {
-        if (ws.readyState === WebSocket.OPEN) {
+    for (const [clientId, client] of clients.entries()) {
+        if (client.ws.readyState === WebSocket.OPEN && client.email) {
             try {
-                const appointments = await getAppointments(email);
-                ws.send(JSON.stringify({
+                const appointments = await getAppointments(client.email);
+                client.ws.send(JSON.stringify({
                     type: 'update',
                     data: { appointments },
                     timestamp: Date.now()
                 }));
             } catch (error) {
-                console.error(`[WebSocket] Polling error for ${email}:`, error);
+                console.error(`[WebSocket] Polling error for ${client.email}:`, error);
             }
         }
     }
 }, 5000);
 
-server.listen(PORT, () => {
+server.listen(PORT, '0.0.0.0', () => {
     console.log(`[WebSocket] Server running on port ${PORT}`);
+    console.log(`\n🔗 WebSocket URLs:`);
+    console.log(`   Local:     ws://localhost:${PORT}`);
+    console.log(`   Domain:    ws://blog.promoplus.com:${PORT}`);
+    console.log(`   Example:   ws://blog.promoplus.com:${PORT}?email=user@example.com`);
+    console.log(`\n🌐 WordPress Site: http://blog.promoplus.com/`);
+    console.log(`\n✅ Ready for connections!\n`);
 });

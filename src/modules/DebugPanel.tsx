@@ -166,18 +166,13 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState
                     <div style={{marginTop: '8px', padding: '8px', background: 'rgba(0,255,0,0.1)', borderRadius: '4px', border: '1px solid rgba(0,255,0,0.3)'}}>
                         <div style={{color: '#0f0', fontSize: '10px', marginBottom: '4px'}}>⚡ REAL-TIME LATENCY</div>
                         <div style={{fontSize: '20px', fontWeight: 'bold', color: '#0f0'}}>{wsLatency}ms</div>
-                        <div style={{fontSize: '9px', color: '#8f8', marginTop: '2px'}}>Round-trip time (ping → server → pong)</div>
+                        <div style={{fontSize: '9px', color: '#8f8', marginTop: '2px'}}>Round-trip time</div>
                     </div>
                 )}
                 <div style={{marginTop: '4px'}}>
                     <span style={{color: '#ff0'}}>🔌 Connection: </span>
                     {connectionMode === 'websocket' && (
-                        <span style={{color: '#0f0'}}>
-                            ⚡ WebSocket
-                            <span style={{marginLeft: '8px', background: 'rgba(0,255,0,0.2)', padding: '2px 8px', borderRadius: '4px', fontSize: '10px'}}>
-                                {wsLatency}ms latency
-                            </span>
-                        </span>
+                        <span style={{color: '#0f0'}}>⚡ WebSocket</span>
                     )}
                     {connectionMode === 'polling' && <span style={{color: '#fa0'}}>🔄 HTTP Polling</span>}
                     {connectionMode === 'disconnected' && <span style={{color: '#f00'}}>❌ Disconnected</span>}

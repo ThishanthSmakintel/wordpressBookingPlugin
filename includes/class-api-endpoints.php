@@ -1358,7 +1358,21 @@ class Booking_API_Endpoints {
         register_rest_route('appointease/v1', '/realtime/poll', array(
             'methods' => 'GET',
             'callback' => array($this, 'realtime_poll'),
-            'permission_callback' => '__return_true'
+            'permission_callback' => array($this, 'public_permission')
+        ));
+        
+        // Add realtime subscribe endpoint
+        register_rest_route('appointease/v1', '/realtime/subscribe', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'realtime_subscribe'),
+            'permission_callback' => array($this, 'public_permission')
+        ));
+        
+        // Add realtime broadcast endpoint
+        register_rest_route('appointease/v1', '/realtime/broadcast', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'realtime_broadcast'),
+            'permission_callback' => function() { return current_user_can('manage_options'); }
         ));
     }
     

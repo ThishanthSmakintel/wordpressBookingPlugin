@@ -96,7 +96,8 @@ export class RealtimeService {
           clearTimeout(timeout);
           this.mode = 'websocket';
           this.reconnectAttempts = 0;
-          console.log('[RealtimeService] WebSocket connected');
+          console.log('[RealtimeService] WebSocket connected successfully!');
+          console.log('[RealtimeService] Emitting connection event: websocket');
           this.emit('connection', { mode: 'websocket', status: 'connected' });
           this.startPingPong();
           resolve(true);

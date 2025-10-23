@@ -4,12 +4,20 @@
   "description": "WebSocket server for AppointEase real-time updates",
   "main": "websocket-server.js",
   "scripts": {
-    "start": "node websocket-server.js",
-    "dev": "nodemon websocket-server.js"
+    "build": "wp-scripts build",
+    "start": "wp-scripts start",
+    "dev": "wp-scripts start",
+    "ws:start": "node websocket-server.js",
+    "ws:dev": "nodemon websocket-server.js"
   },
   "dependencies": {
-    "ws": "^8.14.2",
-    "mysql2": "^3.6.5"
+    "@wordpress/scripts": "^26.0.0",
+    "bootstrap": "^5.3.8",
+    "date-fns": "^4.1.0",
+    "html2canvas": "^1.4.1",
+    "mysql2": "^3.6.5",
+    "react-bootstrap": "^2.10.10",
+    "ws": "^8.14.2"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"

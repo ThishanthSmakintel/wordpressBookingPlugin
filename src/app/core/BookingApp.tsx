@@ -81,7 +81,7 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
         const email = bookingState.loginEmail;
         const root = window.bookingAPI?.root || '/wp-json/';
         
-        const wsUrl = window.bookingAPI?.wsUrl || `ws://${window.location.hostname}:8080`;
+        const wsUrl = window.bookingAPI?.wsUrl || `ws://blog.promoplus.com:8080`;
         
         console.log('[BookingApp] Realtime config:', {
             email,
@@ -103,12 +103,18 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                 }
             },
             onConnectionChange: (mode: string) => {
+                console.log('[BookingApp] Connection mode changed to:', mode);
                 debugState.setConnectionMode?.(mode);
             }
         };
     }, [bookingState.isLoggedIn, bookingState.showDashboard, bookingState.loginEmail]);
     
     const { connectionMode, isConnected: isRealtimeConnected, subscribe } = useRealtime(realtimeConfig);
+    
+    // Debug connectionMode
+    useEffect(() => {
+        console.log('[BookingApp] connectionMode from useRealtime:', connectionMode);
+    }, [connectionMode]);
     const [wsLatency, setWsLatency] = React.useState<number>(0);
     
     React.useEffect(() => {
