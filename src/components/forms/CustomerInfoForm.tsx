@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { useAppointmentStore as useBookingStore } from '../../hooks/useAppointmentStore';
+import { useBookingState } from '../../hooks/useBookingState';
 import { sanitizeInput } from '../../utils';
 import { FormData, FormErrors, Service, Employee } from '../../types';
 import { checkCustomer } from '../../services/api';
@@ -33,6 +34,13 @@ const CustomerInfoForm: React.FC<CustomerInfoFormProps> = ({
         setErrors,
         clearError
     } = useBookingStore();
+    const bookingState = useBookingState();
+    
+    // Ensure form fields are editable during reschedule
+    const isFieldDisabled = (fieldName: string) => {
+        // Never disable fields during reschedule to allow editing
+        return false;
+    };
     return (
         <div className="appointease-step-content">
             <h2 style={{fontSize: '2rem', fontWeight: '700', textAlign: 'center', marginBottom: '1rem', color: '#1f2937'}}>Almost Done!</h2>
@@ -66,7 +74,7 @@ const CustomerInfoForm: React.FC<CustomerInfoFormProps> = ({
                                     backgroundColor: existingUser?.exists ? '#f9fafb' : 'white'
                                 }}
                                 placeholder="Enter your email address"
-                                disabled={existingUser && existingUser.exists}
+                                disabled={isFieldDisabled('email')}
                                 onFocus={(e) => {
                                     if (!errors.email) e.target.style.borderColor = '#3b82f6';
                                 }}
@@ -105,7 +113,7 @@ const CustomerInfoForm: React.FC<CustomerInfoFormProps> = ({
                                     backgroundColor: existingUser?.exists ? '#f9fafb' : 'white'
                                 }}
                                 placeholder="Enter your name"
-                                disabled={existingUser?.exists}
+                                disabled={isFieldDisabled('firstName')}
                                 onFocus={(e) => {
                                     if (!errors.firstName) e.target.style.borderColor = '#3b82f6';
                                 }}
@@ -142,7 +150,7 @@ const CustomerInfoForm: React.FC<CustomerInfoFormProps> = ({
                                     backgroundColor: existingUser?.exists ? '#f9fafb' : 'white'
                                 }}
                                 placeholder="(555) 123-4567"
-                                disabled={existingUser?.exists}
+                                disabled={isFieldDisabled('phone')}
                                 onFocus={(e) => {
                                     if (!errors.phone) e.target.style.borderColor = '#3b82f6';
                                 }}
@@ -188,7 +196,7 @@ const CustomerInfoForm: React.FC<CustomerInfoFormProps> = ({
                                 marginTop: '8px'
                             }}>
                                 <span style={{fontSize: '1.1rem', fontWeight: '600', color: '#1f2937'}}>Total:</span>
-                                <span style={{fontSize: '1.25rem', fontWeight: '700', color: '#10b981'}}>${selectedService?.price}</span>
+                                <span style={{fontSize: '1.25rem', fontWeight: '700', color: '#10b981'}}>No additional charge</span>
                             </div>
                         </div>
                     </div>
@@ -233,12 +241,12 @@ const CustomerInfoForm: React.FC<CustomerInfoFormProps> = ({
                             {isSubmitting ? (
                                 <>
                                     <i className="fas fa-spinner fa-spin"></i>
-                                    BOOKING...
+                                    {bookingState.isRescheduling ? 'RESCHEDULING...' : 'BOOKING...'}
                                 </>
                             ) : (
                                 <>
                                     <i className="fas fa-check"></i>
-                                    CONFIRM BOOKING
+                                    {bookingState.isRescheduling ? 'RESCHEDULE APPOINTMENT' : 'CONFIRM BOOKING'}
                                 </>
                             )}
                         </button>

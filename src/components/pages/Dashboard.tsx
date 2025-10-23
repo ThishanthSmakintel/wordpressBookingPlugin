@@ -278,11 +278,11 @@ const Dashboard: React.FC<DashboardProps> = ({
                                                     <span>{sanitizeInput(appointment.staff || 'Dr. Smith')}</span>
                                                 </div>
                                                 <div className="d-flex gap-1">
-                                                    <Button variant="success" size="sm" disabled={isPast} onClick={() => onReschedule(appointment)} style={{fontSize: '0.7rem', padding: '0.25rem 0.5rem'}}>
+                                                    <Button variant="success" size="sm" disabled={isPast || appointment.status === 'cancelled'} onClick={() => onReschedule(appointment)} style={{fontSize: '0.7rem', padding: '0.25rem 0.5rem'}}>
                                                         <i className="fas fa-calendar-alt"></i>
                                                         <span className="d-none d-lg-inline ms-1">Reschedule</span>
                                                     </Button>
-                                                    <Button variant="danger" size="sm" disabled={isPast} onClick={() => onCancel(appointment)} style={{fontSize: '0.7rem', padding: '0.25rem 0.5rem'}}>
+                                                    <Button variant="danger" size="sm" disabled={isPast || appointment.status === 'cancelled'} onClick={() => onCancel(appointment)} style={{fontSize: '0.7rem', padding: '0.25rem 0.5rem'}}>
                                                         <i className="fas fa-times"></i>
                                                         <span className="d-none d-lg-inline ms-1">Cancel</span>
                                                     </Button>
@@ -383,9 +383,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                                                         <Button 
                                                             variant="success" 
                                                             size="sm"
-                                                            disabled={isPast}
+                                                            disabled={isPast || appointment.status === 'cancelled'}
                                                             onClick={() => onReschedule(appointment)}
-                                                            title="Reschedule this appointment"
+                                                            title={appointment.status === 'cancelled' ? 'Cannot reschedule cancelled appointment' : 'Reschedule this appointment'}
                                                             className="flex-fill"
                                                             style={{fontSize: '0.7rem', padding: '0.25rem 0.5rem'}}
                                                         >
@@ -395,9 +395,9 @@ const Dashboard: React.FC<DashboardProps> = ({
                                                         <Button 
                                                             variant="danger" 
                                                             size="sm"
-                                                            disabled={isPast}
+                                                            disabled={isPast || appointment.status === 'cancelled'}
                                                             onClick={() => onCancel(appointment)}
-                                                            title="Cancel this appointment"
+                                                            title={appointment.status === 'cancelled' ? 'Appointment already cancelled' : 'Cancel this appointment'}
                                                             className="flex-fill"
                                                             style={{fontSize: '0.7rem', padding: '0.25rem 0.5rem'}}
                                                         >

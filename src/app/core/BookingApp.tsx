@@ -226,61 +226,66 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
         }
     }, [step]);
 
-    useEffect(() => {
-        const fetchAllData = async () => {
-            if (!window.bookingAPI) return;
-            try {
-                const appointmentsRes = await fetch(`${window.bookingAPI.root}appointease/v1/debug/appointments`);
-                if (appointmentsRes.ok) {
-                    const data = await appointmentsRes.json();
-                    debugState.setAllBookings(data.all_appointments || []);
-                }
-                
-                const servicesRes = await fetch(`${window.bookingAPI.root}booking/v1/services`);
-                if (servicesRes.ok) {
-                    const servicesData = await servicesRes.json();
-                    debugState.setDebugServices(servicesData || []);
-                }
-                
-                const staffRes = await fetch(`${window.bookingAPI.root}booking/v1/staff`);
-                if (staffRes.ok) {
-                    const staffData = await staffRes.json();
-                    debugState.setDebugStaff(staffData || []);
-                }
-                
-                // Fetch working days and time slots from API
-                const settingsRes = await fetch(`${window.bookingAPI.root}appointease/v1/business-hours`);
-                if (settingsRes.ok) {
-                    const settingsData = await settingsRes.json();
-                    debugState.setWorkingDays(settingsData.working_days || ['1', '2', '3', '4', '5']);
-                }
-                
-                const timeSlotsRes = await fetch(`${window.bookingAPI.root}appointease/v1/time-slots`);
-                if (timeSlotsRes.ok) {
-                    const timeSlotsData = await timeSlotsRes.json();
-                    debugState.setDebugTimeSlots(timeSlotsData.time_slots || []);
-                }
-                
-                if (selectedEmployee && selectedDate) {
-                    const availRes = await fetch(`${window.bookingAPI.root}booking/v1/availability`, {
-                        method: 'POST',
-                        headers: {'Content-Type': 'application/json'},
-                        body: JSON.stringify({date: selectedDate, employee_id: selectedEmployee.id})
-                    });
-                    if (availRes.ok) {
-                        const availData = await availRes.json();
-                        debugState.setAvailabilityData(availData);
-                    }
-                }
-            } catch (error) {
-                console.error('Debug fetch failed:', error);
-            }
-        };
+    const fetchDebugData = useCallback(async () => {
+        if (!window.bookingAPI || !debugState.showDebug) return;
         
-        fetchAllData();
-        const interval = setInterval(fetchAllData, 2000);
+        try {
+            const [appointmentsRes, servicesRes, staffRes, settingsRes, timeSlotsRes] = await Promise.all([
+                fetch(`${window.bookingAPI.root}appointease/v1/debug/appointments`),
+                fetch(`${window.bookingAPI.root}booking/v1/services`),
+                fetch(`${window.bookingAPI.root}booking/v1/staff`),
+                fetch(`${window.bookingAPI.root}appointease/v1/business-hours`),
+                fetch(`${window.bookingAPI.root}appointease/v1/time-slots`)
+            ]);
+            
+            if (appointmentsRes.ok) {
+                const data = await appointmentsRes.json();
+                debugState.setAllBookings(data.all_appointments || []);
+            }
+            
+            if (servicesRes.ok) {
+                const servicesData = await servicesRes.json();
+                debugState.setDebugServices(servicesData || []);
+            }
+            
+            if (staffRes.ok) {
+                const staffData = await staffRes.json();
+                debugState.setDebugStaff(staffData || []);
+            }
+            
+            if (settingsRes.ok) {
+                const settingsData = await settingsRes.json();
+                debugState.setWorkingDays(settingsData.working_days || ['1', '2', '3', '4', '5']);
+            }
+            
+            if (timeSlotsRes.ok) {
+                const timeSlotsData = await timeSlotsRes.json();
+                debugState.setDebugTimeSlots(timeSlotsData.time_slots || []);
+            }
+            
+            if (selectedEmployee && selectedDate) {
+                const availRes = await fetch(`${window.bookingAPI.root}booking/v1/availability`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({date: selectedDate, employee_id: selectedEmployee.id})
+                });
+                if (availRes.ok) {
+                    const availData = await availRes.json();
+                    debugState.setAvailabilityData(availData);
+                }
+            }
+        } catch (error) {
+            console.error('Debug fetch failed:', error);
+        }
+    }, [selectedEmployee, selectedDate, debugState.showDebug]);
+    
+    useEffect(() => {
+        if (!debugState.showDebug) return;
+        
+        fetchDebugData();
+        const interval = setInterval(fetchDebugData, 5000); // Reduced frequency
         return () => clearInterval(interval);
-    }, [selectedEmployee, selectedDate]);
+    }, [fetchDebugData, debugState.showDebug]);
 
     // ✅ useImperativeHandle
     React.useImperativeHandle(ref, () => ({
@@ -397,6 +402,16 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                     // Fetch actual employee ID from staff list
                     const matchingEmployee = employees.find(emp => emp.name === appointment.staff);
                     setSelectedEmployee(matchingEmployee || {id: 1, name: appointment.staff});
+                    // For logged-in users, keep their info; for others, clear it
+                    if (bookingState.isLoggedIn) {
+                        setFormData({
+                            firstName: appointment.name || bookingState.loginEmail.split('@')[0],
+                            email: bookingState.loginEmail,
+                            phone: appointment.phone || ''
+                        });
+                    } else {
+                        setFormData({ firstName: '', lastName: '', email: '', phone: '' });
+                    }
                     bookingState.setIsRescheduling(true);
                     bookingState.setShowDashboard(false);
                     setStep(3);
@@ -429,6 +444,16 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                     // Match employee by name from staff list
                     const matchingEmployee = employees.find(emp => emp.name === bookingState.currentAppointment?.staff_name);
                     setSelectedEmployee(matchingEmployee || {id: 1, name: bookingState.currentAppointment?.staff_name || 'Staff Member'});
+                    // For logged-in users, keep their info; for others, clear it
+                    if (bookingState.isLoggedIn) {
+                        setFormData({
+                            firstName: bookingState.currentAppointment?.name || bookingState.loginEmail.split('@')[0],
+                            email: bookingState.loginEmail,
+                            phone: bookingState.currentAppointment?.phone || ''
+                        });
+                    } else {
+                        setFormData({ firstName: '', lastName: '', email: '', phone: '' });
+                    }
                     bookingState.setIsRescheduling(true);
                     setStep(3); 
                     bookingState.setManageMode(false);

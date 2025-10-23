@@ -1,7 +1,8 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useAppointmentStore } from '../../hooks/useAppointmentStore';
 import { useBookingState } from '../../hooks/useBookingState';
 import { SettingsService } from '../../app/shared/services/settings.service';
+import { format, parseISO } from 'date-fns';
 
 // Helper function to get time slot styles
 const getTimeSlotStyles = (isCurrentAppointment: boolean, isUnavailable: boolean, isSelected: boolean) => {
@@ -52,66 +53,20 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
     const bookingState = useBookingState();
     const [tempSelected, setTempSelected] = useState<string>(selectedTime || '');
     
-    // Memoize current appointment time calculation
+    // Memoize current appointment time calculation using date-fns
     const currentAppointmentTime = useMemo(() => {
         if (isRescheduling && currentAppointment?.appointment_date) {
-            const aptDate = new Date(currentAppointment.appointment_date);
-            return `${aptDate.getHours().toString().padStart(2, '0')}:${aptDate.getMinutes().toString().padStart(2, '0')}`;
+            try {
+                const aptDate = parseISO(currentAppointment.appointment_date);
+                return format(aptDate, 'HH:mm');
+            } catch {
+                return null;
+            }
         }
         return null;
     }, [isRescheduling, currentAppointment?.appointment_date]);
     
-    // BOOKING DEBUG - API Testing
-    console.log('=== BOOKING DEBUG - API TESTING ===');
-    console.log('[TimeSelector] Props received:', {
-        unavailableSlots,
-        timezone,
-        bookingDetails,
-        selectedDate,
-        isRescheduling,
-        currentAppointment
-    });
-    console.log('[TimeSelector] Current appointment time:', currentAppointmentTime);
-    console.log('[TimeSelector] window.bookingAPI available:', !!(window as any).bookingAPI);
-    if ((window as any).bookingAPI) {
-        console.log('[TimeSelector] API root:', (window as any).bookingAPI.root);
-    }
-    
-    // Test all available API endpoints
-    React.useEffect(() => {
-        const testAllAPIs = async () => {
-            console.log('=== BOOKING DEBUG - TESTING ALL APIs ===');
-            const baseUrl = window.location.origin;
-            const endpoints = [
-                '/wp-json/appointease/v1/settings',
-                '/wp-json/appointease/v1/time-slots', 
-                '/wp-json/appointease/v1/business-hours',
-                '/wp-json/booking/v1/services',
-                '/wp-json/booking/v1/staff',
-                '/wp-json/booking/v1/availability',
-                '/wp-json/appointease/v1/server-date'
-            ];
-            
-            for (const endpoint of endpoints) {
-                try {
-                    const response = await fetch(`${baseUrl}${endpoint}`);
-                    console.log(`API TEST ${endpoint}: ${response.status}`);
-                    if (response.ok) {
-                        const data = await response.json();
-                        console.log(`  SUCCESS:`, data);
-                    } else {
-                        const error = await response.text();
-                        console.log(`  ERROR:`, error);
-                    }
-                } catch (e) {
-                    console.log(`API TEST ${endpoint}: FAILED -`, e.message);
-                }
-            }
-            console.log('=== END API TESTING ===');
-        };
-        
-        testAllAPIs();
-    }, []);
+
     
     const handleTimeSelect = (time: string) => {
         if (unavailableSlots !== 'all' && (!Array.isArray(unavailableSlots) || !unavailableSlots.includes(time))) {
@@ -137,52 +92,30 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
     const [errorDetails, setErrorDetails] = useState<string>('');
     
     // Load time slots from settings API
-    useEffect(() => {
-        const loadTimeSlots = async () => {
-            try {
-                console.log('[TimeSelector] Loading time slots from API...');
-                
-                console.log('=== BOOKING DEBUG - LOADING TIME SLOTS ===');
-                
-                // Check API availability first
-                const settingsService = SettingsService.getInstance();
-                const apiAvailable = await settingsService.checkAPIAvailability();
-                
-                console.log('[TimeSelector] API availability check result:', apiAvailable);
-                
-                const settings = await settingsService.getSettings();
-                console.log('[TimeSelector] Settings loaded:', settings);
-                
-                if (settings.time_slots && settings.time_slots.length > 0) {
-                    setTimeSlots(settings.time_slots);
-                    console.log('[TimeSelector] Time slots set:', settings.time_slots);
-                } else {
-                    console.error('[TimeSelector] No time slots in settings response');
-                    setTimeSlots([]);
-                }
-            } catch (error) {
-                console.error('[TimeSelector] API Error Details:');
-                console.error('Error object:', error);
-                console.error('Error message:', error.message);
-                console.error('Error stack:', error.stack);
-                if (error.response) {
-                    console.error('Response status:', error.response.status);
-                    console.error('Response data:', error.response.data);
-                }
-                
-                // Capture error details for display
-                console.log('=== BOOKING DEBUG - ERROR OCCURRED ===');
-                console.log('Full error object:', error);
-                const errorMsg = `Error: ${error.message}\nType: ${typeof error}\nStack: ${error.stack?.substring(0, 200) || 'No stack trace'}`;
-                setErrorDetails(errorMsg);
+    const loadTimeSlots = useCallback(async () => {
+        try {
+            setIsLoadingSlots(true);
+            const settingsService = SettingsService.getInstance();
+            const settings = await settingsService.getSettings();
+            
+            if (settings?.time_slots?.length > 0) {
+                setTimeSlots(settings.time_slots);
+            } else {
                 setTimeSlots([]);
-            } finally {
-                setIsLoadingSlots(false);
+                setErrorDetails('No time slots available from server');
             }
-        };
-        
-        loadTimeSlots();
+        } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
+            setErrorDetails(errorMsg);
+            setTimeSlots([]);
+        } finally {
+            setIsLoadingSlots(false);
+        }
     }, []);
+    
+    useEffect(() => {
+        loadTimeSlots();
+    }, [loadTimeSlots]);
 
     return (
         <div className="appointease-step-content">
@@ -192,17 +125,15 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                     <div className="current-appointment-info">
                         <p><strong>Current Appointment:</strong></p>
                         <p>{currentAppointment?.appointment_date && 
-                            new Date(currentAppointment.appointment_date).toLocaleDateString('en', { 
-                                weekday: 'long', 
-                                year: 'numeric', 
-                                month: 'long', 
-                                day: 'numeric' 
-                            })} at {currentAppointment?.appointment_date && 
-                            new Date(currentAppointment.appointment_date).toLocaleTimeString('en', { 
-                                hour: '2-digit', 
-                                minute: '2-digit' 
-                            })}
-                        </p>
+                            (() => {
+                                try {
+                                    const date = parseISO(currentAppointment.appointment_date);
+                                    return `${format(date, 'EEEE, MMMM d, yyyy')} at ${format(date, 'h:mm a')}`;
+                                } catch {
+                                    return 'Invalid date';
+                                }
+                            })()
+                        }</p>
                     </div>
                     <p className="step-description">Select a new time for your appointment</p>
                 </div>
@@ -222,7 +153,7 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
             }}>
                 <div style={{fontSize: '1.1rem', fontWeight: '600', color: '#166534', marginBottom: '4px'}}>
                     <i className="fas fa-calendar" style={{marginRight: '8px'}}></i>
-                    {new Date(selectedDate).toLocaleDateString('en', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                    {selectedDate ? format(parseISO(selectedDate), 'EEEE, MMMM d, yyyy') : 'No date selected'}
                 </div>
                 <div style={{fontSize: '0.875rem', color: '#16a34a'}}>
                     <i className="fas fa-clock" style={{marginRight: '6px'}}></i>
@@ -245,11 +176,9 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                         </div>
                         <button 
                             onClick={() => {
-                                setIsLoadingSlots(true);
                                 const settingsService = SettingsService.getInstance();
                                 settingsService.clearCache();
-                                // Trigger reload
-                                window.location.reload();
+                                loadTimeSlots();
                             }}
                             style={{
                                 backgroundColor: '#10b981',

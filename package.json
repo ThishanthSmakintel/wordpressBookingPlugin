@@ -46,8 +46,8 @@
     "@wordpress/element": "^5.0.0",
     "@wordpress/i18n": "^4.0.0",
     "bootstrap": "^5.3.8",
+    "date-fns": "^3.6.0",
     "html2canvas": "^1.4.1",
-    "moment": "^2.29.4",
     "react-big-calendar": "^1.8.2",
     "react-bootstrap": "^2.10.10",
     "toastify-js": "^1.12.0"

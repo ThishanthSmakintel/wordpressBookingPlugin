@@ -60,17 +60,9 @@ class StateLogger {
     }
 
     private async sendToServer(entry: LogEntry) {
-        try {
-            if (window.bookingAPI?.root) {
-                await fetch(`${window.bookingAPI.root}appointease/v1/debug/log`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(entry)
-                });
-            }
-        } catch (error) {
-            // Silently fail - logging shouldn't break the app
-        }
+        // Disabled server logging to prevent 404 errors
+        // The endpoint /debug/log doesn't exist yet
+        return;
     }
 
     getLogs(): LogEntry[] {

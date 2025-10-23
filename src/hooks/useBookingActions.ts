@@ -105,39 +105,57 @@ export const useBookingActions = (bookingState: any) => {
         if (!window.bookingAPI) {
             setTimeout(() => {
                 bookingState.setAppointmentId(generateStrongId());
-                setStep(7);
+                setStep(bookingState.isRescheduling ? 9 : 7);
                 setIsSubmitting(false);
             }, 1500);
             return;
         }
         
-        fetch(`${window.bookingAPI?.root || '/wp-json/'}appointease/v1/appointments`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-WP-Nonce': window.bookingAPI.nonce
-            },
-            body: JSON.stringify({
+        // Use different endpoint and method for reschedule
+        const isReschedule = bookingState.isRescheduling && bookingState.currentAppointment?.id;
+        const endpoint = isReschedule 
+            ? `${window.bookingAPI.root}appointease/v1/appointments/${bookingState.currentAppointment.id}`
+            : `${window.bookingAPI.root}appointease/v1/appointments`;
+        const method = isReschedule ? 'PUT' : 'POST';
+        
+        const requestBody = isReschedule 
+            ? {
+                new_date: appointmentDateTime,
+                reason: 'User requested reschedule'
+              }
+            : {
                 name: sanitizeInput(bookingState.isLoggedIn ? bookingState.loginEmail.split('@')[0] : formData.firstName),
                 email: sanitizeInput(bookingState.isLoggedIn ? bookingState.loginEmail : formData.email),
                 phone: sanitizeInput(bookingState.isLoggedIn ? '' : formData.phone),
                 date: appointmentDateTime,
                 service_id: parseInt(String(selectedService.id), 10),
                 employee_id: parseInt(String(selectedEmployee.id), 10)
-            })
+              };
+        
+        fetch(endpoint, {
+            method: method,
+            headers: {
+                'Content-Type': 'application/json',
+                'X-WP-Nonce': window.bookingAPI.nonce
+            },
+            body: JSON.stringify(requestBody)
         })
         .then(response => response.json())
         .then(result => {
-            if (result.strong_id || result.id) {
+            if (result.success || result.strong_id || result.id) {
                 setErrors({});
-                bookingState.setAppointmentId(result.strong_id || `APT-${new Date().getFullYear()}-${result.id.toString().padStart(6, '0')}`);
-                setStep(7);
+                if (isReschedule) {
+                    setStep(9); // Reschedule success page
+                } else {
+                    bookingState.setAppointmentId(result.strong_id || `APT-${new Date().getFullYear()}-${result.id.toString().padStart(6, '0')}`);
+                    setStep(7); // Booking success page
+                }
             } else {
-                setErrors({general: result.message || 'Booking failed. Please try again.'});
+                setErrors({general: result.message || (isReschedule ? 'Reschedule failed. Please try again.' : 'Booking failed. Please try again.')});
             }
         })
         .catch(error => {
-            setErrors({general: 'Booking failed. Please try again.'});
+            setErrors({general: isReschedule ? 'Reschedule failed. Please try again.' : 'Booking failed. Please try again.'});
         })
         .finally(() => {
             setIsSubmitting(false);

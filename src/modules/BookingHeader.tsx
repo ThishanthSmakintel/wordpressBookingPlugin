@@ -57,7 +57,7 @@ export const BookingHeader: React.FC<BookingHeaderProps> = React.memo(({
                         <i className="fas fa-th-large"></i>
                         <div className="dashboard-btn-content">
                             <span>My Appointments</span>
-                            <span className="dashboard-btn-email">{bookingState.loginEmail}</span>
+                            <span className="dashboard-btn-email">View & Manage</span>
                         </div>
                     </button>
                     <button className="logout-btn wp-element-button" onClick={onLogout}>

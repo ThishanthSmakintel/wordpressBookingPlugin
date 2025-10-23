@@ -144,10 +144,18 @@ const selectors = {
     getUnavailableSlots(state: AppointmentState) { return state.unavailableSlots; },
     getBookingDetails(state: AppointmentState) { return state.bookingDetails; },
     getUpcomingAppointments(state: AppointmentState) {
+        if (!state.appointments?.length) return [];
         const now = new Date();
         return state.appointments.filter(apt => {
-            const aptDate = new Date(apt.date || apt.appointment_date);
-            return aptDate > now && apt.status !== 'cancelled';
+            if (apt.status === 'cancelled') return false;
+            const dateStr = apt.date || apt.appointment_date;
+            if (!dateStr) return false;
+            try {
+                const aptDate = new Date(dateStr);
+                return aptDate > now;
+            } catch {
+                return false;
+            }
         });
     },
 };
@@ -177,14 +185,17 @@ const reducer = (state = DEFAULT_STATE, action: any): AppointmentState => {
             return { ...state, errors: remainingErrors };
         case 'CLEAR_ERRORS': return { ...state, errors: {} };
         case 'UPDATE_APPOINTMENT_STATUS':
-            return {
-                ...state,
-                appointments: state.appointments.map(apt =>
-                    (apt.id === action.appointmentId || apt.strong_id === action.appointmentId)
-                        ? { ...apt, status: action.status }
-                        : apt
-                ),
+            const appointmentIndex = state.appointments.findIndex(apt => 
+                apt.id === action.appointmentId || apt.strong_id === action.appointmentId
+            );
+            if (appointmentIndex === -1) return state;
+            
+            const updatedAppointments = [...state.appointments];
+            updatedAppointments[appointmentIndex] = {
+                ...updatedAppointments[appointmentIndex],
+                status: action.status
             };
+            return { ...state, appointments: updatedAppointments };
         case 'RESET': return DEFAULT_STATE;
         default: return state;
     }
@@ -193,15 +204,26 @@ const reducer = (state = DEFAULT_STATE, action: any): AppointmentState => {
 const controls = {
     FETCH_FROM_API(action: any) {
         const { path, method = 'GET', data } = action;
-        const apiRoot = window.bookingAPI?.root || '/wp-json/';
-        const url = `${apiRoot}${path.replace(/^\//, '')}`;
+        
+        // Validate API configuration
+        if (!window.bookingAPI?.root) {
+            throw new Error('API configuration not available');
+        }
+        
+        if (!window.bookingAPI?.nonce) {
+            throw new Error('Authentication token not available');
+        }
+        
+        const url = `${window.bookingAPI.root}${path.replace(/^\//, '')}`;
+        
+        const headers: Record<string, string> = {
+            'Content-Type': 'application/json',
+            'X-WP-Nonce': window.bookingAPI.nonce,
+        };
         
         const options: RequestInit = {
             method,
-            headers: {
-                'Content-Type': 'application/json',
-                'X-WP-Nonce': window.bookingAPI?.nonce || '',
-            },
+            headers,
             credentials: 'same-origin',
         };
         

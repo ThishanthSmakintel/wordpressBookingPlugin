@@ -90,13 +90,27 @@ export const AppointmentManager: React.FC<AppointmentManagerProps> = ({
                     <div className="success-actions">
                         {bookingState.showCancelConfirm ? (
                             <>
-                                <div className="action-info">
-                                    <p className="action-description cancel-warning">
-                                        This will permanently cancel your appointment. This action cannot be undone.
-                                    </p>
+                                <div className="success-animation">
+                                    <div className="success-icon" style={{background: '#dc3545'}}>
+                                        ⚠️
+                                    </div>
                                 </div>
+                                
+                                <h1 className="success-title" style={{color: '#dc3545'}}>
+                                    Cancel Appointment?
+                                </h1>
+                                
+                                <div className="success-subtitle">
+                                    <p>This will permanently cancel your appointment.</p>
+                                    <p>This action cannot be undone.</p>
+                                    <div className="email-display">
+                                        <i className="ri-mail-line"></i>
+                                        <strong>Cancellation confirmation will be sent to: {bookingState.currentAppointment?.email}</strong>
+                                    </div>
+                                </div>
+                                
                                 <button 
-                                    className="action-btn" 
+                                    className="action-btn primary-btn" 
                                     style={{background: '#dc3545'}} 
                                     onClick={handleCancelAppointment}
                                     disabled={bookingState.isCancelling}

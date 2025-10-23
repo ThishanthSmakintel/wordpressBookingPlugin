@@ -2,19 +2,15 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { useAppointmentStore } from '../../hooks/useAppointmentStore';
 import { useBookingState } from '../../hooks/useBookingState';
 import { checkAvailability, checkRescheduleAvailability } from '../../services/api';
+import { format, addMonths, startOfDay, isBefore, parseISO, isValid } from 'date-fns';
 
-// Date utility functions
+// Date utility functions using date-fns
 const createDate = (year: number, month: number, day: number) => {
-    const date = new Date(year, month, day);
-    // Ensure we're working with local dates, not UTC
-    return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    return new Date(year, month, day);
 };
 
 const formatDateString = (date: Date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    return format(date, 'yyyy-MM-dd');
 };
 
 // Ensure Remix Icons is loaded
@@ -62,9 +58,10 @@ const DateSelector: React.FC<DateSelectorProps> = ({ isReschedule = false }) => 
     };
     
     const generateCalendar = useMemo(() => {
-        const serverToday = serverDate ? new Date(serverDate) : new Date('2025-09-20');
-        const targetYear = serverToday.getFullYear();
-        const targetMonth = serverToday.getMonth() + currentMonth;
+        const serverToday = serverDate ? parseISO(serverDate) : new Date('2025-09-20');
+        const targetDate = addMonths(serverToday, currentMonth);
+        const targetYear = targetDate.getFullYear();
+        const targetMonth = targetDate.getMonth();
         
         // Get the last day of the target month
         const lastDay = new Date(targetYear, targetMonth + 1, 0).getDate();
@@ -82,9 +79,9 @@ const DateSelector: React.FC<DateSelectorProps> = ({ isReschedule = false }) => 
     }, [serverDate, currentMonth]);
     
     const getMonthName = () => {
-        const date = serverDate ? new Date(serverDate) : new Date('2025-09-20');
-        date.setMonth(date.getMonth() + currentMonth);
-        return date.toLocaleDateString('en', { month: 'long', year: 'numeric' });
+        const date = serverDate ? parseISO(serverDate) : new Date('2025-09-20');
+        const targetDate = addMonths(date, currentMonth);
+        return format(targetDate, 'MMMM yyyy');
     };
     
     const canGoNext = () => currentMonth < 3;
@@ -174,7 +171,7 @@ const DateSelector: React.FC<DateSelectorProps> = ({ isReschedule = false }) => 
 
     const renderDateStatus = (dateString: string, date: Date) => {
         const status = dateStatuses.get(dateString);
-        const isPast = date < new Date(new Date().setHours(0,0,0,0));
+        const isPast = isBefore(date, startOfDay(new Date()));
         
         if (isPast) {
             return (
@@ -307,7 +304,7 @@ const DateSelector: React.FC<DateSelectorProps> = ({ isReschedule = false }) => 
                     {generateCalendar.map((date: Date, index: number) => {
                         const dateString = formatDateString(date);
                         const status = dateStatuses.get(dateString);
-                        const isPast = date < new Date(new Date().setHours(0,0,0,0));
+                        const isPast = isBefore(date, startOfDay(new Date()));
                         const totalSlots = 12;
                         const availableSlots = status ? totalSlots - (status.bookingCount || 0) : 0;
                         const isDisabled = isPast || (status && !status.isLoading && (!status.isAvailable || availableSlots <= 0));
@@ -337,7 +334,7 @@ const DateSelector: React.FC<DateSelectorProps> = ({ isReschedule = false }) => 
                                     textTransform: 'uppercase',
                                     letterSpacing: '0.05em'
                                 }}>
-                                    {date.toLocaleDateString('en', { weekday: 'short' })}
+                                    {format(date, 'EEE')}
                                 </div>
                                 <div style={{
                                     fontSize: '1.5rem',
@@ -345,13 +342,13 @@ const DateSelector: React.FC<DateSelectorProps> = ({ isReschedule = false }) => 
                                     color: isDisabled ? '#9ca3af' : isSelected ? '#10b981' : '#1f2937',
                                     marginBottom: '4px'
                                 }}>
-                                    {date.getDate()}
+                                    {format(date, 'd')}
                                 </div>
                                 <div style={{
                                     fontSize: '0.75rem',
                                     color: isDisabled ? '#9ca3af' : '#6b7280'
                                 }}>
-                                    {date.toLocaleDateString('en', { month: 'short' })}
+                                    {format(date, 'MMM')}
                                 </div>
                                 {renderDateStatus(dateString, date)}
                             </div>

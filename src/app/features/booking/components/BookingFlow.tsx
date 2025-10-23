@@ -55,14 +55,17 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
   // Auto-skip step 5 if logged in and not rescheduling
   useEffect(() => {
     if (step === 5 && bookingState.isLoggedIn && !bookingState.isRescheduling) {
-      setFormData({
-        email: bookingState.loginEmail,
-        firstName: bookingState.loginEmail.split('@')[0],
-        phone: ''
-      });
+      // Only auto-fill if form data is empty (new booking)
+      if (!formData.email && !formData.firstName) {
+        setFormData({
+          email: bookingState.loginEmail,
+          firstName: bookingState.loginEmail.split('@')[0],
+          phone: ''
+        });
+      }
       setStep(6);
     }
-  }, [step, bookingState.isLoggedIn, bookingState.isRescheduling]);
+  }, [step, bookingState.isLoggedIn, bookingState.isRescheduling, formData.email, formData.firstName]);
 
   return (
     <div className="appointease-booking-content wp-block-group">
@@ -107,7 +110,7 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
           currentAppointment={bookingState.currentAppointment}
           stepDescription="Select a new date and time for your appointment"
         >
-          {!bookingState.isRescheduling && !bookingState.isLoggedIn && !bookingState.showEmailVerification && (
+          {!bookingState.showEmailVerification && (
             <CustomerInfoForm
               isLoggedIn={bookingState.isLoggedIn}
               isCheckingEmail={bookingState.isCheckingEmail}
@@ -124,10 +127,13 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
                       name: result.name,
                       phone: result.phone
                     });
-                    setFormData({
-                      firstName: result.name || '',
-                      phone: result.phone || ''
-                    });
+                    // Only auto-fill if not rescheduling
+                    if (!bookingState.isRescheduling) {
+                      setFormData({
+                        firstName: result.name || '',
+                        phone: result.phone || ''
+                      });
+                    }
                   } else {
                     bookingState.setExistingUser({ exists: false });
                   }
@@ -214,14 +220,14 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
               </div>
               <div className="summary-item total">
                 <span>Total Price:</span>
-                <span>${selectedService?.price}</span>
+                <span>{bookingState.isRescheduling ? 'No additional charge' : `$${selectedService?.price}`}</span>
               </div>
             </div>
             
             <div className="form-actions">
               <button type="button" className="back-btn" onClick={() => setStep(4)}>← Edit Time</button>
               <button type="button" className="confirm-btn" onClick={handleSubmit} disabled={isSubmitting}>
-                {isSubmitting ? 'BOOKING...' : 'CONFIRM BOOKING'}
+                {isSubmitting ? (bookingState.isRescheduling ? 'RESCHEDULING...' : 'BOOKING...') : (bookingState.isRescheduling ? 'RESCHEDULE APPOINTMENT' : 'CONFIRM BOOKING')}
               </button>
             </div>
           </div>
@@ -268,7 +274,7 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
         <SuccessPage
           type="reschedule"
           appointmentId={bookingState.currentAppointment?.id}
-          email={bookingState.loginEmail}
+          email={bookingState.currentAppointment?.email || bookingState.loginEmail || formData.email}
           selectedDate={selectedDate}
           selectedTime={selectedTime}
           onPrimaryAction={() => {
