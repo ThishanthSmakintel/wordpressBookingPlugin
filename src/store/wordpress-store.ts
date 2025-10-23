@@ -167,7 +167,9 @@ const reducer = (state = DEFAULT_STATE, action: any): AppointmentState => {
         case 'SET_SELECTED_EMPLOYEE': return { ...state, selectedEmployee: action.employee };
         case 'SET_SELECTED_DATE': return { ...state, selectedDate: action.date };
         case 'SET_SELECTED_TIME': return { ...state, selectedTime: action.time };
-        case 'SET_FORM_DATA': return { ...state, formData: { ...state.formData, ...action.data } };
+        case 'SET_FORM_DATA': 
+            console.log('[WordPress Store] SET_FORM_DATA:', { current: state.formData, new: action.data, merged: { ...state.formData, ...action.data } });
+            return { ...state, formData: { ...state.formData, ...action.data } };
         case 'SET_SERVICES': return { ...state, services: action.services };
         case 'SET_EMPLOYEES': return { ...state, employees: action.employees };
         case 'SET_APPOINTMENTS': return { ...state, appointments: action.appointments };

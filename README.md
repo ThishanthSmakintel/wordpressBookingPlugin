@@ -52,7 +52,7 @@ wordpressBookingPlugin/
 │   │       │   └── ui/         # Base UI primitives
 │   │       ├── hooks/          # Common React hooks
 │   │       ├── services/       # API client utilities
-│   │       ├── store/          # Zustand state management
+│   │       ├── store/          # WordPress data store
 │   │       ├── types/          # TypeScript definitions
 │   │       ├── constants/      # App-wide constants
 │   │       └── utils/          # Helper functions
@@ -63,7 +63,7 @@ wordpressBookingPlugin/
 │   ├── hooks/                  # Custom React hooks
 │   ├── modules/                # Feature modules
 │   ├── services/               # API services
-│   ├── store/                  # State management
+│   ├── store/                  # WordPress data store
 │   ├── types/                  # Type definitions
 │   ├── utils/                  # Utility functions
 │   └── assets/                 # Styles and static assets
@@ -118,7 +118,9 @@ export { BookingApp } from './core/BookingApp';
 ```
 
 #### Core Application (`src/app/core/BookingApp.tsx`)
-- **62 useState hooks** for comprehensive state management
+- **WordPress `@wordpress/data` store** with selectors and actions
+- **Session management** with persistent login and OTP verification
+- **Reschedule & cancellation** functionality with proper state handling
 - **7-step booking flow** with form validation
 - **Authentication system** with OTP verification
 - **Real-time updates** via polling and WebSocket-like behavior
@@ -159,46 +161,75 @@ shared/
 
 ### 4. State Management Architecture
 
-#### Hybrid State Management System
-The application uses a **hybrid approach** combining Zustand store for core booking data and React hooks for UI-specific state:
+#### WordPress Data Store System
+The application uses **WordPress `@wordpress/data`** for state management following WordPress development best practices:
 
-#### A. Zustand Store (Primary State)
+#### A. WordPress Data Store (Primary State)
 ```typescript
-// src/store/bookingStore.ts - Single source of truth
-interface BookingState {
-    // Core booking flow
-    step: number;
-    selectedService: Service | null;
-    selectedEmployee: Employee | null;
-    selectedDate: string;
-    selectedTime: string;
-    formData: FormData;
-    
-    // Data collections
-    services: Service[];
-    employees: Employee[];
-    appointments: Appointment[];
-    
-    // Loading states
-    servicesLoading: boolean;
-    employeesLoading: boolean;
-    appointmentsLoading: boolean;
-    isSubmitting: boolean;
-    
-    // System state
-    isOnline: boolean;
-    errors: FormErrors;
-    serverDate: string | null;
-    
-    // Actions
-    setStep: (step: number) => void;
-    setSelectedService: (service: Service | null) => void;
-    // ... all state setters
-    reset: () => void;
-}
+// src/store/wordpress-store.ts - WordPress data store
+const DEFAULT_STATE = {
+    step: 1,
+    selectedService: null,
+    selectedEmployee: null,
+    selectedDate: '',
+    selectedTime: '',
+    formData: { firstName: '', lastName: '', email: '', phone: '' },
+    services: [],
+    employees: [],
+    appointments: [],
+    servicesLoading: false,
+    employeesLoading: false,
+    appointmentsLoading: false,
+    isSubmitting: false,
+    isOnline: true,
+    errors: {},
+    serverDate: null,
+    unavailableSlots: [],
+    bookingDetails: {}
+};
+
+// WordPress store registration
+register(createReduxStore('appointease/booking', {
+    reducer,
+    actions,
+    selectors,
+    controls
+}));
 ```
 
-#### B. Custom Hooks for UI State
+#### B. WordPress Data Hook
+```typescript
+// src/hooks/useAppointmentStore.ts - WordPress data integration
+export const useAppointmentStore = () => {
+    const state = useSelect((select: any) => {
+        const store = select('appointease/booking');
+        return {
+            step: store.getStep?.() ?? 1,
+            selectedService: store.getSelectedService?.() ?? null,
+            selectedEmployee: store.getSelectedEmployee?.() ?? null,
+            selectedDate: store.getSelectedDate?.() ?? '',
+            selectedTime: store.getSelectedTime?.() ?? '',
+            formData: store.getFormData?.() ?? { firstName: '', lastName: '', email: '', phone: '' },
+            services: store.getServices?.() ?? [],
+            employees: store.getEmployees?.() ?? [],
+            appointments: store.getAppointments?.() ?? [],
+            // ... other selectors
+        };
+    }, []);
+
+    const dispatch = useDispatch('appointease/booking');
+
+    return {
+        ...state,
+        setStep: useCallback((step: number) => dispatch?.setStep?.(step), [dispatch]),
+        setSelectedService: useCallback((service: any) => dispatch?.setSelectedService?.(service), [dispatch]),
+        setFormData: useCallback((data: Record<string, any>) => dispatch?.setFormData?.(data), [dispatch]),
+        // ... other actions
+    };
+};
+```
+
+#### C. Custom Hooks for UI State
 ```typescript
 // src/hooks/useBookingState.ts - UI-specific state
 export const useBookingState = () => {
@@ -213,22 +244,11 @@ export const useBookingState = () => {
     const [currentAppointment, setCurrentAppointment] = useState(null);
     const [isRescheduling, setIsRescheduling] = useState(false);
     
-    // Dashboard state
-    const [showDashboard, setShowDashboard] = useState(false);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [appointmentsPerPage, setAppointmentsPerPage] = useState(2);
-    
-    // OTP verification states
-    const [showEmailVerification, setShowEmailVerification] = useState(false);
-    const [emailOtp, setEmailOtp] = useState('');
-    const [otpExpiry, setOtpExpiry] = useState(0);
-    const [resendCooldown, setResendCooldown] = useState(0);
-    
     return { /* all state and setters */ };
 };
 ```
 
-#### C. Debug State Hook
+#### D. Debug State Hook
 ```typescript
 // src/hooks/useDebugState.ts - Development tools
 export const useDebugState = () => {
@@ -246,7 +266,7 @@ export const useDebugState = () => {
 };
 ```
 
-#### D. Actions Hook
+#### E. Actions Hook
 ```typescript
 // src/hooks/useBookingActions.ts - Business logic
 export const useBookingActions = (bookingState) => {
@@ -273,9 +293,9 @@ export const useBookingActions = (bookingState) => {
 
 #### State Flow Pattern
 ```
-User Action → Component Event → Hook Action → Store Update → UI Re-render
-     ↓              ↓              ↓            ↓            ↓
-"Next Step" → onClick handler → setStep(2) → Zustand store → New step UI
+User Action → Component Event → Hook Action → WordPress Store → UI Re-render
+     ↓              ↓              ↓               ↓              ↓
+"Next Step" → onClick handler → setStep(2) → WordPress dispatch → New step UI
 ```
 
 ## Backend Architecture (PHP + MySQL)
@@ -377,10 +397,11 @@ Component Mount → Start Polling → API Calls → State Updates → UI Refresh
 4. Webpack bundle loads → build/frontend.js
 5. React app mounts → initBookingApp('appointease-booking')
 6. BookingApp component renders → src/app/core/BookingApp.tsx
-7. Zustand store initializes → useBookingStore()
+7. WordPress data store initializes → useAppointmentStore()
 8. Custom hooks initialize → useBookingState(), useDebugState()
-9. Initial data loads → loadInitialData() useEffect
-10. UI renders based on step state
+9. Session check → checkExistingSession() for persistent login
+10. Initial data loads → loadInitialData() useEffect
+11. UI renders based on step state and authentication status
 ```
 
 ### 2. Component Architecture

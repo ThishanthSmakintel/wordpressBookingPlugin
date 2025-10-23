@@ -12,6 +12,7 @@ interface CustomerInfoFormProps {
     onSubmit: (e: React.FormEvent) => void;
     onBack: () => void;
     checkExistingEmail: (email: string) => void;
+    bookingState: any;
 }
 
 const CustomerInfoForm: React.FC<CustomerInfoFormProps> = ({
@@ -20,7 +21,8 @@ const CustomerInfoForm: React.FC<CustomerInfoFormProps> = ({
     existingUser,
     onSubmit,
     onBack,
-    checkExistingEmail
+    checkExistingEmail,
+    bookingState
 }) => {
     const { 
         formData, 
@@ -34,12 +36,92 @@ const CustomerInfoForm: React.FC<CustomerInfoFormProps> = ({
         setErrors,
         clearError
     } = useBookingStore();
-    const bookingState = useBookingState();
+    
+    console.log('[CustomerInfoForm] Render with props:', {
+        isLoggedIn,
+        loginEmail: bookingState.loginEmail,
+        formData,
+        isRescheduling: bookingState.isRescheduling
+    });
+    
+    // Auto-fill email for logged-in users
+    useEffect(() => {
+        console.log('[CustomerInfoForm] Auto-fill check:', {
+            isLoggedIn,
+            loginEmail: bookingState.loginEmail,
+            currentFormData: formData,
+            isRescheduling: bookingState.isRescheduling
+        });
+        
+        if (isLoggedIn && bookingState.loginEmail) {
+            const emailPrefix = bookingState.loginEmail.split('@')[0];
+            const firstName = emailPrefix.split('.')[0].split(/[^a-zA-Z]/)[0] || emailPrefix;
+            const autoFillData = {
+                firstName: firstName.charAt(0).toUpperCase() + firstName.slice(1),
+                email: bookingState.loginEmail,
+                phone: formData?.phone || ''
+            };
+            console.log('[CustomerInfoForm] Auto-filling for logged user:', autoFillData);
+            setFormData(autoFillData);
+        }
+    }, [isLoggedIn, bookingState.loginEmail, setFormData]);
+    
+    // Force auto-fill on component mount for logged-in users
+    useEffect(() => {
+        if (isLoggedIn && bookingState.loginEmail && (!formData?.email || !formData?.firstName)) {
+            console.log('[CustomerInfoForm] Force auto-fill on mount');
+            const emailPrefix = bookingState.loginEmail.split('@')[0];
+            const firstName = emailPrefix.split('.')[0].split(/[^a-zA-Z]/)[0] || emailPrefix;
+            const autoFillData = {
+                firstName: firstName.charAt(0).toUpperCase() + firstName.slice(1),
+                email: bookingState.loginEmail,
+                phone: formData?.phone || ''
+            };
+            setFormData(autoFillData);
+        }
+    }, []);
+    
+    const validateForm = () => {
+        console.log('[CustomerInfoForm] Validating form with data:', formData);
+        const newErrors: any = {};
+        
+        if (!formData?.email?.trim()) {
+            newErrors.email = 'Email is required';
+            console.log('[CustomerInfoForm] Validation error: Email is required');
+        } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+            newErrors.email = 'Please enter a valid email address';
+            console.log('[CustomerInfoForm] Validation error: Invalid email format');
+        }
+        
+        if (!formData?.firstName?.trim()) {
+            newErrors.firstName = 'Name is required';
+            console.log('[CustomerInfoForm] Validation error: Name is required');
+        }
+        
+        console.log('[CustomerInfoForm] Validation result:', { errors: newErrors, isValid: Object.keys(newErrors).length === 0 });
+        setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
+    
+    const handleFormSubmit = (e: React.FormEvent) => {
+        e.preventDefault();
+        console.log('[CustomerInfoForm] Form submit triggered');
+        console.log('[CustomerInfoForm] Current form data:', formData);
+        console.log('[CustomerInfoForm] isLoggedIn:', isLoggedIn);
+        console.log('[CustomerInfoForm] loginEmail:', bookingState.loginEmail);
+        
+        if (validateForm()) {
+            console.log('[CustomerInfoForm] Validation passed, calling onSubmit');
+            onSubmit(e);
+        } else {
+            console.log('[CustomerInfoForm] Validation failed, not submitting');
+        }
+    };
     
     // Ensure form fields are editable during reschedule
     const isFieldDisabled = (fieldName: string) => {
-        // Never disable fields during reschedule to allow editing
-        return false;
+        // Only disable if user exists AND it's not a reschedule flow
+        return existingUser?.exists && !bookingState.isRescheduling;
     };
     return (
         <div className="appointease-step-content">
@@ -47,13 +129,13 @@ const CustomerInfoForm: React.FC<CustomerInfoFormProps> = ({
             {!isLoggedIn && <p style={{textAlign: 'center', color: '#6b7280', marginBottom: '2rem', fontSize: '1.1rem'}}>Please provide your contact information</p>}
             
             <div style={{maxWidth: '600px', margin: '0 auto'}}>
-                <form onSubmit={onSubmit} noValidate>
+                <form onSubmit={handleFormSubmit} noValidate>
                     <div style={{marginBottom: '24px'}}>
                         <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '600', color: '#374151', marginBottom: '8px'}}>Email *</label>
                         <div style={{position: 'relative'}}>
                             <input
                                 type="email"
-                                value={formData.email}
+                                value={formData?.email || ''}
                                 onChange={(e) => {
                                     const sanitized = sanitizeInput(e.target.value);
                                     setFormData({ email: sanitized });
@@ -97,7 +179,7 @@ const CustomerInfoForm: React.FC<CustomerInfoFormProps> = ({
                             <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '600', color: '#374151', marginBottom: '8px'}}>Name *</label>
                             <input
                                 type="text"
-                                value={formData.firstName || ''}
+                                value={formData?.firstName || ''}
                                 onChange={(e) => {
                                     const sanitized = sanitizeInput(e.target.value);
                                     setFormData({ firstName: sanitized });
@@ -128,7 +210,7 @@ const CustomerInfoForm: React.FC<CustomerInfoFormProps> = ({
                             <label style={{display: 'block', fontSize: '0.875rem', fontWeight: '600', color: '#374151', marginBottom: '8px'}}>Phone (optional)</label>
                             <input
                                 type="tel"
-                                value={formData.phone}
+                                value={formData?.phone || ''}
                                 onChange={(e) => {
                                     let value = sanitizeInput(e.target.value).replace(/\D/g, '');
                                     if (value.length > 15) value = value.slice(0, 15);
@@ -196,7 +278,9 @@ const CustomerInfoForm: React.FC<CustomerInfoFormProps> = ({
                                 marginTop: '8px'
                             }}>
                                 <span style={{fontSize: '1.1rem', fontWeight: '600', color: '#1f2937'}}>Total:</span>
-                                <span style={{fontSize: '1.25rem', fontWeight: '700', color: '#10b981'}}>No additional charge</span>
+                                <span style={{fontSize: '1.25rem', fontWeight: '700', color: '#10b981'}}>
+                                    {bookingState.isRescheduling ? 'No additional charge' : `$${selectedService?.price || 0}`}
+                                </span>
                             </div>
                         </div>
                     </div>

@@ -74,6 +74,16 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
     
     // ✅ Actions hook
     const { checkAvailability, handleManageAppointment, handleSubmit, loadUserAppointmentsRealtime } = useBookingActions(bookingState);
+    
+    // Debug logging for form data
+    useEffect(() => {
+        console.log('[BookingApp] Form data changed:', formData);
+        console.log('[BookingApp] Booking state:', {
+            isLoggedIn: bookingState.isLoggedIn,
+            loginEmail: bookingState.loginEmail,
+            step
+        });
+    }, [formData, bookingState.isLoggedIn, bookingState.loginEmail, step]);
 
     // ✅ Callbacks
     const calculateCardsPerPage = useCallback(() => {
@@ -512,6 +522,7 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                     columns={props.columns}
                     isSubmitting={isSubmitting}
                     loadUserAppointmentsRealtime={loadUserAppointmentsRealtime}
+                    bookingState={bookingState}
                 />
             </div>
         </>

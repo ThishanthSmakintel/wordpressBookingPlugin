@@ -61,7 +61,7 @@ export const useAppointmentStore = () => {
         setSelectedEmployee: useCallback((employee: any) => { stateLogger.log('setSelectedEmployee', employee?.name || employee); return dispatch?.setSelectedEmployee?.(employee); }, [dispatch]),
         setSelectedDate: useCallback((date: string) => { stateLogger.log('setSelectedDate', date); return dispatch?.setSelectedDate?.(date); }, [dispatch]),
         setSelectedTime: useCallback((time: string) => { stateLogger.log('setSelectedTime', time); return dispatch?.setSelectedTime?.(time); }, [dispatch]),
-        setFormData: useCallback((data: Record<string, any>) => dispatch?.setFormData?.(data), [dispatch]),
+        setFormData: useCallback((data: Record<string, any>) => { stateLogger.log('setFormData', data); return dispatch?.setFormData?.(data); }, [dispatch]),
         setServices: useCallback((services: any[]) => dispatch?.setServices?.(services), [dispatch]),
         setEmployees: useCallback((employees: any[]) => dispatch?.setEmployees?.(employees), [dispatch]),
         setAppointments: useCallback((appointments: any[]) => dispatch?.setAppointments?.(appointments), [dispatch]),
