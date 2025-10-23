@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useBookingStore } from '../../../shared/store/bookingStore';
+import { useAppointmentStore as useBookingStore } from '../../../shared/hooks/useAppointmentStore';
 import { Service } from '../../../shared/types/booking.types';
 
 interface ServiceSelectorProps {

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useBookingStore } from '../../store/bookingStore';
+import { useAppointmentStore } from '../../hooks/useAppointmentStore';
 import { Employee } from '../../types';
 
 interface EmployeeSelectorProps {
@@ -9,22 +9,24 @@ interface EmployeeSelectorProps {
 const EmployeeSelector: React.FC<EmployeeSelectorProps> = ({
     onRetry
 }) => {
-    const { employees, employeesLoading, selectedEmployee, setSelectedEmployee, setStep } = useBookingStore();
-    const [tempSelected, setTempSelected] = useState<Employee | null>(selectedEmployee);
+    const { employees = [], employeesLoading = false, selectedEmployee, setSelectedEmployee, setStep } = useAppointmentStore();
+    const [tempSelected, setTempSelected] = useState<Employee | null>(selectedEmployee || null);
     
     const handleEmployeeSelect = (employee: Employee) => {
         setTempSelected(employee);
     };
     
     const handleNext = () => {
-        if (tempSelected) {
+        if (tempSelected && setSelectedEmployee && setStep) {
             setSelectedEmployee(tempSelected);
             setStep(3);
         }
     };
     
     const handleBack = () => {
-        setStep(1);
+        if (setStep) {
+            setStep(1);
+        }
     };
     
     return (
@@ -46,7 +48,7 @@ const EmployeeSelector: React.FC<EmployeeSelectorProps> = ({
                             <div style={{backgroundColor: '#e5e7eb', height: '16px', borderRadius: '4px', width: '40%'}}></div>
                         </div>
                     ))
-                ) : employees.length === 0 ? (
+                ) : !employees || employees.length === 0 ? (
                     <div style={{textAlign: 'center', padding: '48px'}}>
                         <i className="fas fa-user-md" style={{fontSize: '3rem', color: '#9ca3af', marginBottom: '16px'}}></i>
                         <h3 style={{color: '#374151', marginBottom: '8px'}}>No Specialists Available</h3>
@@ -67,7 +69,7 @@ const EmployeeSelector: React.FC<EmployeeSelectorProps> = ({
                     </div>
                 ) : (
                     <>
-                        {employees.map(employee => {
+                        {(employees || []).map(employee => {
                             const isSelected = tempSelected?.id === employee.id;
                             return (
                                 <div 

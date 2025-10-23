@@ -1,5 +1,5 @@
 import React from 'react';
-import { useBookingStore } from '../../store/bookingStore';
+import { useAppointmentStore as useBookingStore } from '../../hooks/useAppointmentStore';
 import { sanitizeInput } from '../../utils';
 import { Service, Employee } from '../../types';
 

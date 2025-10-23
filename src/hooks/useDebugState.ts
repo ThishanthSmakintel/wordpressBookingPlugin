@@ -1,5 +1,12 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Service } from '../types';
+
+// Check if user is super admin
+const isSuperAdmin = () => {
+    return localStorage.getItem('appointease_debug_mode') === 'true' || 
+           window.location.search.includes('debug=true') ||
+           document.body.classList.contains('wp-admin');
+};
 
 export const useDebugState = () => {
     const [currentTime, setCurrentTime] = useState(new Date());
@@ -12,6 +19,19 @@ export const useDebugState = () => {
     const [workingDays, setWorkingDays] = useState<string[]>([]);
     const [debugTimeSlots, setDebugTimeSlots] = useState<string[]>([]);
     const [availabilityData, setAvailabilityData] = useState<any>(null);
+
+    // Enable debug mode with keyboard shortcut
+    useEffect(() => {
+        const handleKeyPress = (e: KeyboardEvent) => {
+            if (e.ctrlKey && e.shiftKey && e.key === 'D') {
+                const newDebugState = !showDebug;
+                setShowDebug(newDebugState);
+                localStorage.setItem('appointease_debug_mode', newDebugState.toString());
+            }
+        };
+        window.addEventListener('keydown', handleKeyPress);
+        return () => window.removeEventListener('keydown', handleKeyPress);
+    }, [showDebug]);
 
     return {
         currentTime, setCurrentTime,

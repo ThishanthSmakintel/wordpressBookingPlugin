@@ -34,7 +34,8 @@ import { useDebugState } from '../../hooks/useDebugState';
 import { useBookingActions } from '../../hooks/useBookingActions';
 
 // Store and utilities
-import { useBookingStore } from '../../store/bookingStore';
+import '../../store/wordpress-store'; // Initialize WordPress store
+import { useAppointmentStore as useBookingStore } from '../../hooks/useAppointmentStore';
 import { sanitizeInput, generateStrongId } from '../../utils';
 import { checkCustomer } from '../../services/api';
 import { sessionService } from '../../services/sessionService';
@@ -311,7 +312,9 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
     // Render logic
     if (bookingState.showLogin) {
         return (
-            <LoginForm
+            <>
+                <DebugPanel debugState={debugState} bookingState={bookingState} />
+                <LoginForm
                 loginEmail={bookingState.loginEmail}
                 otpCode={bookingState.otpCode}
                 otpSent={bookingState.otpSent}
@@ -348,13 +351,16 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                     setErrors({});
                 }}
                 sanitizeInput={sanitizeInput}
-            />
+                />
+            </>
         );
     }
 
     if (bookingState.showDashboard) {
         return (
-            <Dashboard
+            <>
+                <DebugPanel debugState={debugState} bookingState={bookingState} />
+                <Dashboard
                 loginEmail={bookingState.loginEmail}
                 dashboardRef={dashboardRef}
                 currentAppointmentId={bookingState.currentAppointment?.id}
@@ -407,13 +413,16 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                     bookingState.setShowDashboard(false);
                     bookingState.setManageMode(true);
                 }}
-            />
+                />
+            </>
         );
     }
 
     if (bookingState.manageMode && bookingState.currentAppointment) {
         return (
-            <AppointmentManager
+            <>
+                <DebugPanel debugState={debugState} bookingState={bookingState} />
+                <AppointmentManager
                 bookingState={bookingState}
                 onReschedule={() => {
                     setSelectedService({name: bookingState.currentAppointment?.service_name, price: 0});
@@ -438,7 +447,8 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                     }, 500);
                 }}
                 onBack={() => bookingState.setManageMode(false)}
-            />
+                />
+            </>
         );
     }
 

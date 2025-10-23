@@ -1,5 +1,5 @@
 import React from 'react';
-import { useBookingStore } from '../../store/bookingStore';
+import { useAppointmentStore as useBookingStore } from '../../hooks/useAppointmentStore';
 import { BOOKING_STEPS } from '../../constants/booking.constants';
 
 export const StepProgress: React.FC = () => {

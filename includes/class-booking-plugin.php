@@ -241,7 +241,7 @@ class Booking_Plugin {
         wp_enqueue_script(
             'booking-frontend',
             BOOKING_PLUGIN_URL . 'build/frontend.js',
-            array_merge($frontend_asset_data['dependencies'], ['toastify']),
+            array_merge((array)$frontend_asset_data['dependencies'], ['toastify']),
             $frontend_asset_data['version'],
             true
         );

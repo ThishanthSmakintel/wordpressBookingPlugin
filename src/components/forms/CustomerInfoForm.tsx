@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useBookingStore } from '../../store/bookingStore';
+import { useAppointmentStore as useBookingStore } from '../../hooks/useAppointmentStore';
 import { sanitizeInput } from '../../utils';
 import { FormData, FormErrors, Service, Employee } from '../../types';
 import { checkCustomer } from '../../services/api';

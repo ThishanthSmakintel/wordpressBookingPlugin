@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useBookingStore } from '../../store/bookingStore';
+import { useAppointmentStore } from '../../hooks/useAppointmentStore';
 import { Service } from '../../types';
 
 interface ServiceSelectorProps {
@@ -11,15 +11,15 @@ const ServiceSelector: React.FC<ServiceSelectorProps> = React.memo(({
     onRetry,
     columns = 2
 }) => {
-    const { services, servicesLoading, isOnline, selectedService, setSelectedService, setStep } = useBookingStore();
-    const [tempSelected, setTempSelected] = useState<Service | null>(selectedService);
+    const { services = [], servicesLoading = false, isOnline = true, selectedService, setSelectedService, setStep } = useAppointmentStore();
+    const [tempSelected, setTempSelected] = useState<Service | null>(selectedService || null);
     
     const handleServiceSelect = (service: Service) => {
         setTempSelected(service);
     };
     
     const handleNext = () => {
-        if (tempSelected) {
+        if (tempSelected && setSelectedService && setStep) {
             setSelectedService(tempSelected);
             setStep(2);
         }
@@ -52,7 +52,7 @@ const ServiceSelector: React.FC<ServiceSelectorProps> = React.memo(({
                             <div style={{backgroundColor: '#e5e7eb', height: '16px', borderRadius: '4px', width: '40%'}}></div>
                         </div>
                     ))
-                ) : services.length === 0 ? (
+                ) : !services || services.length === 0 ? (
                     <div style={{textAlign: 'center', padding: '48px'}}>
                         <i className="fas fa-briefcase" style={{fontSize: '3rem', color: '#9ca3af', marginBottom: '16px'}}></i>
                         <h3 style={{color: '#374151', marginBottom: '8px'}}>No Services Available</h3>
@@ -73,7 +73,7 @@ const ServiceSelector: React.FC<ServiceSelectorProps> = React.memo(({
                     </div>
                 ) : (
                     <>
-                        {services.map(service => {
+                        {(services || []).map(service => {
                             const isSelected = tempSelected?.id === service.id;
                             return (
                                 <div 

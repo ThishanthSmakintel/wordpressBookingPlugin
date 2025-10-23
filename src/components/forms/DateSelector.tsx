@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useBookingStore } from '../../store/bookingStore';
+import { useAppointmentStore } from '../../hooks/useAppointmentStore';
 import { useBookingState } from '../../hooks/useBookingState';
 import { checkAvailability, checkRescheduleAvailability } from '../../services/api';
 
@@ -38,7 +38,7 @@ interface DateStatus {
 }
 
 const DateSelector: React.FC<DateSelectorProps> = ({ isReschedule = false }) => {
-    const { selectedDate, setSelectedDate, setStep, selectedEmployee, serverDate, refreshTrigger } = useBookingStore();
+    const { selectedDate = '', setSelectedDate, setStep, selectedEmployee, serverDate, refreshTrigger } = useAppointmentStore();
     const bookingState = useBookingState();
     const [tempSelected, setTempSelected] = useState<string>(selectedDate || '');
     const [dateStatuses, setDateStatuses] = useState<Map<string, DateStatus>>(new Map());
@@ -49,14 +49,16 @@ const DateSelector: React.FC<DateSelectorProps> = ({ isReschedule = false }) => 
     };
     
     const handleNext = () => {
-        if (tempSelected) {
+        if (tempSelected && setSelectedDate && setStep) {
             setSelectedDate(tempSelected);
             setStep(4);
         }
     };
     
     const handleBack = () => {
-        setStep(2);
+        if (setStep) {
+            setStep(2);
+        }
     };
     
     const generateCalendar = useMemo(() => {

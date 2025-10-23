@@ -1,6 +1,6 @@
 import React from 'react';
 import { FormErrors } from '../../types';
-import { useBookingStore } from '../../store/bookingStore';
+import { useAppointmentStore as useBookingStore } from '../../hooks/useAppointmentStore';
 import { sanitizeInput } from '../../utils';
 
 interface EmailVerificationProps {

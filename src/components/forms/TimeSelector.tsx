@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { useBookingStore } from '../../store/bookingStore';
+import { useAppointmentStore } from '../../hooks/useAppointmentStore';
 import { useBookingState } from '../../hooks/useBookingState';
 import { SettingsService } from '../../app/shared/services/settings.service';
 
@@ -42,13 +42,13 @@ interface TimeSelectorProps {
 }
 
 const TimeSelector: React.FC<TimeSelectorProps> = ({
-    unavailableSlots,
-    timezone,
+    unavailableSlots = [],
+    timezone = 'UTC',
     bookingDetails = {},
     currentAppointment,
     isRescheduling
 }) => {
-    const { selectedDate, selectedTime, selectedService, setSelectedTime, setStep } = useBookingStore();
+    const { selectedDate = '', selectedTime = '', selectedService, setSelectedTime, setStep } = useAppointmentStore();
     const bookingState = useBookingState();
     const [tempSelected, setTempSelected] = useState<string>(selectedTime || '');
     
@@ -120,14 +120,16 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
     };
     
     const handleNext = () => {
-        if (tempSelected) {
+        if (tempSelected && setSelectedTime && setStep) {
             setSelectedTime(tempSelected);
             setStep(5);
         }
     };
     
     const handleBack = () => {
-        setStep(3);
+        if (setStep) {
+            setStep(3);
+        }
     };
     
     const [timeSlots, setTimeSlots] = useState<string[]>([]);
@@ -233,7 +235,7 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                     <div style={{textAlign: 'center', padding: '40px'}}>
                         <div style={{fontSize: '16px', color: '#666'}}>Loading available times...</div>
                     </div>
-                ) : timeSlots.length === 0 ? (
+                ) : !timeSlots || timeSlots.length === 0 ? (
                     <div style={{textAlign: 'center', padding: '40px'}}>
                         <div style={{fontSize: '16px', color: '#ef4444', marginBottom: '16px'}}>⚠️ Time Slots Not Available</div>
                         <div style={{fontSize: '14px', color: '#666', marginBottom: '16px'}}>API Error: Unable to load time slots from server</div>
@@ -269,7 +271,7 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                         gap: '12px',
                         marginBottom: '32px'
                     }}>
-                    {timeSlots.map(time => {
+                    {(timeSlots || []).map(time => {
                         const isUnavailable = unavailableSlots === 'all' || (Array.isArray(unavailableSlots) && unavailableSlots.includes(time));
                         const serviceDuration = selectedService?.duration || 30;
                         const isSelected = tempSelected === time;

@@ -1,6 +1,6 @@
 {
-  "ai_global_safety_policy_v1_2": {
-    "goal": "Ensure all AI outputs are verified, version-matched, secure, and free from hallucination or unsafe code behavior.",
+  "ai_global_safety_policy_v1_3": {
+    "goal": "Ensure all AI outputs are verified, version-matched, secure, reversible, and free from hallucination or unsafe code behavior.",
 
     "sections": {
       "anti_hallucination_rules": [
@@ -58,6 +58,16 @@
           "id": 11,
           "title": "Golden Rule",
           "description": "If you cannot verify it, don’t say it. If you say it, show where it came from. If you’re unsure, admit it."
+        },
+        {
+          "id": 12,
+          "title": "Avoid Fallback or Synthetic Data",
+          "description": "Never use mock, placeholder, or fallback data in responses unless explicitly requested and labeled as synthetic."
+        },
+        {
+          "id": 13,
+          "title": "Exception Handling and Logging",
+          "description": "All logic should include proper exception handling and structured logs for traceability and debugging."
         }
       ],
 
@@ -74,61 +84,59 @@
         },
         {
           "id": "C3",
+          "title": "Environment Variable Backup Rule",
+          "description": "Before modifying or writing any environment variable, create a secure backup copy (e.g., .env.backup) to allow restoration if an error or rollback is required."
+        },
+        {
+          "id": "C4",
           "title": "Avoid Unnecessary File Creation",
           "description": "Do not generate or store temporary, duplicate, or unrelated files unless the user explicitly requests it."
         },
         {
-          "id": "C4",
+          "id": "C5",
           "title": "Minimal Dependency Policy",
           "description": "Only import required libraries. Avoid installing or referencing unused, unsafe, or outdated dependencies."
         },
         {
-          "id": "C5",
+          "id": "C6",
           "title": "Safe File Access",
           "description": "Never read, write, or modify files outside the working directory or user-approved paths."
         },
         {
-          "id": "C6",
+          "id": "C7",
           "title": "No Hidden or Auto-Running Scripts",
           "description": "Do not create background processes, hidden scripts, or auto-executing code in any language."
         },
         {
-          "id": "C7",
+          "id": "C8",
           "title": "Cross-Language Clean Code",
           "description": "In all programming languages (Python, JavaScript, PHP, etc.), avoid unnecessary cache, build, or compiled files unless required for execution."
         },
         {
-          "id": "C8",
+          "id": "C9",
           "title": "Dependency Verification",
           "description": "Before using any library, verify it comes from an official or secure source (PyPI, NPM, Composer, etc.) and matches the correct version used in code or documentation."
         },
         {
-          "id": "C9",
+          "id": "C10",
           "title": "No Hardcoded Secrets",
           "description": "Never hardcode API keys, tokens, or credentials in code. Always use secure environment configuration."
         },
         {
-          "id": "C10",
+          "id": "C11",
           "title": "Respect User Privacy",
           "description": "Never read, log, or transmit user data without clear permission."
         },
         {
-          "id": "C11",
+          "id": "C12",
           "title": "Safe Execution Mode",
           "description": "Avoid executing system-level or network-level commands unless verified safe and explicitly requested by the user."
+        },
+        {
+          "id": "C13",
+          "title": "Verified Environment Reference",
+          "
         }
-      ]
-    },
-
-    "version_check_rule": {
-      "requirement": "All references to APIs, SDKs, or code examples must match the same version as used in the project or runtime environment.",
-      "example": {
-        "api_name": "Stripe API",
-        "expected_version": "2024-10-01",
-        "documentation_url": "https://docs.stripe.com/api"
-      }
-    },
-
-    "global_rule": "All AI actions, scripts, and outputs must obey hallucination prevention, code safety, and version-matching rules before producing a final result."
+    }
   }
 }

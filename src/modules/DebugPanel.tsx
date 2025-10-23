@@ -1,5 +1,41 @@
-import React from 'react';
-import { useBookingStore } from '../store/bookingStore';
+import React, { useState, useEffect } from 'react';
+import { useAppointmentStore as useBookingStore } from '../hooks/useAppointmentStore';
+
+const StateTracker: React.FC = () => {
+    const [logs, setLogs] = useState<any[]>([]);
+    const [storeStatus, setStoreStatus] = useState('unknown');
+    
+    useEffect(() => {
+        const updateLogs = () => {
+            const stateLogs = JSON.parse(sessionStorage.getItem('appointease_state_logs') || '[]');
+            setLogs(stateLogs.slice(-10)); // Last 10 entries
+            
+            // Check store status
+            const hasRecentReads = stateLogs.some(log => 
+                log.action === 'STATE_READ' && 
+                Date.now() - new Date(log.timestamp).getTime() < 5000
+            );
+            setStoreStatus(hasRecentReads ? 'active' : 'inactive');
+        };
+        
+        updateLogs();
+        const interval = setInterval(updateLogs, 1000);
+        return () => clearInterval(interval);
+    }, []);
+    
+    return (
+        <div style={{fontSize: '9px'}}>
+            <div>Store: <span style={{color: storeStatus === 'active' ? '#0f0' : '#f80'}}>{storeStatus}</span> | Logs: {logs.length}</div>
+            <div style={{maxHeight: '60px', overflow: 'auto', background: 'rgba(0,0,0,0.3)', padding: '2px', borderRadius: '2px'}}>
+                {logs.map((log, i) => (
+                    <div key={i} style={{fontSize: '8px', color: log.action.includes('error') ? '#f88' : '#8f8'}}>
+                        {log.timestamp.split('T')[1].split('.')[0]} {log.action}: {JSON.stringify(log.data).slice(0, 50)}
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
 
 interface DebugPanelProps {
     debugState: any;
@@ -11,7 +47,10 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState
 
     if (!debugState.showDebug) {
         return (
-            <button onClick={() => debugState.setShowDebug(true)} style={{
+            <button onClick={() => {
+                debugState.setShowDebug(true);
+                localStorage.setItem('appointease_debug_mode', 'true');
+            }} style={{
                 position: 'fixed',
                 top: '10px',
                 right: '10px',
@@ -23,7 +62,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState
                 fontSize: '12px',
                 cursor: 'pointer',
                 zIndex: 99999
-            }}>🔍 Debug</button>
+            }} title="Ctrl+Shift+D to toggle">🔍 Debug</button>
         );
     }
 
@@ -46,6 +85,16 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
                 <strong>🔍 BOOKING DEBUG</strong>
                 <div style={{display: 'flex', gap: '8px'}}>
+                    <button onClick={() => {
+                        const logs = JSON.parse(sessionStorage.getItem('appointease_state_logs') || '[]');
+                        const blob = new Blob([JSON.stringify(logs, null, 2)], { type: 'application/json' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = `appointease-state-logs-${new Date().toISOString().slice(0, 19)}.json`;
+                        a.click();
+                        URL.revokeObjectURL(url);
+                    }} style={{background: '#f59e0b', border: 'none', color: '#fff', cursor: 'pointer', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold'}} title="Export State Logs">📄</button>
                     <button onClick={async () => {
                         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, -5);
                         const stepNames = ['service', 'employee', 'date', 'time', 'form', 'review', 'success', 'cancelled', 'rescheduled'];
@@ -96,7 +145,10 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState
                             console.error('Screenshot error:', err);
                         }
                     }} style={{background: '#10b981', border: 'none', color: '#fff', cursor: 'pointer', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold'}} title="Take Full Screen Screenshot">📸</button>
-                    <button onClick={() => debugState.setShowDebug(false)} style={{background: 'none', border: 'none', color: '#fff', cursor: 'pointer'}}>✕</button>
+                    <button onClick={() => {
+                        debugState.setShowDebug(false);
+                        localStorage.setItem('appointease_debug_mode', 'false');
+                    }} style={{background: 'none', border: 'none', color: '#fff', cursor: 'pointer'}} title="Ctrl+Shift+D to toggle">✕</button>
                 </div>
             </div>
             
@@ -131,6 +183,11 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState
                 <div>Working Days: [{debugState.workingDays.join(',')}]</div>
                 <div>Time Slots: {debugState.debugTimeSlots.length} slots</div>
                 <div>API Mode: {bookingState.isRescheduling ? 'RESCHEDULE' : 'NORMAL'}</div>
+            </div>
+            
+            <div style={{marginBottom: '8px'}}>
+                <div style={{color: '#0ff'}}>🔄 State Management:</div>
+                <StateTracker />
             </div>
             
             <div style={{borderTop: '1px solid #333', paddingTop: '8px'}}>

@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { useBookingStore } from '../store/bookingStore';
+import { useAppointmentStore as useBookingStore } from '../hooks/useAppointmentStore';
 import { sanitizeInput, generateStrongId } from '../utils';
 
 export const useBookingActions = (bookingState: any) => {

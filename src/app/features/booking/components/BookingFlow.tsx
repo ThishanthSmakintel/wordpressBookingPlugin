@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useBookingStore } from '../../../../store/bookingStore';
+import { useAppointmentStore as useBookingStore } from '../../../../hooks/useAppointmentStore';
 import { useBookingState } from '../../../../hooks/useBookingState';
 import { StepWrapper } from '../../../shared/components/StepWrapper';
 import { AppointmentSummary } from '../../../shared/components/AppointmentSummary';
