@@ -20,7 +20,7 @@ wss.on('connection', (ws, req) => {
     const email = url.searchParams.get('email');
     const clientId = email || `anonymous_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    clients.set(clientId, { ws, email, isAnonymous: !email });
+    clients.set(clientId, { ws, email, isAnonymous: !email, watchingSlot: null });
     console.log(`[WebSocket] Client connected: ${email || 'Anonymous'} (ID: ${clientId})`);
     
     ws.send(JSON.stringify({
@@ -44,6 +44,18 @@ wss.on('connection', (ws, req) => {
                     data: { appointments },
                     timestamp: Date.now()
                 }));
+            } else if (data.type === 'watch_slot' && data.date && data.time && data.employeeId) {
+                // Watch specific time slot for conflicts (Calendly-style)
+                console.log(`[WebSocket] Watching slot: ${data.date} ${data.time} for employee ${data.employeeId}`);
+                // Store slot watcher for this client
+                const client = clients.get(clientId);
+                if (client) {
+                    client.watchingSlot = {
+                        date: data.date,
+                        time: data.time,
+                        employeeId: data.employeeId
+                    };
+                }
             } else if (data.type === 'ping') {
                 ws.send(JSON.stringify({
                     type: 'pong',
@@ -89,6 +101,31 @@ async function broadcastUpdate(email, data) {
         }
     }
 }
+
+// Broadcast slot conflicts to watching clients (Calendly-style real-time conflicts)
+async function broadcastSlotConflict(date, time, employeeId) {
+    const conflictSlot = `${date} ${time}`;
+    console.log(`[WebSocket] Broadcasting slot conflict: ${conflictSlot} for employee ${employeeId}`);
+    
+    for (const [clientId, client] of clients.entries()) {
+        if (client.ws.readyState === WebSocket.OPEN && client.watchingSlot) {
+            const watching = client.watchingSlot;
+            if (watching.date === date && watching.time === time && watching.employeeId === employeeId) {
+                client.ws.send(JSON.stringify({
+                    type: 'slot_taken',
+                    slot: conflictSlot,
+                    date: date,
+                    time: time,
+                    employeeId: employeeId,
+                    timestamp: Date.now()
+                }));
+            }
+        }
+    }
+}
+
+// Export for external use (when appointments are created via API)
+global.broadcastSlotConflict = broadcastSlotConflict;
 
 setInterval(async () => {
     for (const [clientId, client] of clients.entries()) {

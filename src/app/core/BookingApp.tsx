@@ -76,38 +76,62 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
     // ✅ Actions hook
     const { checkAvailability, handleManageAppointment, handleSubmit, loadUserAppointmentsRealtime } = useBookingActions(bookingState);
     
-    // ✅ Real-time updates (WebSocket with polling fallback)
+    // ✅ Smart WebSocket - Only for critical real-time scenarios (following Calendly/Acuity patterns)
     const realtimeConfig = React.useMemo(() => {
         const email = bookingState.loginEmail;
         const root = window.bookingAPI?.root || '/wp-json/';
-        
         const wsUrl = window.bookingAPI?.wsUrl || `ws://blog.promoplus.com:8080`;
         
-        console.log('[BookingApp] Realtime config:', {
-            email,
-            wsUrl,
-            bookingAPI: window.bookingAPI,
-            enabled: true
+        // Enable WebSocket only when needed (industry best practice)
+        const needsRealtime = (
+            bookingState.showDashboard ||  // Dashboard: Live appointment updates
+            (step === 4 && selectedDate && selectedEmployee) ||  // Time selection: Conflict prevention
+            bookingState.isRescheduling ||  // Rescheduling: Live availability
+            debugState.showDebug  // Debug: Connection monitoring
+        );
+        
+        console.log('[BookingApp] WebSocket enabled:', needsRealtime, {
+            dashboard: bookingState.showDashboard,
+            timeSelection: step === 4 && selectedDate && selectedEmployee,
+            rescheduling: bookingState.isRescheduling,
+            debug: debugState.showDebug
         });
         
         return {
             wsUrl: email ? `${wsUrl}?email=${encodeURIComponent(email)}` : wsUrl,
             pollingUrl: email ? `${root}appointease/v1/realtime/poll?email=${encodeURIComponent(email)}&last_update=${Date.now()}` : `${root}appointease/v1/realtime/poll`,
-            pollingInterval: 10000,
-            enabled: true,
+            pollingInterval: 5000,  // Faster polling for booking conflicts
+            enabled: needsRealtime,
             onUpdate: (data: any) => {
+                // Real-time availability updates
+                if (data.data?.availability) {
+                    // Update time slot availability in real-time
+                    debugState.setAvailabilityData?.(data.data.availability);
+                }
+                // Live appointment updates for dashboard
                 if (data.data?.appointments) {
                     setAppointments(data.data.appointments);
                 } else if (data.appointments) {
                     setAppointments(data.appointments);
                 }
+                // Booking conflict notifications (Calendly-style)
+                if (data.type === 'slot_taken' && step === 4) {
+                    console.warn('[WebSocket] Slot conflict detected:', data.slot);
+                    // Immediately disable conflicted slot
+                    const conflictTime = data.time;
+                    debugState.setUnavailableSlots?.(prev => [...(prev || []), conflictTime]);
+                    // Show user-friendly conflict notification
+                    if (selectedTime === conflictTime) {
+                        setSelectedTime('');
+                        setErrors({ time: 'This time slot was just booked by another user. Please select a different time.' });
+                    }
+                }
             },
             onConnectionChange: (mode: string) => {
-                console.log('[BookingApp] Connection mode changed to:', mode);
                 debugState.setConnectionMode?.(mode);
             }
         };
-    }, [bookingState.isLoggedIn, bookingState.showDashboard, bookingState.loginEmail]);
+    }, [bookingState.showDashboard, step, selectedDate, selectedEmployee, bookingState.isRescheduling, debugState.showDebug, bookingState.loginEmail]);
     
     const { connectionMode, isConnected: isRealtimeConnected, subscribe } = useRealtime(realtimeConfig);
     
