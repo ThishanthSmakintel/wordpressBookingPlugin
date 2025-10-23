@@ -97,18 +97,7 @@ export const useBookingActions = (bookingState: any) => {
     }, [bookingState, setErrors]);
 
     const handleSubmit = useCallback((event?: React.FormEvent) => {
-        console.log('[handleSubmit] Called with event:', event);
         if (event) event.preventDefault();
-        
-        console.log('[handleSubmit] Starting submission');
-        console.log('[handleSubmit] Form data:', formData);
-        console.log('[handleSubmit] Selected service:', selectedService);
-        console.log('[handleSubmit] Selected employee:', selectedEmployee);
-        console.log('[handleSubmit] Selected date:', selectedDate);
-        console.log('[handleSubmit] Selected time:', selectedTime);
-        console.log('[handleSubmit] Is logged in:', bookingState.isLoggedIn);
-        console.log('[handleSubmit] Login email:', bookingState.loginEmail);
-        
         setIsSubmitting(true);
         const appointmentDateTime = `${selectedDate} ${selectedTime}:00`;
         
@@ -142,8 +131,6 @@ export const useBookingActions = (bookingState: any) => {
                 employee_id: parseInt(String(selectedEmployee.id), 10)
               };
         
-        console.log('[handleSubmit] API Request:', { endpoint, method, requestBody });
-        
         fetch(endpoint, {
             method: method,
             headers: {
@@ -152,12 +139,8 @@ export const useBookingActions = (bookingState: any) => {
             },
             body: JSON.stringify(requestBody)
         })
-        .then(response => {
-            console.log('[handleSubmit] API Response status:', response.status);
-            return response.json();
-        })
+        .then(response => response.json())
         .then(result => {
-            console.log('[handleSubmit] API Result:', result);
             if (result.success || result.strong_id || result.id) {
                 setErrors({});
                 if (isReschedule) {

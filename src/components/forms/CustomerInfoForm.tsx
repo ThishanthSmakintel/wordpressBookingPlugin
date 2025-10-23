@@ -44,77 +44,28 @@ const CustomerInfoForm: React.FC<CustomerInfoFormProps> = ({
         isRescheduling: bookingState.isRescheduling
     });
     
-    // Auto-fill email for logged-in users
-    useEffect(() => {
-        console.log('[CustomerInfoForm] Auto-fill check:', {
-            isLoggedIn,
-            loginEmail: bookingState.loginEmail,
-            currentFormData: formData,
-            isRescheduling: bookingState.isRescheduling
-        });
-        
-        if (isLoggedIn && bookingState.loginEmail) {
-            const emailPrefix = bookingState.loginEmail.split('@')[0];
-            const firstName = emailPrefix.split('.')[0].split(/[^a-zA-Z]/)[0] || emailPrefix;
-            const autoFillData = {
-                firstName: firstName.charAt(0).toUpperCase() + firstName.slice(1),
-                email: bookingState.loginEmail,
-                phone: formData?.phone || ''
-            };
-            console.log('[CustomerInfoForm] Auto-filling for logged user:', autoFillData);
-            setFormData(autoFillData);
-        }
-    }, [isLoggedIn, bookingState.loginEmail, setFormData]);
-    
-    // Force auto-fill on component mount for logged-in users
-    useEffect(() => {
-        if (isLoggedIn && bookingState.loginEmail && (!formData?.email || !formData?.firstName)) {
-            console.log('[CustomerInfoForm] Force auto-fill on mount');
-            const emailPrefix = bookingState.loginEmail.split('@')[0];
-            const firstName = emailPrefix.split('.')[0].split(/[^a-zA-Z]/)[0] || emailPrefix;
-            const autoFillData = {
-                firstName: firstName.charAt(0).toUpperCase() + firstName.slice(1),
-                email: bookingState.loginEmail,
-                phone: formData?.phone || ''
-            };
-            setFormData(autoFillData);
-        }
-    }, []);
-    
     const validateForm = () => {
-        console.log('[CustomerInfoForm] Validating form with data:', formData);
         const newErrors: any = {};
         
         if (!formData?.email?.trim()) {
             newErrors.email = 'Email is required';
-            console.log('[CustomerInfoForm] Validation error: Email is required');
         } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
             newErrors.email = 'Please enter a valid email address';
-            console.log('[CustomerInfoForm] Validation error: Invalid email format');
         }
         
         if (!formData?.firstName?.trim()) {
             newErrors.firstName = 'Name is required';
-            console.log('[CustomerInfoForm] Validation error: Name is required');
         }
         
-        console.log('[CustomerInfoForm] Validation result:', { errors: newErrors, isValid: Object.keys(newErrors).length === 0 });
         setErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
     
     const handleFormSubmit = (e: React.FormEvent) => {
         e.preventDefault();
-        console.log('[CustomerInfoForm] Form submit triggered');
-        console.log('[CustomerInfoForm] Current form data:', formData);
-        console.log('[CustomerInfoForm] isLoggedIn:', isLoggedIn);
-        console.log('[CustomerInfoForm] loginEmail:', bookingState.loginEmail);
         
         if (validateForm()) {
-            console.log('[CustomerInfoForm] Validation passed, calling onSubmit');
             onSubmit(e);
-        } else {
-            console.log('[CustomerInfoForm] Validation failed, not submitting');
         }
     };
     

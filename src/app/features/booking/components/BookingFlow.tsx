@@ -53,53 +53,39 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
     bookingDetails
   } = useBookingStore();
   
-  console.log('[BookingFlow] Received bookingState:', {
-    isLoggedIn: bookingState.isLoggedIn,
-    loginEmail: bookingState.loginEmail,
-    step
-  });
 
-  // Auto-fill form data for logged in users but don't skip step
+
+  // Auto-fill form data for logged in users
   useEffect(() => {
-    console.log('[BookingFlow] Auto-fill check:', {
-      step,
-      isLoggedIn: bookingState.isLoggedIn,
-      isRescheduling: bookingState.isRescheduling,
-      loginEmail: bookingState.loginEmail,
-      currentFormData: formData
-    });
-    
     if (step === 5 && bookingState.isLoggedIn && bookingState.loginEmail && !formData?.firstName) {
-      // Check if user has existing appointments to get their stored name
-      checkCustomer(bookingState.loginEmail).then(result => {
-        if (result.exists && result.name) {
-          console.log('[BookingFlow] Using stored name from database:', result.name);
-          setFormData({
-            email: bookingState.loginEmail,
-            firstName: result.name,
-            phone: result.phone || formData?.phone || ''
-          });
-        } else {
-          // Fallback to generating name from email
+      checkCustomer(bookingState.loginEmail)
+        .then(result => {
+          if (result.exists && result.name) {
+            setFormData({
+              email: bookingState.loginEmail,
+              firstName: result.name,
+              phone: result.phone || formData?.phone || ''
+            });
+          } else {
+            const emailPrefix = bookingState.loginEmail.split('@')[0];
+            const cleanName = emailPrefix.replace(/[^a-zA-Z]/g, '') || 'User';
+            setFormData({
+              email: bookingState.loginEmail,
+              firstName: cleanName.charAt(0).toUpperCase() + cleanName.slice(1),
+              phone: formData?.phone || ''
+            });
+          }
+        })
+        .catch(error => {
+          console.error('[BookingFlow] Error fetching customer data:', error);
           const emailPrefix = bookingState.loginEmail.split('@')[0];
           const cleanName = emailPrefix.replace(/[^a-zA-Z]/g, '') || 'User';
-          console.log('[BookingFlow] No stored name, using generated:', cleanName);
           setFormData({
             email: bookingState.loginEmail,
             firstName: cleanName.charAt(0).toUpperCase() + cleanName.slice(1),
             phone: formData?.phone || ''
           });
-        }
-      }).catch(() => {
-        // Error fallback
-        const emailPrefix = bookingState.loginEmail.split('@')[0];
-        const cleanName = emailPrefix.replace(/[^a-zA-Z]/g, '') || 'User';
-        setFormData({
-          email: bookingState.loginEmail,
-          firstName: cleanName.charAt(0).toUpperCase() + cleanName.slice(1),
-          phone: formData?.phone || ''
         });
-      });
     }
   }, [step, bookingState.isLoggedIn, bookingState.loginEmail, checkCustomer, setFormData]);
 
