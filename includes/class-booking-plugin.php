@@ -256,9 +256,19 @@ class Booking_Plugin {
 
         
 
+        // Determine WebSocket URL based on current host
+        $ws_host = $_SERVER['HTTP_HOST'];
+        // If accessing via IP or localhost, use that for WebSocket too
+        if (strpos($ws_host, 'localhost') !== false || strpos($ws_host, '127.0.0.1') !== false) {
+            $ws_url = 'ws://localhost:8080';
+        } else {
+            $ws_url = 'ws://' . $ws_host . ':8080';
+        }
+        
         wp_localize_script('booking-frontend', 'bookingAPI', array(
             'root' => esc_url_raw(rest_url()),
-            'nonce' => wp_create_nonce('wp_rest')
+            'nonce' => wp_create_nonce('wp_rest'),
+            'wsUrl' => $ws_url
         ));
         
         wp_localize_script('booking-frontend', 'bookingApiSettings', array(
@@ -274,7 +284,8 @@ class Booking_Plugin {
         // Pass appearance settings to frontend
         wp_localize_script('booking-frontend', 'appointeaseSettings', array(
             'buttonText' => Booking_Settings::get_button_text(),
-            'primaryColor' => Booking_Settings::get_primary_color()
+            'primaryColor' => Booking_Settings::get_primary_color(),
+            'wsPingInterval' => Booking_Settings::get_ws_ping_interval()
         ));
         
         // Add admin scripts

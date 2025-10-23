@@ -30,6 +30,18 @@ interface AppointmentState {
     serverDate: string | null;
     unavailableSlots: string[] | 'all';
     bookingDetails: Record<string, any>;
+    
+    // Debug state
+    showDebug: boolean;
+    allBookings: any[];
+    debugServices: any[];
+    debugStaff: any[];
+    workingDays: string[];
+    debugTimeSlots: any[];
+    availabilityData: any | null;
+    currentTime: Date;
+    timeSynced: boolean;
+    connectionMode: string;
 }
 
 const DEFAULT_STATE: AppointmentState = {
@@ -51,6 +63,16 @@ const DEFAULT_STATE: AppointmentState = {
     serverDate: null,
     unavailableSlots: [],
     bookingDetails: {},
+    showDebug: localStorage.getItem('appointease_debug_mode') === 'true',
+    allBookings: [],
+    debugServices: [],
+    debugStaff: [],
+    workingDays: ['1', '2', '3', '4', '5'],
+    debugTimeSlots: [],
+    availabilityData: null,
+    currentTime: new Date(),
+    timeSynced: false,
+    connectionMode: 'disconnected',
 };
 
 const actions = {
@@ -78,6 +100,18 @@ const actions = {
         return { type: 'UPDATE_APPOINTMENT_STATUS', appointmentId, status };
     },
     reset() { return { type: 'RESET' }; },
+    
+    // Debug actions
+    setShowDebug(show: boolean) { return { type: 'SET_SHOW_DEBUG', show }; },
+    setAllBookings(bookings: any[]) { return { type: 'SET_ALL_BOOKINGS', bookings }; },
+    setDebugServices(services: any[]) { return { type: 'SET_DEBUG_SERVICES', services }; },
+    setDebugStaff(staff: any[]) { return { type: 'SET_DEBUG_STAFF', staff }; },
+    setWorkingDays(days: string[]) { return { type: 'SET_WORKING_DAYS', days }; },
+    setDebugTimeSlots(slots: any[]) { return { type: 'SET_DEBUG_TIME_SLOTS', slots }; },
+    setAvailabilityData(data: any) { return { type: 'SET_AVAILABILITY_DATA', data }; },
+    setCurrentTime(time: Date) { return { type: 'SET_CURRENT_TIME', time }; },
+    setTimeSynced(synced: boolean) { return { type: 'SET_TIME_SYNCED', synced }; },
+    setConnectionMode(mode: string) { return { type: 'SET_CONNECTION_MODE', mode }; },
     
     *fetchAppointments(email: string) {
         yield actions.setAppointmentsLoading(true);
@@ -158,6 +192,18 @@ const selectors = {
             }
         });
     },
+    
+    // Debug selectors
+    getShowDebug(state: AppointmentState) { return state.showDebug; },
+    getAllBookings(state: AppointmentState) { return state.allBookings; },
+    getDebugServices(state: AppointmentState) { return state.debugServices; },
+    getDebugStaff(state: AppointmentState) { return state.debugStaff; },
+    getWorkingDays(state: AppointmentState) { return state.workingDays; },
+    getDebugTimeSlots(state: AppointmentState) { return state.debugTimeSlots; },
+    getAvailabilityData(state: AppointmentState) { return state.availabilityData; },
+    getCurrentTime(state: AppointmentState) { return state.currentTime; },
+    getTimeSynced(state: AppointmentState) { return state.timeSynced; },
+    getConnectionMode(state: AppointmentState) { return state.connectionMode; },
 };
 
 const reducer = (state = DEFAULT_STATE, action: any): AppointmentState => {
@@ -199,6 +245,19 @@ const reducer = (state = DEFAULT_STATE, action: any): AppointmentState => {
             };
             return { ...state, appointments: updatedAppointments };
         case 'RESET': return DEFAULT_STATE;
+        
+        // Debug reducers
+        case 'SET_SHOW_DEBUG': return { ...state, showDebug: action.show };
+        case 'SET_ALL_BOOKINGS': return { ...state, allBookings: action.bookings };
+        case 'SET_DEBUG_SERVICES': return { ...state, debugServices: action.services };
+        case 'SET_DEBUG_STAFF': return { ...state, debugStaff: action.staff };
+        case 'SET_WORKING_DAYS': return { ...state, workingDays: action.days };
+        case 'SET_DEBUG_TIME_SLOTS': return { ...state, debugTimeSlots: action.slots };
+        case 'SET_AVAILABILITY_DATA': return { ...state, availabilityData: action.data };
+        case 'SET_CURRENT_TIME': return { ...state, currentTime: action.time };
+        case 'SET_TIME_SYNCED': return { ...state, timeSynced: action.synced };
+        case 'SET_CONNECTION_MODE': return { ...state, connectionMode: action.mode };
+        
         default: return state;
     }
 };

@@ -1,52 +1,40 @@
 # Dependencies
 node_modules/
 vendor/
+composer.lock
 
-# Build files
+# Build output
 build/
 dist/
 
-# Development files
-.DS_Store
-Thumbs.db
+# Logs
+npm-debug.log
 *.log
-*.tmp
-*.temp
+/var/log/appointease-*.log
 
-# IDE files
+# Environment
+.env
+.env.local
+
+# IDE
 .vscode/
 .idea/
 *.swp
 *.swo
-
-# WordPress specific
-wp-config.php
-.htaccess
-
-# Environment files
-.env
-.env.local
-.env.production
-
-# Package manager files
-composer.lock
-
-# Backup files
-*.bak
-*.backup
 *~
 
-# Debug screenshots (local only)
-debug-screenshots/*.png
-debug-screenshots/ui-states/*.png
-debug-screenshots/errors/*.png
-debug-screenshots/flows/*.png
-
-# OS generated files
+# OS
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
+
+# WordPress
+wp-config.php
+
+# Testing
+coverage/
+.phpunit.result.cache
+
+# Temporary
+*.tmp
+*.bak
+*.cache

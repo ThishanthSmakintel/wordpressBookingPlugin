@@ -123,7 +123,7 @@ export { BookingApp } from './core/BookingApp';
 - **Reschedule & cancellation** functionality with proper state handling
 - **7-step booking flow** with form validation
 - **Authentication system** with OTP verification
-- **Real-time updates** via polling and WebSocket-like behavior
+- **Real-time updates** via WebSocket with automatic polling fallback
 - **Debug panel** for development
 
 #### Feature Modules (`src/app/features/`)
@@ -377,13 +377,15 @@ Email Input → OTP Generation → Email Sent → OTP Verification → Session C
   OTP Form ← UI Update ← Success ← Validation ← Session Token
 ```
 
-### 3. Real-time Updates
+### 3. Real-time Updates (WebSocket + Polling Hybrid)
 ```
-Component Mount → Start Polling → API Calls → State Updates → UI Refresh
-      ↓              ↓             ↓           ↓            ↓
-  useEffect → setInterval → fetch() → setState → re-render
-      ↓              ↓             ↓           ↓            ↓
-  Cleanup ← clearInterval ← unmount ← cleanup ← component
+Component Mount → WebSocket Connect → Real-time Updates → State Updates → UI Refresh
+      ↓                   ↓                  ↓               ↓            ↓
+  useRealtime → Try WebSocket → Success → onUpdate → setState → re-render
+      ↓                   ↓                  ↓               ↓            ↓
+  Fallback ← Connection Failed ← Polling → fetch() → setState → re-render
+      ↓                   ↓                  ↓               ↓            ↓
+  Cleanup ← Disconnect ← unmount ← cleanup ← component
 ```
 
 ## Application Lifecycle & Component Flow
@@ -1155,6 +1157,250 @@ class Email_Template_Manager {
         }
         return $text;
     }
+}
+```
+
+## WebSocket Real-time System
+
+### Architecture Overview
+
+AppointEase uses a **hybrid WebSocket/Polling system** for real-time updates:
+
+1. **Primary**: WebSocket connection for instant updates
+2. **Fallback**: HTTP long-polling when WebSocket unavailable
+3. **Backup**: WordPress Heartbeat API integration
+
+### Frontend Implementation
+
+#### RealtimeService Class (`src/services/realtimeService.ts`)
+```typescript
+const service = createRealtimeService({
+  wsUrl: 'ws://example.com/wp-json/appointease/v1/realtime/poll',
+  pollingUrl: '/wp-json/appointease/v1/realtime/poll',
+  pollingInterval: 5000
+});
+
+// Connect (tries WebSocket first, falls back to polling)
+await service.connect();
+
+// Subscribe to events
+service.on('update', (data) => {
+  console.log('New appointment data:', data);
+});
+
+// Send message (WebSocket only)
+service.send('subscribe', { email: 'user@example.com' });
+
+// Check connection status
+const mode = service.getMode(); // 'websocket' | 'polling' | 'disconnected'
+```
+
+#### React Hook (`src/hooks/useRealtime.ts`)
+```typescript
+const { connectionMode, isConnected, send, subscribe } = useRealtime({
+  wsUrl: 'ws://example.com/realtime',
+  pollingUrl: '/wp-json/appointease/v1/realtime/poll',
+  pollingInterval: 5000,
+  enabled: true,
+  onUpdate: (data) => {
+    // Handle real-time updates
+    setAppointments(data.appointments);
+  },
+  onConnectionChange: (mode) => {
+    console.log('Connection mode:', mode);
+  }
+});
+```
+
+### Backend Implementation
+
+#### WebSocket Server (`includes/class-websocket-server.php`)
+
+**Long-Polling Endpoint**
+```php
+GET /wp-json/appointease/v1/realtime/poll?email=user@example.com&last_update=1234567890
+
+Response:
+{
+  "type": "update",
+  "data": {
+    "appointments": [...],
+    "count": 5
+  },
+  "timestamp": 1234567890
+}
+```
+
+**Subscribe Endpoint**
+```php
+POST /wp-json/appointease/v1/realtime/subscribe
+Body: {
+  "email": "user@example.com",
+  "events": ["appointment.created", "appointment.updated"]
+}
+
+Response:
+{
+  "success": true,
+  "subscription_id": "appointease_subscription_abc123",
+  "events": ["appointment.created", "appointment.updated"]
+}
+```
+
+**Broadcast Endpoint** (Admin only)
+```php
+POST /wp-json/appointease/v1/realtime/broadcast
+Body: {
+  "event": "appointment.created",
+  "data": {...}
+}
+
+Response:
+{
+  "success": true,
+  "broadcast_id": "appointease_broadcast_1234567890",
+  "recipients": "all"
+}
+```
+
+### Connection Flow
+
+```
+1. Frontend Initialization
+   ↓
+2. Try WebSocket Connection
+   ↓
+3a. WebSocket Success          3b. WebSocket Failed
+    ↓                              ↓
+4a. Real-time Updates          4b. Start HTTP Polling
+    ↓                              ↓
+5a. Instant Push               5b. Poll Every 5 Seconds
+    ↓                              ↓
+6. Update UI State             6. Update UI State
+```
+
+### WordPress Heartbeat Integration
+
+```javascript
+// Frontend: Send heartbeat data
+jQuery(document).on('heartbeat-send', function(e, data) {
+  data.appointease_realtime = {
+    email: 'user@example.com',
+    last_update: Date.now()
+  };
+});
+
+// Frontend: Receive heartbeat response
+jQuery(document).on('heartbeat-tick', function(e, data) {
+  if (data.appointease_realtime) {
+    updateAppointments(data.appointease_realtime.data);
+  }
+});
+```
+
+```php
+// Backend: Handle heartbeat
+public function handle_heartbeat($response, $data) {
+  if (isset($data['appointease_realtime'])) {
+    $email = $data['appointease_realtime']['email'];
+    $updates = $this->check_for_updates($email);
+    
+    $response['appointease_realtime'] = [
+      'type' => 'update',
+      'data' => $updates,
+      'timestamp' => time()
+    ];
+  }
+  return $response;
+}
+```
+
+### Performance Optimizations
+
+1. **Connection Pooling**: Reuse WebSocket connections
+2. **Automatic Reconnection**: 5 retry attempts with exponential backoff
+3. **Graceful Degradation**: Seamless fallback to polling
+4. **Efficient Polling**: Only fetch when data changes
+5. **Transient Caching**: Store subscriptions in WordPress transients
+
+### Security Measures
+
+1. **Email Validation**: All requests validate email format
+2. **Rate Limiting**: Prevent polling abuse
+3. **Nonce Verification**: WordPress nonce for admin endpoints
+4. **Sanitization**: All inputs sanitized before database queries
+5. **Permission Checks**: Admin-only broadcast endpoint
+
+### Monitoring & Debugging
+
+```typescript
+// Check connection status
+const mode = service.getMode();
+console.log('Connection mode:', mode); // 'websocket' | 'polling' | 'disconnected'
+
+// Monitor connection changes
+service.on('connection', (data) => {
+  console.log('Connection status:', data);
+  // { mode: 'websocket', status: 'connected' }
+});
+
+// Debug panel shows real-time connection info
+<DebugPanel connectionMode={connectionMode} />
+```
+
+### Production Deployment
+
+#### Option 1: HTTP Polling Only (Simplest)
+```typescript
+const { connectionMode } = useRealtime({
+  // No wsUrl = polling only
+  pollingUrl: '/wp-json/appointease/v1/realtime/poll',
+  pollingInterval: 5000,
+  enabled: true
+});
+```
+
+#### Option 2: WebSocket + Polling (Recommended)
+```typescript
+const { connectionMode } = useRealtime({
+  wsUrl: 'wss://yourdomain.com/realtime', // Requires WebSocket server
+  pollingUrl: '/wp-json/appointease/v1/realtime/poll',
+  pollingInterval: 10000,
+  enabled: true
+});
+```
+
+#### Option 3: WordPress Heartbeat Only
+```javascript
+// Disable custom real-time service
+// Use WordPress Heartbeat API (15-60 second intervals)
+wp.heartbeat.interval('fast'); // 5 seconds
+```
+
+### WebSocket Server Setup (Optional)
+
+For true WebSocket support, you can set up a Node.js WebSocket server:
+
+```javascript
+// websocket-server.js
+const WebSocket = require('ws');
+const wss = new WebSocket.Server({ port: 8080 });
+
+wss.on('connection', (ws) => {
+  ws.on('message', (message) => {
+    const data = JSON.parse(message);
+    // Handle subscription, broadcast, etc.
+  });
+});
+```
+
+Then configure WordPress to proxy WebSocket requests:
+```nginx
+location /realtime {
+  proxy_pass http://localhost:8080;
+  proxy_http_version 1.1;
+  proxy_set_header Upgrade $http_upgrade;
+  proxy_set_header Connection "upgrade";
 }
 ```
 

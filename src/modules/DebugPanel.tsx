@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAppointmentStore as useBookingStore } from '../hooks/useAppointmentStore';
+import { useDebugStore } from '../hooks/useDebugStore';
 
 const StateTracker: React.FC = () => {
     const [logs, setLogs] = useState<any[]>([]);
@@ -40,15 +41,18 @@ const StateTracker: React.FC = () => {
 interface DebugPanelProps {
     debugState: any;
     bookingState: any;
+    connectionMode?: 'websocket' | 'polling' | 'disconnected';
+    wsLatency?: number;
 }
 
-export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState }) => {
+export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState, connectionMode = 'disconnected', wsLatency = 0 }) => {
     const { step, selectedService, selectedEmployee, selectedDate, selectedTime, formData, serverDate, isOnline } = useBookingStore();
+    const { showDebug, setShowDebug } = useDebugStore();
 
-    if (!debugState.showDebug) {
+    if (!showDebug) {
         return (
             <button onClick={() => {
-                debugState.setShowDebug(true);
+                setShowDebug(true);
                 localStorage.setItem('appointease_debug_mode', 'true');
             }} style={{
                 position: 'fixed',
@@ -146,7 +150,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState
                         }
                     }} style={{background: '#10b981', border: 'none', color: '#fff', cursor: 'pointer', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold'}} title="Take Full Screen Screenshot">📸</button>
                     <button onClick={() => {
-                        debugState.setShowDebug(false);
+                        setShowDebug(false);
                         localStorage.setItem('appointease_debug_mode', 'false');
                     }} style={{background: 'none', border: 'none', color: '#fff', cursor: 'pointer'}} title="Ctrl+Shift+D to toggle">✕</button>
                 </div>
@@ -158,6 +162,26 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState
                 <div>Date: {selectedDate || 'None'} | Time: {selectedTime || 'None'}</div>
                 <div>Server: {serverDate || 'Not synced'} | Online: {isOnline ? '✅' : '❌'}</div>
                 <div>Logged In: {bookingState.isLoggedIn ? '✅' : '❌'} {bookingState.isLoggedIn && `(${bookingState.loginEmail})`}</div>
+                {connectionMode === 'websocket' && wsLatency > 0 && (
+                    <div style={{marginTop: '8px', padding: '8px', background: 'rgba(0,255,0,0.1)', borderRadius: '4px', border: '1px solid rgba(0,255,0,0.3)'}}>
+                        <div style={{color: '#0f0', fontSize: '10px', marginBottom: '4px'}}>⚡ REAL-TIME LATENCY</div>
+                        <div style={{fontSize: '20px', fontWeight: 'bold', color: '#0f0'}}>{wsLatency}ms</div>
+                        <div style={{fontSize: '9px', color: '#8f8', marginTop: '2px'}}>Round-trip time (ping → server → pong)</div>
+                    </div>
+                )}
+                <div style={{marginTop: '4px'}}>
+                    <span style={{color: '#ff0'}}>🔌 Connection: </span>
+                    {connectionMode === 'websocket' && (
+                        <span style={{color: '#0f0'}}>
+                            ⚡ WebSocket
+                            <span style={{marginLeft: '8px', background: 'rgba(0,255,0,0.2)', padding: '2px 8px', borderRadius: '4px', fontSize: '10px'}}>
+                                {wsLatency}ms latency
+                            </span>
+                        </span>
+                    )}
+                    {connectionMode === 'polling' && <span style={{color: '#fa0'}}>🔄 HTTP Polling</span>}
+                    {connectionMode === 'disconnected' && <span style={{color: '#f00'}}>❌ Disconnected</span>}
+                </div>
             </div>
             
             <div style={{marginBottom: '8px'}}>

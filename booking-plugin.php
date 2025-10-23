@@ -82,6 +82,9 @@ run_booking_plugin();
 if (is_admin()) {
     require_once BOOKING_PLUGIN_PATH . 'admin/appointease-admin.php';
     require_once BOOKING_PLUGIN_PATH . 'admin/db-reset-admin.php';
+    require_once BOOKING_PLUGIN_PATH . 'admin/websocket-admin.php';
+    require_once BOOKING_PLUGIN_PATH . 'admin/websocket-status.php';
+    require_once BOOKING_PLUGIN_PATH . 'admin/websocket-setup-page.php';
     
     // Add seeder menu item
     add_action('admin_menu', function() {

@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>WebSocket Test</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .status { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .connected { background: #d4edda; color: #155724; }
+        .disconnected { background: #f8d7da; color: #721c24; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; border: none; border-radius: 4px; background: #007bff; color: white; }
+        button:hover { background: #0056b3; }
+        #messages { background: #f8f9fa; padding: 10px; margin: 10px 0; border-radius: 4px; max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 12px; }
+        .message { padding: 5px; margin: 2px 0; border-left: 3px solid #007bff; background: white; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔌 WebSocket Server Test</h1>
+        
+        <div id="status" class="status disconnected">
+            ❌ Disconnected
+        </div>
+        
+        <div>
+            <button onclick="connect()">Connect</button>
+            <button onclick="disconnect()">Disconnect</button>
+            <button onclick="subscribe()">Subscribe (test@example.com)</button>
+            <button onclick="ping()">Send Ping</button>
+            <button onclick="clearMessages()">Clear Messages</button>
+        </div>
+        
+        <h3>Messages:</h3>
+        <div id="messages"></div>
+    </div>
+
+    <script>
+        let ws = null;
+        const statusDiv = document.getElementById('status');
+        const messagesDiv = document.getElementById('messages');
+
+        function addMessage(msg, type = 'info') {
+            const div = document.createElement('div');
+            div.className = 'message';
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+            messagesDiv.appendChild(div);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function updateStatus(connected) {
+            if (connected) {
+                statusDiv.className = 'status connected';
+                statusDiv.textContent = '✅ Connected to ws://localhost:8080';
+            } else {
+                statusDiv.className = 'status disconnected';
+                statusDiv.textContent = '❌ Disconnected';
+            }
+        }
+
+        function connect() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                addMessage('Already connected!');
+                return;
+            }
+
+            const wsUrl = 'ws://' + window.location.hostname + ':8080';
+            addMessage('Connecting to ' + wsUrl + '...');
+            ws = new WebSocket(wsUrl);
+
+            ws.onopen = () => {
+                addMessage('✅ Connection established!');
+                updateStatus(true);
+            };
+
+            ws.onmessage = (event) => {
+                addMessage('📨 Received: ' + event.data);
+                try {
+                    const data = JSON.parse(event.data);
+                    addMessage('📦 Parsed: ' + JSON.stringify(data, null, 2));
+                } catch (e) {
+                    // Not JSON
+                }
+            };
+
+            ws.onerror = (error) => {
+                addMessage('❌ Error: ' + error.message);
+            };
+
+            ws.onclose = () => {
+                addMessage('🔌 Connection closed');
+                updateStatus(false);
+            };
+        }
+
+        function disconnect() {
+            if (ws) {
+                ws.close();
+                ws = null;
+                addMessage('Disconnected by user');
+            }
+        }
+
+        function subscribe() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                addMessage('❌ Not connected! Click Connect first.');
+                return;
+            }
+            const msg = JSON.stringify({
+                type: 'subscribe',
+                email: 'test@example.com'
+            });
+            ws.send(msg);
+            addMessage('📤 Sent: ' + msg);
+        }
+
+        function ping() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                addMessage('❌ Not connected! Click Connect first.');
+                return;
+            }
+            const msg = JSON.stringify({
+                type: 'ping',
+                timestamp: Date.now()
+            });
+            ws.send(msg);
+            addMessage('📤 Sent: ' + msg);
+        }
+
+        function clearMessages() {
+            messagesDiv.innerHTML = '';
+        }
+
+        // Auto-connect on load
+        window.onload = () => {
+            addMessage('Page loaded. Click "Connect" to test WebSocket server.');
+        };
+    </script>
+</body>
+</html>

@@ -1,55 +1,17 @@
 {
-  "name": "booking-plugin",
+  "name": "appointease-websocket",
   "version": "1.0.0",
-  "description": "WordPress booking plugin with React Gutenberg support",
-  "main": "build/index.js",
+  "description": "WebSocket server for AppointEase real-time updates",
+  "main": "websocket-server.js",
   "scripts": {
-    "build": "wp-scripts build",
-    "start": "wp-scripts start",
-    "dev": "wp-scripts start",
-    "watch": "wp-scripts start --watch",
-    "build:dev": "wp-scripts build --mode=development --watch",
-    "lint:css": "wp-scripts lint-style",
-    "lint:js": "wp-scripts lint-js",
-    "packages-update": "wp-scripts packages-update",
-    "plugin-zip": "wp-scripts plugin-zip",
-    "format": "wp-scripts format",
-    "test": "jest",
-    "test:watch": "jest --watch",
-    "test:coverage": "jest --coverage",
-    "test:e2e": "cypress run",
-    "test:e2e:open": "cypress open",
-    "test:php": "phpunit",
-    "test:all": "npm run test:php && npm run test && npm run test:e2e"
-  },
-  "devDependencies": {
-    "@testing-library/jest-dom": "^5.16.5",
-    "@testing-library/react": "^13.4.0",
-    "@testing-library/user-event": "^14.4.3",
-    "@types/html2canvas": "^0.5.35",
-    "@types/react": "^18.0.0",
-    "@types/react-big-calendar": "^1.8.0",
-    "@wordpress/scripts": "^27.0.0",
-    "babel-jest": "^29.0.0",
-    "cypress": "^12.0.0",
-    "identity-obj-proxy": "^3.0.0",
-    "jest": "^29.0.0",
-    "jest-environment-jsdom": "^29.0.0",
-    "minimist": "^1.2.8",
-    "typescript": "^5.0.0"
+    "start": "node websocket-server.js",
+    "dev": "nodemon websocket-server.js"
   },
   "dependencies": {
-    "@wordpress/block-editor": "^12.0.0",
-    "@wordpress/blocks": "^12.0.0",
-    "@wordpress/components": "^25.0.0",
-    "@wordpress/data": "^9.0.0",
-    "@wordpress/element": "^5.0.0",
-    "@wordpress/i18n": "^4.0.0",
-    "bootstrap": "^5.3.8",
-    "date-fns": "^3.6.0",
-    "html2canvas": "^1.4.1",
-    "react-big-calendar": "^1.8.2",
-    "react-bootstrap": "^2.10.10",
-    "toastify-js": "^1.12.0"
+    "ws": "^8.14.2",
+    "mysql2": "^3.6.5"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
   }
 }

@@ -1353,6 +1353,13 @@ class Booking_API_Endpoints {
             'callback' => array($this, 'test_webhook'),
             'permission_callback' => function() { return current_user_can('manage_options'); }
         ));
+        
+        // WebSocket realtime endpoints
+        register_rest_route('appointease/v1', '/realtime/poll', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'realtime_poll'),
+            'permission_callback' => '__return_true'
+        ));
     }
     
     public function configure_webhook($request) {
@@ -1509,5 +1516,56 @@ class Booking_API_Endpoints {
         // Keep only last 10 notifications and expire after 1 hour
         $queue = array_slice($queue, -10);
         set_transient('appointease_notification_queue', $queue, HOUR_IN_SECONDS);
+        
+        // Broadcast to WebSocket (only if broadcaster exists)
+        $broadcaster_file = plugin_dir_path(dirname(__FILE__)) . 'includes/class-websocket-broadcaster.php';
+        if (file_exists($broadcaster_file)) {
+            require_once $broadcaster_file;
+            if (class_exists('WebSocket_Broadcaster')) {
+                $broadcaster = WebSocket_Broadcaster::getInstance();
+                $broadcaster->broadcast_appointment_update('appointment.created', $webhook_data);
+            }
+        }
+    }
+    
+    public function realtime_poll($request) {
+        $email = $request->get_param('email');
+        $last_update = intval($request->get_param('last_update'));
+        
+        $updates = get_transient('appointease_realtime_updates') ?: [];
+        $new_updates = array_filter($updates, function($update) use ($last_update) {
+            return $update['timestamp'] > $last_update;
+        });
+        
+        if (!empty($new_updates)) {
+            return rest_ensure_response([
+                'type' => 'update',
+                'data' => array_values($new_updates),
+                'timestamp' => time()
+            ]);
+        }
+        
+        // Long polling - wait up to 25 seconds for updates
+        $timeout = time() + 25;
+        while (time() < $timeout) {
+            sleep(1);
+            $updates = get_transient('appointease_realtime_updates') ?: [];
+            $new_updates = array_filter($updates, function($update) use ($last_update) {
+                return $update['timestamp'] > $last_update;
+            });
+            
+            if (!empty($new_updates)) {
+                return rest_ensure_response([
+                    'type' => 'update',
+                    'data' => array_values($new_updates),
+                    'timestamp' => time()
+                ]);
+            }
+        }
+        
+        return rest_ensure_response([
+            'type' => 'no_update',
+            'timestamp' => time()
+        ]);
     }
 }

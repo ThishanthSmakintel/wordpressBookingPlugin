@@ -3,9 +3,10 @@ import React from 'react';
 interface DebugPanelProps {
   debugState: any;
   bookingState: any;
+  connectionMode?: 'websocket' | 'polling' | 'disconnected';
 }
 
-export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState }) => {
+export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState, connectionMode = 'disconnected' }) => {
   if (!debugState.showDebug) {
     return (
       <button onClick={() => debugState.setShowDebug(true)} style={{
@@ -48,6 +49,12 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState
       <div style={{marginBottom: '8px'}}>
         <div style={{color: '#0ff'}}>📊 System Status:</div>
         <div>Online: {debugState.isOnline ? '✅' : '❌'}</div>
+        <div style={{marginTop: '4px'}}>
+          <span style={{color: '#ff0'}}>🔌 Connection Mode: </span>
+          {connectionMode === 'websocket' && <span style={{color: '#0f0'}}>⚡ WebSocket</span>}
+          {connectionMode === 'polling' && <span style={{color: '#fa0'}}>🔄 HTTP Polling</span>}
+          {connectionMode === 'disconnected' && <span style={{color: '#f00'}}>❌ Disconnected</span>}
+        </div>
       </div>
       
       <div style={{borderTop: '1px solid #333', paddingTop: '8px'}}>

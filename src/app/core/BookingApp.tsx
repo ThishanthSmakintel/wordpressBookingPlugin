@@ -32,6 +32,7 @@ import { BookingHeader } from '../../modules/BookingHeader';
 import { useBookingState } from '../../hooks/useBookingState';
 import { useDebugState } from '../../hooks/useDebugState';
 import { useBookingActions } from '../../hooks/useBookingActions';
+import { useRealtime } from '../../hooks/useRealtime';
 
 // Store and utilities
 import '../../store/wordpress-store'; // Initialize WordPress store
@@ -74,6 +75,48 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
     
     // ✅ Actions hook
     const { checkAvailability, handleManageAppointment, handleSubmit, loadUserAppointmentsRealtime } = useBookingActions(bookingState);
+    
+    // ✅ Real-time updates (WebSocket with polling fallback)
+    const realtimeConfig = React.useMemo(() => {
+        const email = bookingState.loginEmail;
+        const root = window.bookingAPI?.root || '/wp-json/';
+        
+        const wsUrl = window.bookingAPI?.wsUrl || `ws://${window.location.hostname}:8080`;
+        
+        console.log('[BookingApp] Realtime config:', {
+            email,
+            wsUrl,
+            bookingAPI: window.bookingAPI,
+            enabled: true
+        });
+        
+        return {
+            wsUrl: email ? `${wsUrl}?email=${encodeURIComponent(email)}` : wsUrl,
+            pollingUrl: email ? `${root}appointease/v1/realtime/poll?email=${encodeURIComponent(email)}&last_update=${Date.now()}` : `${root}appointease/v1/realtime/poll`,
+            pollingInterval: 10000,
+            enabled: true,
+            onUpdate: (data: any) => {
+                if (data.data?.appointments) {
+                    setAppointments(data.data.appointments);
+                } else if (data.appointments) {
+                    setAppointments(data.appointments);
+                }
+            },
+            onConnectionChange: (mode: string) => {
+                debugState.setConnectionMode?.(mode);
+            }
+        };
+    }, [bookingState.isLoggedIn, bookingState.showDashboard, bookingState.loginEmail]);
+    
+    const { connectionMode, isConnected: isRealtimeConnected, subscribe } = useRealtime(realtimeConfig);
+    const [wsLatency, setWsLatency] = React.useState<number>(0);
+    
+    React.useEffect(() => {
+        const unsubscribe = subscribe('latency', (data: any) => {
+            setWsLatency(data.latency);
+        });
+        return unsubscribe;
+    }, [subscribe]);
     
     // Debug logging for form data
     useEffect(() => {
@@ -213,8 +256,10 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
         };
     }, []);
 
+    // Note: Real-time updates now handled by useRealtime hook above
+    // Keeping this as fallback for non-dashboard views
     useEffect(() => {
-        if (!bookingState.isLoggedIn || !bookingState.showDashboard) return;
+        if (!bookingState.isLoggedIn || bookingState.showDashboard) return;
         const interval = setInterval(() => loadUserAppointmentsRealtime(), 10000);
         return () => clearInterval(interval);
     }, [bookingState.isLoggedIn, bookingState.showDashboard, loadUserAppointmentsRealtime]);
@@ -328,7 +373,7 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
     if (bookingState.showLogin) {
         return (
             <>
-                <DebugPanel debugState={debugState} bookingState={bookingState} />
+                <DebugPanel debugState={debugState} bookingState={bookingState} connectionMode={connectionMode} wsLatency={wsLatency} />
                 <LoginForm
                 loginEmail={bookingState.loginEmail}
                 otpCode={bookingState.otpCode}
@@ -374,7 +419,7 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
     if (bookingState.showDashboard) {
         return (
             <>
-                <DebugPanel debugState={debugState} bookingState={bookingState} />
+                <DebugPanel debugState={debugState} bookingState={bookingState} connectionMode={connectionMode} wsLatency={wsLatency} />
                 <Dashboard
                 loginEmail={bookingState.loginEmail}
                 dashboardRef={dashboardRef}
@@ -446,7 +491,7 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
     if (bookingState.manageMode && bookingState.currentAppointment) {
         return (
             <>
-                <DebugPanel debugState={debugState} bookingState={bookingState} />
+                <DebugPanel debugState={debugState} bookingState={bookingState} connectionMode={connectionMode} wsLatency={wsLatency} />
                 <AppointmentManager
                 bookingState={bookingState}
                 onReschedule={() => {
@@ -489,7 +534,7 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
 
     return (
         <>
-            <DebugPanel debugState={debugState} bookingState={bookingState} />
+            <DebugPanel debugState={debugState} bookingState={bookingState} connectionMode={connectionMode} wsLatency={wsLatency} />
             
             <div ref={appContainerRef} className="appointease-booking wp-block-group booking-app-container" role="main" aria-label="Appointment booking system">
                 <div ref={liveRegionRef} className="live-region" aria-live="polite" aria-atomic="true"></div>

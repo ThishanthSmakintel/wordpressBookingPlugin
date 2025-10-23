@@ -4,7 +4,30 @@ class Booking_Activator {
     public static function activate() {
         self::create_tables();
         self::set_default_options();
+        self::check_websocket_requirements();
         flush_rewrite_rules();
+    }
+    
+    private static function check_websocket_requirements() {
+        $notices = [];
+        
+        // Check if composer vendor exists
+        $vendor_path = plugin_dir_path(dirname(__FILE__)) . 'vendor/autoload.php';
+        if (!file_exists($vendor_path)) {
+            $notices[] = 'websocket_composer';
+        }
+        
+        // Check if WebSocket server is running
+        $ws_running = @fsockopen('localhost', 8080, $errno, $errstr, 1);
+        if (!$ws_running) {
+            $notices[] = 'websocket_not_running';
+        } else {
+            fclose($ws_running);
+        }
+        
+        if (!empty($notices)) {
+            set_transient('appointease_activation_notices', $notices, 300);
+        }
     }
     
     private static function create_tables() {

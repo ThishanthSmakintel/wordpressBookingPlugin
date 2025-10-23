@@ -148,6 +148,22 @@ class Booking_Settings {
             'appointease_settings',
             'appointease_appearance'
         );
+        
+        // WebSocket Settings Section
+        add_settings_section(
+            'appointease_websocket',
+            'WebSocket Settings',
+            array($this, 'websocket_section_callback'),
+            'appointease_settings'
+        );
+        
+        add_settings_field(
+            'ws_ping_interval',
+            'Ping Interval (seconds)',
+            array($this, 'ws_ping_interval_field'),
+            'appointease_settings',
+            'appointease_websocket'
+        );
     }
     
     public function settings_page() {
@@ -290,6 +306,19 @@ class Booking_Settings {
     
     public function appearance_section_callback() {
         echo '<p>Customize the appearance of your booking form.</p>';
+    }
+    
+    public function websocket_section_callback() {
+        echo '<p>Configure WebSocket real-time connection settings.</p>';
+    }
+    
+    public function ws_ping_interval_field() {
+        $options = get_option('appointease_options', array());
+        $interval = isset($options['ws_ping_interval']) ? $options['ws_ping_interval'] : '1';
+        ?>
+        <input type="number" name="appointease_options[ws_ping_interval]" value="<?php echo esc_attr($interval); ?>" min="1" max="60" step="1" class="small-text" />
+        <p class="description">How often to ping the WebSocket server to measure latency (1-60 seconds). Lower values provide more accurate latency but use more bandwidth.</p>
+        <?php
     }
     
     public function primary_color_field() {
@@ -716,6 +745,11 @@ class Booking_Settings {
     public static function get_border_color() {
         $options = get_option('appointease_options', array());
         return isset($options['border_color']) ? $options['border_color'] : '#e0e0e0';
+    }
+    
+    public static function get_ws_ping_interval() {
+        $options = get_option('appointease_options', array());
+        return isset($options['ws_ping_interval']) ? intval($options['ws_ping_interval']) : 1;
     }
     
     public function appearance_only_page() {
