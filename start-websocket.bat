@@ -1,6 +1,6 @@
 @echo off
 echo Starting AppointEase WebSocket Server...
+echo.
 cd /d "%~dp0"
-npm install
-node websocket-server.js
+php websocket-server.php
 pause

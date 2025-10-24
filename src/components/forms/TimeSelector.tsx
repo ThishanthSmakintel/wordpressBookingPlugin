@@ -3,14 +3,22 @@ import { useAppointmentStore } from '../../hooks/useAppointmentStore';
 import { useBookingState } from '../../hooks/useBookingState';
 import { SettingsService } from '../../app/shared/services/settings.service';
 import { format, parseISO } from 'date-fns';
+import { useRealtimeService } from '../../hooks/useRealtimeService';
 
 // Helper function to get time slot styles
-const getTimeSlotStyles = (isCurrentAppointment: boolean, isUnavailable: boolean, isSelected: boolean) => {
+const getTimeSlotStyles = (isCurrentAppointment: boolean, isUnavailable: boolean, isSelected: boolean, isBeingBooked: boolean) => {
     if (isCurrentAppointment) {
         return {
             backgroundColor: '#fff7ed',
             border: '2px solid #f97316',
             color: '#ea580c'
+        };
+    }
+    if (isBeingBooked) {
+        return {
+            backgroundColor: '#fef3c7',
+            border: '2px dashed #f59e0b',
+            color: '#d97706'
         };
     }
     if (isUnavailable) {
@@ -49,9 +57,11 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
     currentAppointment,
     isRescheduling
 }) => {
-    const { selectedDate = '', selectedTime = '', selectedService, setSelectedTime, setStep } = useAppointmentStore();
+    const { selectedDate = '', selectedTime = '', selectedService, selectedEmployee, setSelectedTime, setStep } = useAppointmentStore();
     const bookingState = useBookingState();
     const [tempSelected, setTempSelected] = useState<string>(selectedTime || '');
+    const [activeSelections, setActiveSelections] = useState<string[]>([]);
+    const { send, on, off } = useRealtimeService();
     
     // Memoize current appointment time calculation using date-fns
     const currentAppointmentTime = useMemo(() => {
@@ -71,6 +81,12 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
     const handleTimeSelect = (time: string) => {
         if (unavailableSlots !== 'all' && (!Array.isArray(unavailableSlots) || !unavailableSlots.includes(time))) {
             setTempSelected(time);
+            // Notify other users this slot is being selected
+            send('selecting_slot', {
+                date: selectedDate,
+                time: time,
+                employeeId: selectedEmployee?.id
+            });
         }
     };
     
@@ -116,6 +132,39 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
     useEffect(() => {
         loadTimeSlots();
     }, [loadTimeSlots]);
+    
+    // Listen for active selections and availability updates
+    useEffect(() => {
+        const handleActiveSelections = (data: any) => {
+            console.log('[TimeSelector] Received active_selections:', data);
+            if (data.date === selectedDate && data.employeeId === selectedEmployee?.id) {
+                console.log('[TimeSelector] Setting active selections:', data.slots);
+                setActiveSelections(data.slots || []);
+            }
+        };
+        
+        const unsubscribe1 = on('active_selections', handleActiveSelections);
+        
+        // Request real-time availability check
+        if (selectedDate && selectedEmployee?.id) {
+            send('check_availability', {
+                date: selectedDate,
+                employeeId: selectedEmployee.id
+            });
+        }
+        
+        return () => {
+            unsubscribe1();
+            // Deselect on unmount
+            if (tempSelected) {
+                send('deselect_slot', {
+                    date: selectedDate,
+                    time: tempSelected,
+                    employeeId: selectedEmployee?.id
+                });
+            }
+        };
+    }, [selectedDate, selectedEmployee, tempSelected, on, send]);
 
     return (
         <div className="appointease-step-content">
@@ -205,9 +254,10 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                         const serviceDuration = selectedService?.duration || 30;
                         const isSelected = tempSelected === time;
                         const isCurrentAppointment = currentAppointmentTime === time;
-                        const isDisabled = isUnavailable || isCurrentAppointment;
+                        const isBeingBooked = activeSelections.includes(time);
+                        const isDisabled = isUnavailable || isCurrentAppointment || isBeingBooked;
                         
-                        const slotStyles = getTimeSlotStyles(isCurrentAppointment, isUnavailable, isSelected);
+                        const slotStyles = getTimeSlotStyles(isCurrentAppointment, isUnavailable, isSelected, isBeingBooked);
                         
                         return (
                             <div 
@@ -258,7 +308,7 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                                     textTransform: 'uppercase',
                                     letterSpacing: '0.05em'
                                 }}>
-                                    {isCurrentAppointment ? 'Your Current Time' : isUnavailable ? 'Booked' : 'Available'}
+                                    {isCurrentAppointment ? 'Your Current Time' : isBeingBooked ? '⏳ Currently Booking' : isUnavailable ? 'Booked' : 'Available'}
                                 </div>
                             </div>
                         );

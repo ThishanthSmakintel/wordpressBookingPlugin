@@ -238,9 +238,11 @@ export class RealtimeService {
    */
   send(type: string, data: any): void {
     if (this.mode === 'websocket' && this.ws?.readyState === WebSocket.OPEN) {
-      this.ws.send(JSON.stringify({ type, ...data }));
+      const message = JSON.stringify({ type, ...data });
+      console.log('[RealtimeService] Sending message:', type, data);
+      this.ws.send(message);
     } else {
-      console.warn('[RealtimeService] Cannot send message, not connected via WebSocket');
+      console.warn('[RealtimeService] Cannot send message, mode:', this.mode, 'readyState:', this.ws?.readyState);
     }
   }
 

@@ -3,6 +3,8 @@ import { useAppointmentStore as useBookingStore } from '../../../../hooks/useApp
 import { useBookingState } from '../../../../hooks/useBookingState';
 import { StepWrapper } from '../../../shared/components/StepWrapper';
 import { AppointmentSummary } from '../../../shared/components/AppointmentSummary';
+import { BookingTimer } from '../../../../components/BookingTimer';
+import { useRealtimeService } from '../../../../hooks/useRealtimeService';
 
 // Legacy imports
 import ServiceSelector from '../../../../components/forms/ServiceSelector';
@@ -52,8 +54,21 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
     unavailableSlots,
     bookingDetails
   } = useBookingStore();
+  const { send } = useRealtimeService();
   
 
+
+  // Lock slot when reaching confirmation page (Step 6)
+  useEffect(() => {
+    if (step === 6 && selectedDate && selectedTime && selectedEmployee) {
+      console.log('[BookingFlow] Locking slot:', { date: selectedDate, time: selectedTime, employeeId: selectedEmployee.id });
+      send('lock_slot', {
+        date: selectedDate,
+        time: selectedTime,
+        employeeId: selectedEmployee.id
+      });
+    }
+  }, [step, selectedDate, selectedTime, selectedEmployee, send]);
 
   // Auto-fill form data for logged in users
   useEffect(() => {
@@ -217,6 +232,24 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
             <h2>Review & Confirm</h2>
             <p className="step-description">Please review your appointment details before confirming</p>
             
+            {/* Debug Info */}
+            <div style={{marginBottom: '1rem', padding: '8px', background: 'rgba(59,130,246,0.1)', borderRadius: '6px', fontSize: '11px', fontFamily: 'monospace'}}>
+              <div style={{color: '#3b82f6', fontWeight: 'bold', marginBottom: '4px'}}>🔒 Slot Lock Debug:</div>
+              <div>Date: {selectedDate}</div>
+              <div>Time: {selectedTime}</div>
+              <div>Employee ID: {selectedEmployee?.id}</div>
+              <div>Step: {step}</div>
+              <div style={{marginTop: '4px', color: '#10b981'}}>✅ Lock message sent on mount</div>
+            </div>
+            
+            <BookingTimer 
+              duration={600000}
+              onExpire={() => {
+                setStep(4);
+                setErrors({ time: 'Your slot reservation expired. Please select a new time.' });
+              }}
+            />
+            
             <div className="booking-summary">
               <h3>Appointment Summary</h3>
               <div className="summary-item">
@@ -235,10 +268,24 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
                 <span>Time:</span>
                 <span>{selectedTime}</span>
               </div>
+            </div>
+
+            <div className="booking-summary" style={{ marginTop: '1.5rem' }}>
+              <h3>Contact Information</h3>
               <div className="summary-item">
-                <span>Customer:</span>
-                <span>{bookingState.isLoggedIn ? bookingState.loginEmail : `${formData.firstName} (${formData.email})`}</span>
+                <span>Name:</span>
+                <span>{bookingState.isLoggedIn ? bookingState.loginEmail.split('@')[0] : formData.firstName}</span>
               </div>
+              <div className="summary-item">
+                <span>Email:</span>
+                <span>{bookingState.isLoggedIn ? bookingState.loginEmail : formData.email}</span>
+              </div>
+              {formData.phone && (
+                <div className="summary-item">
+                  <span>Phone:</span>
+                  <span>{formData.phone}</span>
+                </div>
+              )}
               <div className="summary-item total">
                 <span>Total Price:</span>
                 <span>{bookingState.isRescheduling ? 'No additional charge' : `$${selectedService?.price}`}</span>

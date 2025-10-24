@@ -6,7 +6,7 @@
   "scripts": {
     "build": "wp-scripts build",
     "start": "wp-scripts start",
-    "dev": "wp-scripts start",
+    "dev": "concurrently \"wp-scripts start\" \"node websocket-server.js\"",
     "ws:start": "node websocket-server.js",
     "ws:dev": "nodemon websocket-server.js"
   },
@@ -20,6 +20,7 @@
     "ws": "^8.14.2"
   },
   "devDependencies": {
+    "concurrently": "^8.2.2",
     "nodemon": "^3.0.2"
   }
 }

@@ -25,6 +25,19 @@ class Booking_Activator {
             fclose($ws_running);
         }
         
+        // Check MySQL version for atomic operations
+        global $wpdb;
+        $mysql_version = $wpdb->get_var('SELECT VERSION()');
+        if (version_compare($mysql_version, '5.6.0', '<')) {
+            $notices[] = 'mysql_version_low';
+        }
+        
+        // Check InnoDB engine support
+        $innodb_support = $wpdb->get_var("SHOW ENGINES") !== null;
+        if (!$innodb_support) {
+            $notices[] = 'innodb_not_supported';
+        }
+        
         if (!empty($notices)) {
             set_transient('appointease_activation_notices', $notices, 300);
         }
@@ -35,7 +48,7 @@ class Booking_Activator {
         
         $charset_collate = $wpdb->get_charset_collate();
         
-        // Appointments table
+        // Appointments table with atomic booking support
         $appointments_table = $wpdb->prefix . 'appointments';
         $sql1 = "CREATE TABLE $appointments_table (
             id mediumint(9) NOT NULL AUTO_INCREMENT,
@@ -51,19 +64,35 @@ class Booking_Activator {
             payment_status varchar(20) DEFAULT 'pending',
             total_amount decimal(10,2),
             strong_id varchar(20) UNIQUE,
+            idempotency_key varchar(64) UNIQUE,
             created_at datetime DEFAULT CURRENT_TIMESTAMP,
             rescheduled_at datetime NULL,
             original_date datetime NULL,
-            PRIMARY KEY (id)
+            PRIMARY KEY (id),
+            INDEX idx_appointment_slot (appointment_date, employee_id),
+            INDEX idx_idempotency (idempotency_key),
+            INDEX idx_email_date (email, appointment_date)
         ) $charset_collate;";
         
-        // Ensure strong_id column exists with proper constraints
+        // Ensure atomic booking columns exist
         $table_exists = $wpdb->get_var("SHOW TABLES LIKE '$appointments_table'");
         if ($table_exists) {
-            $column_exists = $wpdb->get_results("SHOW COLUMNS FROM $appointments_table LIKE 'strong_id'");
-            if (empty($column_exists)) {
+            // Check and add idempotency_key column
+            $idempotency_exists = $wpdb->get_results("SHOW COLUMNS FROM $appointments_table LIKE 'idempotency_key'");
+            if (empty($idempotency_exists)) {
+                $wpdb->query("ALTER TABLE $appointments_table ADD COLUMN idempotency_key varchar(64) UNIQUE");
+            }
+            
+            // Check and add strong_id column
+            $strong_id_exists = $wpdb->get_results("SHOW COLUMNS FROM $appointments_table LIKE 'strong_id'");
+            if (empty($strong_id_exists)) {
                 $wpdb->query("ALTER TABLE $appointments_table ADD COLUMN strong_id varchar(20) UNIQUE");
             }
+            
+            // Add performance indexes
+            $wpdb->query("ALTER TABLE $appointments_table ADD INDEX IF NOT EXISTS idx_appointment_slot (appointment_date, employee_id)");
+            $wpdb->query("ALTER TABLE $appointments_table ADD INDEX IF NOT EXISTS idx_idempotency (idempotency_key)");
+            $wpdb->query("ALTER TABLE $appointments_table ADD INDEX IF NOT EXISTS idx_email_date (email, appointment_date)");
         }
         
         // Services table
@@ -166,6 +195,22 @@ class Booking_Activator {
             PRIMARY KEY (id)
         ) $charset_collate;";
         
+        // Slot locks table for temporary reservations
+        $slot_locks_table = $wpdb->prefix . 'appointease_slot_locks';
+        $sql10 = "CREATE TABLE $slot_locks_table (
+            id mediumint(9) NOT NULL AUTO_INCREMENT,
+            date DATE NOT NULL,
+            time TIME NOT NULL,
+            employee_id mediumint(9) NOT NULL,
+            client_id VARCHAR(255) NOT NULL,
+            expires_at DATETIME NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY unique_slot (date, time, employee_id),
+            INDEX idx_expires (expires_at),
+            INDEX idx_client (client_id)
+        ) ENGINE=InnoDB $charset_collate;";
+        
         require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
         dbDelta($sql1);
         dbDelta($sql2);
@@ -176,11 +221,17 @@ class Booking_Activator {
         dbDelta($sql7);
         dbDelta($sql8);
         dbDelta($sql9);
+        dbDelta($sql10);
         
-        // Ensure new columns exist after table creation
+        // Ensure atomic booking columns exist after table creation
         $strong_id_exists = $wpdb->get_results("SHOW COLUMNS FROM $appointments_table LIKE 'strong_id'");
         if (empty($strong_id_exists)) {
             $wpdb->query("ALTER TABLE $appointments_table ADD COLUMN strong_id varchar(20) UNIQUE");
+        }
+        
+        $idempotency_exists = $wpdb->get_results("SHOW COLUMNS FROM $appointments_table LIKE 'idempotency_key'");
+        if (empty($idempotency_exists)) {
+            $wpdb->query("ALTER TABLE $appointments_table ADD COLUMN idempotency_key varchar(64) UNIQUE");
         }
         
         $rescheduled_at_exists = $wpdb->get_results("SHOW COLUMNS FROM $appointments_table LIKE 'rescheduled_at'");
@@ -192,6 +243,12 @@ class Booking_Activator {
         if (empty($original_date_exists)) {
             $wpdb->query("ALTER TABLE $appointments_table ADD COLUMN original_date datetime NULL");
         }
+        
+        // Add performance indexes for atomic operations
+        $wpdb->query("CREATE INDEX IF NOT EXISTS idx_appointment_slot ON $appointments_table (appointment_date, employee_id)");
+        $wpdb->query("CREATE INDEX IF NOT EXISTS idx_idempotency ON $appointments_table (idempotency_key)");
+        $wpdb->query("CREATE INDEX IF NOT EXISTS idx_email_date ON $appointments_table (email, appointment_date)");
+        $wpdb->query("CREATE INDEX IF NOT EXISTS idx_status_date ON $appointments_table (status, appointment_date)");
         
         self::insert_default_data();
     }
@@ -326,6 +383,25 @@ class Booking_Activator {
             'from_name' => get_bloginfo('name'),
             'enable_reminders' => 1,
             'reminder_hours' => 24
+        ));
+        
+        // Atomic booking settings
+        add_option('appointease_atomic_settings', array(
+            'enable_atomic_booking' => 1,
+            'max_booking_attempts' => 3,
+            'rate_limit_window' => 300, // 5 minutes
+            'idempotency_timeout' => 3600, // 1 hour
+            'conflict_detection' => 1,
+            'websocket_enabled' => 0
+        ));
+        
+        // Working days and hours
+        add_option('appointease_options', array(
+            'working_days' => ['1','2','3','4','5'], // Monday-Friday
+            'start_time' => '09:00',
+            'end_time' => '17:00',
+            'slot_duration' => 60,
+            'advance_booking' => 30
         ));
     }
 }
