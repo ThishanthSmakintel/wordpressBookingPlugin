@@ -73,7 +73,9 @@ class Atomic_Booking {
             
             if (!$appointment_id) {
                 $this->wpdb->query('ROLLBACK');
-                return new WP_Error('insert_failed', 'Failed to create appointment', ['status' => 500]);
+                $db_error = $this->wpdb->last_error ?: 'Unknown database error';
+                error_log('[AtomicBooking] Insert failed: ' . $db_error);
+                return new WP_Error('insert_failed', 'Failed to create appointment: ' . $db_error, ['status' => 500]);
             }
             
             // Layer 4: Generate strong ID and update
@@ -85,9 +87,12 @@ class Atomic_Booking {
                 ['%s'], ['%d']
             );
             
-            if ($update_result === false) {
+            // WordPress wpdb->update returns false on error, 0 if no rows affected, or number of rows updated
+            // We only care if it's false (error), not 0 (no change needed)
+            if ($update_result === false && !empty($this->wpdb->last_error)) {
                 $this->wpdb->query('ROLLBACK');
-                return new WP_Error('update_failed', 'Failed to generate appointment ID', ['status' => 500]);
+                error_log('[AtomicBooking] Update failed: ' . $this->wpdb->last_error . ' | ID: ' . $appointment_id . ' | Strong ID: ' . $strong_id);
+                return new WP_Error('update_failed', 'Failed to generate appointment ID: ' . $this->wpdb->last_error, ['status' => 500]);
             }
             
             // Commit transaction
@@ -136,8 +141,8 @@ class Atomic_Booking {
             return new WP_Error('missing_date', 'Appointment date is required', ['status' => 400]);
         }
         
-        // 1. Past date validation
-        if (strtotime($data['appointment_date']) <= time()) {
+        // 1. Past date validation (allow 1 minute buffer for processing time)
+        if (strtotime($data['appointment_date']) < (time() - 60)) {
             return new WP_Error('past_date', 'Cannot book appointments in the past', ['status' => 400]);
         }
         
@@ -169,12 +174,10 @@ class Atomic_Booking {
      * Insert appointment with atomic operation
      */
     private function insert_appointment_atomic($data, $idempotency_key) {
-        $table = $this->wpdb->prefix . 'appointments';
+        global $wpdb;
+        $table = $wpdb->prefix . 'appointments';
         
-        // Check if idempotency_key column exists
-        $columns = $this->wpdb->get_results("SHOW COLUMNS FROM {$table} LIKE 'idempotency_key'");
-        $has_idempotency = !empty($columns);
-        
+        // Simple insert with all fields
         $insert_data = [
             'name' => sanitize_text_field($data['name']),
             'email' => sanitize_email($data['email']),
@@ -182,27 +185,20 @@ class Atomic_Booking {
             'appointment_date' => $data['appointment_date'],
             'status' => 'confirmed',
             'service_id' => intval($data['service_id']),
-            'employee_id' => intval($data['employee_id'])
+            'employee_id' => intval($data['employee_id']),
+            'idempotency_key' => $idempotency_key,
+            'created_at' => current_time('mysql')
         ];
         
-        $format = ['%s', '%s', '%s', '%s', '%s', '%d', '%d'];
+        $format = ['%s', '%s', '%s', '%s', '%s', '%d', '%d', '%s', '%s'];
         
-        // Add idempotency key if column exists
-        if ($has_idempotency) {
-            $insert_data['idempotency_key'] = $idempotency_key;
-            $format[] = '%s';
+        $result = $wpdb->insert($table, $insert_data, $format);
+        
+        if ($result === false) {
+            return false;
         }
         
-        // Add created_at if column exists
-        $created_columns = $this->wpdb->get_results("SHOW COLUMNS FROM {$table} LIKE 'created_at'");
-        if (!empty($created_columns)) {
-            $insert_data['created_at'] = current_time('mysql');
-            $format[] = '%s';
-        }
-        
-        $result = $this->wpdb->insert($table, $insert_data, $format);
-        
-        return $result ? $this->wpdb->insert_id : false;
+        return $wpdb->insert_id ?: $wpdb->get_var('SELECT LAST_INSERT_ID()');
     }
     
     /**
@@ -215,7 +211,7 @@ class Atomic_Booking {
             $data['employee_id'] ?? 0,
             date('Y-m-d H:i')  // Include minute for uniqueness
         ];
-        return 'booking_' . hash('sha256', implode('|', $key_data));
+        return hash('sha256', implode('|', $key_data));  // SHA256 = exactly 64 chars
     }
     
     /**

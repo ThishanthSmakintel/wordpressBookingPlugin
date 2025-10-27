@@ -133,7 +133,7 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
         };
     }, [bookingState.showDashboard, step, selectedDate, selectedEmployee, bookingState.isRescheduling, debugState.showDebug, bookingState.loginEmail]);
     
-    const { connectionMode, isConnected: isRealtimeConnected, subscribe } = useRealtime(realtimeConfig);
+    const { connectionMode, isConnected: isRealtimeConnected, subscribe, send: sendRealtimeMessage } = useRealtime(realtimeConfig);
     
     // Debug connectionMode
     useEffect(() => {
@@ -299,6 +299,31 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
             checkAvailability(selectedDate, selectedEmployee.id);
         }
     }, [step, selectedDate, selectedEmployee, checkAvailability, bookingState.isRescheduling, bookingState.currentAppointment?.id]);
+
+    // Lock slot when user reaches step 6 (review) - Database-level locking
+    useEffect(() => {
+        if (step === 6 && selectedDate && selectedTime && selectedEmployee && connectionMode === 'websocket') {
+            console.log('[BookingApp] 🔒 Locking slot in database:', { date: selectedDate, time: selectedTime, employeeId: selectedEmployee.id });
+            sendRealtimeMessage('lock_slot', {
+                date: selectedDate,
+                time: selectedTime,
+                employeeId: selectedEmployee.id
+            });
+        }
+        
+        // Unlock slot when leaving step 6 or unmounting
+        return () => {
+            if (step === 6 && selectedDate && selectedTime && selectedEmployee && connectionMode === 'websocket') {
+                console.log('[BookingApp] 🔓 Unlocking slot from database:', { date: selectedDate, time: selectedTime, employeeId: selectedEmployee.id });
+                sendRealtimeMessage('unlock_slot', {
+                    date: selectedDate,
+                    time: selectedTime,
+                    employeeId: selectedEmployee.id,
+                    completed: step === 7
+                });
+            }
+        };
+    }, [step, selectedDate, selectedTime, selectedEmployee, connectionMode, sendRealtimeMessage]);
 
     useEffect(() => {
         loadInitialData();

@@ -7,7 +7,7 @@ const DB_CONFIG = {
     host: 'localhost',
     user: 'root',
     password: '',
-    database: 'blog_promoplus_com'  // Updated to match your WordPress database
+    database: 'blog_promoplus'
 };
 
 const clients = new Map();
@@ -361,34 +361,9 @@ async function getActiveLocks() {
 global.broadcastSlotConflict = broadcastSlotConflict;
 global.broadcastAvailabilityUpdate = broadcastAvailabilityUpdate;
 
-ient] of clients.entries()) {
-        if (client.ws.readyState === WebSocket.OPEN && client.email) {
-            try {
-                const appointments = await getAppointments(client.email);
-                client.ws.send(JSON.stringify({
-                    type: 'update',
-                    data: { appointments },
-                    timestamp: Date.now()
-                }));
-            } catch (error) {
-                console.error(`[WebSocket] Polling error for ${client.email}:`, error);
-            }
-        }
-    }
-}, 5000);
-
-server.listen(PORT, '0.0.0.0', () => {
-    console.log(`[WebSocket] Server running on port ${PORT}`);
-    console.log(`\n🔗 WebSocket URLs:`);
-    console.log(`   Local:     ws://localhost:${PORT}`);
-    console.log(`   Domain:    ws://blog.promoplus.com:${PORT}`);
-    console.log(`   Example:   ws://blog.promoplus.com:${PORT}?email=user@example.com`);
-    console.log(`\n🔍 Debug Panel:`);
-    console.log(`   HTTP:      http://localhost:${PORT}/debug`);
-    console.log(`   Info:      Real-time connections & active selections`);
-    console.log(`\n🌐 WordPress Site: http://blog.promoplus.com/`);
-    console.log(`\n✅ Ready for connections!\n`);
-});ient] of clients.entries()) {
+// Polling interval for real-time updates
+setInterval(async () => {
+    for (const [clientId, client] of clients.entries()) {
         if (client.ws.readyState === WebSocket.OPEN && client.email) {
             try {
                 const appointments = await getAppointments(client.email);

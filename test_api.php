@@ -146,8 +146,10 @@ class APITester {
                 $atomic_booking = Atomic_Booking::getInstance();
                 $this->log('Atomic Class', true, 'Atomic booking class loaded successfully');
                 
-                // Test booking creation - use next Monday at unique time
-                $unique_time = date('H:i:s', strtotime('+' . rand(1, 50) . ' minutes'));
+                // Test booking creation - use next Monday at unique time within business hours
+                $hour = rand(9, 16); // 9 AM to 4 PM
+                $minute = rand(0, 59);
+                $unique_time = sprintf('%02d:%02d:00', $hour, $minute);
                 $next_monday = date('Y-m-d', strtotime('next Monday')) . ' ' . $unique_time;
                 $booking_data = [
                     'name' => 'Test User',
