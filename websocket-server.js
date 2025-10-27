@@ -93,6 +93,14 @@ wss.on('connection', (ws, req) => {
                 console.log(`[WebSocket] Slot locked in DB: ${data.date} ${data.time} for 10 minutes`);
                 const client = clients.get(clientId);
                 if (client) client.step = 6;
+                ws.send(JSON.stringify({
+                    type: 'slot_locked',
+                    date: data.date,
+                    time: data.time,
+                    employeeId: data.employeeId,
+                    expiresIn: 600,
+                    timestamp: Date.now()
+                }));
                 broadcastAvailabilityUpdate(data.date, data.employeeId);
             } else if (data.type === 'unlock_slot') {
                 // Unlock slot from database
@@ -100,17 +108,38 @@ wss.on('connection', (ws, req) => {
                 console.log(`[WebSocket] Slot unlocked from DB: ${data.date} ${data.time}`);
                 const client = clients.get(clientId);
                 if (client) client.step = data.completed ? 7 : 4;
+                ws.send(JSON.stringify({
+                    type: 'slot_unlocked',
+                    date: data.date,
+                    time: data.time,
+                    employeeId: data.employeeId,
+                    timestamp: Date.now()
+                }));
                 broadcastAvailabilityUpdate(data.date, data.employeeId);
             } else if (data.type === 'selecting_slot') {
                 // User is actively selecting a slot
                 const slotKey = `${data.date}_${data.time}_${data.employeeId}`;
                 activeSelections.set(slotKey, { clientId, timestamp: Date.now() });
                 console.log(`[WebSocket] User selecting slot: ${data.date} ${data.time} (Staff #${data.employeeId})`);
+                ws.send(JSON.stringify({
+                    type: 'selection_confirmed',
+                    date: data.date,
+                    time: data.time,
+                    employeeId: data.employeeId,
+                    timestamp: Date.now()
+                }));
                 broadcastActiveSelections(data.date, data.employeeId, clientId);
             } else if (data.type === 'deselect_slot') {
                 // User deselected or moved away
                 const slotKey = `${data.date}_${data.time}_${data.employeeId}`;
                 activeSelections.delete(slotKey);
+                ws.send(JSON.stringify({
+                    type: 'deselection_confirmed',
+                    date: data.date,
+                    time: data.time,
+                    employeeId: data.employeeId,
+                    timestamp: Date.now()
+                }));
                 broadcastActiveSelections(data.date, data.employeeId, clientId);
             } else if (data.type === 'watch_slot' && data.date && data.time && data.employeeId) {
                 // Watch specific time slot for conflicts (Calendly-style)
@@ -156,6 +185,34 @@ wss.on('connection', (ws, req) => {
             } else if (data.type === 'ping') {
                 ws.send(JSON.stringify({
                     type: 'pong',
+                    timestamp: Date.now(),
+                    latency: data.timestamp ? Date.now() - data.timestamp : 0
+                }));
+            } else if (data.type === 'watch_appointments') {
+                const appointments = await getAppointments(data.email);
+                ws.send(JSON.stringify({
+                    type: 'appointments_data',
+                    email: data.email,
+                    appointments: appointments,
+                    count: appointments.length,
+                    timestamp: Date.now()
+                }));
+            } else if (data.type === 'unwatch_appointments') {
+                ws.send(JSON.stringify({
+                    type: 'unwatch_confirmed',
+                    timestamp: Date.now()
+                }));
+            } else if (data.type === 'appointment_updated' || data.type === 'appointment_cancelled') {
+                ws.send(JSON.stringify({
+                    type: 'event_received',
+                    eventType: data.type,
+                    appointmentId: data.appointmentId,
+                    timestamp: Date.now()
+                }));
+            } else {
+                ws.send(JSON.stringify({
+                    type: 'error',
+                    message: 'Unknown message type: ' + data.type,
                     timestamp: Date.now()
                 }));
             }
@@ -194,10 +251,13 @@ async function getAppointments(email) {
     const connection = await mysql.createConnection(DB_CONFIG);
     try {
         const [rows] = await connection.execute(
-            'SELECT * FROM wp_appointments WHERE email = ? ORDER BY appointment_date DESC',
+            'SELECT * FROM wp_appointments WHERE email = ? AND status != "cancelled" ORDER BY appointment_date DESC',
             [email]
         );
         return rows;
+    } catch (error) {
+        console.error('[WebSocket] Error fetching appointments:', error.message);
+        return [];
     } finally {
         await connection.end();
     }
@@ -233,7 +293,7 @@ async function getUnavailableSlots(date, employeeId) {
     const connection = await mysql.createConnection(DB_CONFIG);
     try {
         const [rows] = await connection.execute(
-            "SELECT TIME_FORMAT(appointment_date, '%H:%i') as time FROM wp_appointease_appointments WHERE DATE(appointment_date) = ? AND employee_id = ? AND status != 'cancelled'",
+            "SELECT TIME_FORMAT(appointment_date, '%H:%i') as time FROM wp_appointments WHERE DATE(appointment_date) = ? AND employee_id = ? AND status != 'cancelled'",
             [date, employeeId]
         );
         const bookedSlots = rows.map(row => row.time);
