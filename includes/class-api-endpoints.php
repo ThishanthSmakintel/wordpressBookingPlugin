@@ -396,6 +396,28 @@ class Booking_API_Endpoints {
             );
         }
         
+        // CRITICAL FIX: Check active slot locks (processing bookings)
+        $locks_table = $wpdb->prefix . 'appointease_slot_locks';
+        $locked_slots = $wpdb->get_results($wpdb->prepare(
+            "SELECT DATE_FORMAT(CONCAT(date, ' ', time), '%%H:%%i') as time_slot, client_id FROM {$locks_table} WHERE date = %s AND employee_id = %d AND expires_at > NOW()",
+            $date, $employee_id
+        ));
+        
+        foreach ($locked_slots as $lock) {
+            $time_slot = $lock->time_slot;
+            if (!in_array($time_slot, $booked_times)) {
+                $booked_times[] = $time_slot;
+                $booking_details[$time_slot] = array(
+                    'customer_name' => 'Processing',
+                    'customer_email' => '',
+                    'status' => 'processing',
+                    'booking_id' => 'LOCK-' . substr($lock->client_id, 0, 8),
+                    'booked_at' => $time_slot,
+                    'is_locked' => true
+                );
+            }
+        }
+        
         if ($wpdb->last_error) {
             return new WP_Error('db_error', 'Database error occurred', array('status' => 500));
         }
@@ -1455,6 +1477,27 @@ class Booking_API_Endpoints {
                 'status' => $appointment->status,
                 'booking_id' => $appointment->strong_id ?: $appointment->id
             );
+        }
+        
+        // Check active slot locks (processing bookings)
+        $locks_table = $wpdb->prefix . 'appointease_slot_locks';
+        $locked_slots = $wpdb->get_results($wpdb->prepare(
+            "SELECT DATE_FORMAT(CONCAT(date, ' ', time), '%%H:%%i') as time_slot, client_id FROM {$locks_table} WHERE date = %s AND employee_id = %d AND expires_at > NOW()",
+            $date, $employee_id
+        ));
+        
+        foreach ($locked_slots as $lock) {
+            $time_slot = $lock->time_slot;
+            if (!in_array($time_slot, $booked_times)) {
+                $booked_times[] = $time_slot;
+                $booking_details[$time_slot] = array(
+                    'customer_name' => 'Processing',
+                    'customer_email' => '',
+                    'status' => 'processing',
+                    'booking_id' => 'LOCK-' . substr($lock->client_id, 0, 8),
+                    'is_locked' => true
+                );
+            }
         }
         
         return rest_ensure_response(array(

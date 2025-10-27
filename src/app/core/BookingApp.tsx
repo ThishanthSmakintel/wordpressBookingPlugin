@@ -82,10 +82,10 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
         const root = window.bookingAPI?.root || '/wp-json/';
         const wsUrl = window.bookingAPI?.wsUrl || `ws://blog.promoplus.com:8080`;
         
-        // Enable WebSocket only when needed (industry best practice)
+        // Enable WebSocket from Step 1 - Track entire booking journey (Calendly pattern)
         const needsRealtime = (
+            step >= 1 ||  // Booking flow: Track from start
             bookingState.showDashboard ||  // Dashboard: Live appointment updates
-            (step === 4 && selectedDate && selectedEmployee) ||  // Time selection: Conflict prevention
             bookingState.isRescheduling ||  // Rescheduling: Live availability
             debugState.showDebug  // Debug: Connection monitoring
         );
@@ -300,21 +300,53 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
         }
     }, [step, selectedDate, selectedEmployee, checkAvailability, bookingState.isRescheduling, bookingState.currentAppointment?.id]);
 
-    // Lock slot when user reaches step 6 (review) - Database-level locking
+    // Start booking session from Step 1 - Track entire user journey (Calendly/Acuity pattern)
     useEffect(() => {
-        if (step === 6 && selectedDate && selectedTime && selectedEmployee && connectionMode === 'websocket') {
-            console.log('[BookingApp] 🔒 Locking slot in database:', { date: selectedDate, time: selectedTime, employeeId: selectedEmployee.id });
-            sendRealtimeMessage('lock_slot', {
+        if (step >= 1 && connectionMode === 'websocket') {
+            console.log(`[BookingApp] 📋 Booking session active at Step ${step}`);
+            sendRealtimeMessage('booking_session', {
+                step,
+                service: selectedService?.name,
+                employee: selectedEmployee?.name,
                 date: selectedDate,
-                time: selectedTime,
-                employeeId: selectedEmployee.id
+                time: selectedTime
             });
         }
+    }, [step, selectedService, selectedEmployee, selectedDate, selectedTime, connectionMode, sendRealtimeMessage]);
+
+    // Lock slot when time is selected (Step 4+) - Database-level locking
+    useEffect(() => {
+        console.log('[BookingApp] Lock check:', { 
+            step, 
+            hasDate: !!selectedDate, 
+            hasTime: !!selectedTime, 
+            hasEmployee: !!selectedEmployee,
+            connectionMode
+        });
         
-        // Unlock slot when leaving step 6 or unmounting
+        // Lock slot when all required data is available (Step 4+)
+        if (step >= 4 && selectedDate && selectedTime && selectedEmployee) {
+            if (connectionMode === 'websocket') {
+                console.log(`[BookingApp] 🔒 LOCKING slot at Step ${step}:`, { 
+                    date: selectedDate, 
+                    time: selectedTime, 
+                    employeeId: selectedEmployee.id 
+                });
+                sendRealtimeMessage('lock_slot', {
+                    date: selectedDate,
+                    time: selectedTime,
+                    employeeId: selectedEmployee.id,
+                    service: selectedService?.name
+                });
+            } else {
+                console.warn('[BookingApp] ⚠️ Cannot lock - WebSocket not connected');
+            }
+        }
+        
+        // Unlock when leaving booking flow or changing selection
         return () => {
-            if (step === 6 && selectedDate && selectedTime && selectedEmployee && connectionMode === 'websocket') {
-                console.log('[BookingApp] 🔓 Unlocking slot from database:', { date: selectedDate, time: selectedTime, employeeId: selectedEmployee.id });
+            if (step >= 4 && selectedDate && selectedTime && selectedEmployee && connectionMode === 'websocket') {
+                console.log('[BookingApp] 🔓 Unlocking slot:', { date: selectedDate, time: selectedTime });
                 sendRealtimeMessage('unlock_slot', {
                     date: selectedDate,
                     time: selectedTime,
@@ -323,7 +355,7 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                 });
             }
         };
-    }, [step, selectedDate, selectedTime, selectedEmployee, connectionMode, sendRealtimeMessage]);
+    }, [step, selectedDate, selectedTime, selectedEmployee, selectedService, connectionMode, sendRealtimeMessage]);
 
     useEffect(() => {
         loadInitialData();

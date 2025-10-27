@@ -133,6 +133,8 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
         loadTimeSlots();
     }, [loadTimeSlots]);
     
+
+
     // Listen for active selections and availability updates
     useEffect(() => {
         const handleActiveSelections = (data: any) => {
@@ -145,7 +147,7 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
         
         const unsubscribe1 = on('active_selections', handleActiveSelections);
         
-        // Request real-time availability check
+        // Request real-time availability check from WebSocket
         if (selectedDate && selectedEmployee?.id) {
             send('check_availability', {
                 date: selectedDate,
@@ -252,12 +254,14 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                     {(timeSlots || []).map(time => {
                         const isUnavailable = unavailableSlots === 'all' || (Array.isArray(unavailableSlots) && unavailableSlots.includes(time));
                         const serviceDuration = selectedService?.duration || 30;
-                        const isSelected = tempSelected === time;
+                        const isSelected = tempSelected === time || selectedTime === time;
                         const isCurrentAppointment = currentAppointmentTime === time;
-                        const isBeingBooked = activeSelections.includes(time);
-                        const isDisabled = isUnavailable || isCurrentAppointment || isBeingBooked;
+                        const isBeingBooked = activeSelections.includes(time) && !isSelected;
+                        const slotDetails = bookingDetails?.[time];
+                        const isProcessing = (slotDetails?.status === 'processing' || slotDetails?.is_locked === true) && !isSelected;
+                        const isDisabled = (isUnavailable || isCurrentAppointment || isBeingBooked || isProcessing) && !isSelected;
                         
-                        const slotStyles = getTimeSlotStyles(isCurrentAppointment, isUnavailable, isSelected, isBeingBooked);
+                        const slotStyles = getTimeSlotStyles(isCurrentAppointment, isUnavailable || isProcessing, isSelected, isBeingBooked);
                         
                         return (
                             <div 
@@ -308,7 +312,7 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                                     textTransform: 'uppercase',
                                     letterSpacing: '0.05em'
                                 }}>
-                                    {isCurrentAppointment ? 'Your Current Time' : isBeingBooked ? '⏳ Currently Booking' : isUnavailable ? 'Booked' : 'Available'}
+                                    {isSelected ? 'Your Selection' : isCurrentAppointment ? 'Your Current Time' : isBeingBooked ? '⏳ Currently Booking' : isProcessing ? '⏳ Processing' : isUnavailable ? 'Booked' : 'Available'}
                                 </div>
                             </div>
                         );

@@ -3,12 +3,17 @@
  * Comprehensive AppointEase Test Suite - All Scenarios
  */
 
+// Enable error display
+ini_set('display_errors', 1);
+ini_set('display_startup_errors', 1);
+error_reporting(E_ALL);
+
 // Bootstrap WordPress - try different paths
 $wp_paths = [
+    'C:/xampp/htdocs/wordpress/blog.promoplus.com/wp-config.php',
     __DIR__ . '/../../../../../wp-config.php',
     __DIR__ . '/../../../../wp-config.php', 
-    __DIR__ . '/../../../wp-config.php',
-    dirname(dirname(dirname(dirname(dirname(__DIR__))))) . '/wp-config.php'
+    __DIR__ . '/../../../wp-config.php'
 ];
 
 $wp_loaded = false;
@@ -317,6 +322,7 @@ class APITester {
         $this->test_atomic_booking();
         $this->test_race_condition();
         $this->test_slot_locking();
+        $this->test_processing_slot_visibility();
         $this->test_business_rules();
         
         // Authentication & Security
@@ -373,6 +379,21 @@ class APITester {
         // Test expiration
         $remaining = strtotime($lock->expires_at) - time();
         $this->log('Lock Expiration', $remaining > 0 && $remaining <= 600, "Expires in {$remaining}s (should be ~600s)");
+        
+        // Test availability API includes locks
+        $response = wp_remote_post(rest_url('booking/v1/availability'), [
+            'headers' => ['Content-Type' => 'application/json'],
+            'body' => json_encode([
+                'date' => $lock_data['date'],
+                'employee_id' => $lock_data['employee_id']
+            ])
+        ]);
+        
+        if (!is_wp_error($response)) {
+            $data = json_decode(wp_remote_retrieve_body($response), true);
+            $locked_slot_visible = in_array('10:00', $data['unavailable']);
+            $this->log('Lock Visible in API', $locked_slot_visible, $locked_slot_visible ? 'Processing slot shown as unavailable' : 'Lock not detected by API');
+        }
         
         // Cleanup
         $wpdb->delete($table, ['id' => $lock->id]);
@@ -445,6 +466,54 @@ class APITester {
         }
         
         $this->log('WebSocket DB Config', true, 'MySQL connection available');
+    }
+    
+    public function test_processing_slot_visibility() {
+        echo "<h2>🚦 Processing Slot Visibility (Race Condition Fix)</h2>\n";
+        
+        global $wpdb;
+        $locks_table = $wpdb->prefix . 'appointease_slot_locks';
+        $test_date = date('Y-m-d', strtotime('next Monday'));
+        $test_time = '14:30:00';
+        $employee_id = 1;
+        
+        // Simulate User B processing a booking (create lock)
+        $lock_id = $wpdb->insert($locks_table, [
+            'date' => $test_date,
+            'time' => $test_time,
+            'employee_id' => $employee_id,
+            'client_id' => 'user_b_' . uniqid(),
+            'expires_at' => date('Y-m-d H:i:s', strtotime('+10 minutes'))
+        ]);
+        
+        $this->log('User B Lock Created', $lock_id !== false, 'Slot locked during processing');
+        
+        // Simulate User C checking availability (new user)
+        $response = wp_remote_post(rest_url('booking/v1/availability'), [
+            'headers' => ['Content-Type' => 'application/json'],
+            'body' => json_encode([
+                'date' => $test_date,
+                'employee_id' => $employee_id
+            ])
+        ]);
+        
+        if (!is_wp_error($response)) {
+            $data = json_decode(wp_remote_retrieve_body($response), true);
+            $slot_unavailable = in_array('14:30', $data['unavailable']);
+            $has_processing_status = isset($data['booking_details']['14:30']['status']) && 
+                                    $data['booking_details']['14:30']['status'] === 'processing';
+            
+            $this->log('User C Sees Lock', $slot_unavailable, $slot_unavailable ? 'Processing slot blocked for new users ✅' : 'CRITICAL: Race condition exists ❌');
+            $this->log('Processing Status', $has_processing_status, $has_processing_status ? 'Shows "Processing" label' : 'No status label');
+        } else {
+            $this->log('API Request', false, 'Failed to check availability');
+        }
+        
+        // Cleanup
+        $wpdb->query($wpdb->prepare(
+            "DELETE FROM $locks_table WHERE date = %s AND time = %s AND employee_id = %d",
+            $test_date, $test_time, $employee_id
+        ));
     }
     
     public function test_edge_cases() {

@@ -86,6 +86,22 @@ wss.on('connection', (ws, req) => {
                     data: { appointments },
                     timestamp: Date.now()
                 }));
+            } else if (data.type === 'booking_session') {
+                // Track booking session from Step 1 (Calendly/Acuity pattern)
+                const client = clients.get(clientId);
+                if (client) {
+                    client.step = data.step;
+                    client.service = data.service;
+                    client.employee = data.employee;
+                    client.date = data.date;
+                    client.time = data.time;
+                }
+                console.log(`[WebSocket] Booking session Step ${data.step}: ${data.service || 'N/A'} with ${data.employee || 'N/A'}`);
+                ws.send(JSON.stringify({
+                    type: 'session_tracked',
+                    step: data.step,
+                    timestamp: Date.now()
+                }));
             } else if (data.type === 'lock_slot') {
                 // Lock slot in database (Calendly standard: 10 min)
                 const expiresAt = new Date(Date.now() + 600000);
