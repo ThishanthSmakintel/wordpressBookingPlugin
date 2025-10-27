@@ -7,8 +7,22 @@ const DB_CONFIG = {
     host: 'localhost',
     user: 'root',
     password: '',
-    database: 'blog_promoplus'
+    database: 'blog_promoplus',
+    waitForConnections: true,
+    connectionLimit: 10,
+    queueLimit: 0,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 0
 };
+
+let pool = null;
+
+function getPool() {
+    if (!pool) {
+        pool = mysql.createPool(DB_CONFIG);
+    }
+    return pool;
+}
 
 const clients = new Map();
 const activeSelections = new Map();
@@ -245,14 +259,14 @@ wss.on('connection', (ws, req) => {
             }
         }
         // Clean up locks for this client
-        const connection = await mysql.createConnection(DB_CONFIG);
         try {
-            await connection.execute(
+            const pool = getPool();
+            await pool.execute(
                 'DELETE FROM wp_appointease_slot_locks WHERE client_id = ?',
                 [clientId]
             );
-        } finally {
-            await connection.end();
+        } catch (error) {
+            console.error(`[WebSocket] Error cleaning up locks for ${clientId}:`, error.message);
         }
         clients.delete(clientId);
         console.log(`[WebSocket] Client disconnected: ${email || 'Anonymous'} (ID: ${clientId})`);
@@ -264,71 +278,75 @@ wss.on('connection', (ws, req) => {
 });
 
 async function getAppointments(email) {
-    const connection = await mysql.createConnection(DB_CONFIG);
     try {
-        const [rows] = await connection.execute(
-            'SELECT * FROM wp_appointments WHERE email = ? AND status != "cancelled" ORDER BY appointment_date DESC',
+        const pool = getPool();
+        const [rows] = await pool.execute(
+            'SELECT * FROM wp_appointease_appointments WHERE email = ? AND status != "cancelled" ORDER BY appointment_date DESC',
             [email]
         );
         return rows;
     } catch (error) {
         console.error('[WebSocket] Error fetching appointments:', error.message);
         return [];
-    } finally {
-        await connection.end();
     }
 }
 
 async function lockSlotInDB(date, time, employeeId, clientId, expiresAt) {
-    const connection = await mysql.createConnection(DB_CONFIG);
     try {
-        await connection.execute(
-            'INSERT INTO wp_appointease_slot_locks (date, time, employee_id, client_id, expires_at) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE client_id = ?, expires_at = ?',
-            [date, time, employeeId, clientId, expiresAt, clientId, expiresAt]
+        const pool = getPool();
+        console.log(`[WebSocket] Attempting lock: date=${date}, time=${time}, employee=${employeeId}, client=${clientId}`);
+        
+        const [result] = await pool.execute(
+            'INSERT INTO wp_appointease_slot_locks (date, time, employee_id, client_id, expires_at) VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE)) ON DUPLICATE KEY UPDATE client_id = ?, expires_at = DATE_ADD(NOW(), INTERVAL 10 MINUTE)',
+            [date, time, employeeId, clientId, clientId]
         );
-        lockedSlots.set(`${date}_${time}_${employeeId}`, { clientId, expiresAt: expiresAt.getTime() });
-    } finally {
-        await connection.end();
+        
+        console.log(`[WebSocket] ✅ Lock inserted successfully! Affected rows: ${result.affectedRows}, Insert ID: ${result.insertId}`);
+        lockedSlots.set(`${date}_${time}_${employeeId}`, { clientId, expiresAt: Date.now() + 600000 });
+    } catch (error) {
+        console.error('[WebSocket] ❌ Error locking slot:', error.message);
+        console.error('[WebSocket] Full error:', error);
     }
 }
 
 async function unlockSlotInDB(date, time, employeeId) {
-    const connection = await mysql.createConnection(DB_CONFIG);
     try {
-        await connection.execute(
+        const pool = getPool();
+        await pool.execute(
             'DELETE FROM wp_appointease_slot_locks WHERE date = ? AND time = ? AND employee_id = ?',
             [date, time, employeeId]
         );
         lockedSlots.delete(`${date}_${time}_${employeeId}`);
-    } finally {
-        await connection.end();
+    } catch (error) {
+        console.error('[WebSocket] Error unlocking slot:', error.message);
     }
 }
 
 async function getUnavailableSlots(date, employeeId) {
-    const connection = await mysql.createConnection(DB_CONFIG);
     try {
-        const [rows] = await connection.execute(
-            "SELECT TIME_FORMAT(appointment_date, '%H:%i') as time FROM wp_appointments WHERE DATE(appointment_date) = ? AND employee_id = ? AND status != 'cancelled'",
+        const pool = getPool();
+        const [rows] = await pool.execute(
+            "SELECT TIME_FORMAT(appointment_date, '%H:%i') as time FROM wp_appointease_appointments WHERE DATE(appointment_date) = ? AND employee_id = ? AND status != 'cancelled'",
             [date, employeeId]
         );
         const bookedSlots = rows.map(row => row.time);
         
         // Get locked slots from database
-        const [lockRows] = await connection.execute(
+        const [lockRows] = await pool.execute(
             "SELECT time FROM wp_appointease_slot_locks WHERE date = ? AND employee_id = ? AND expires_at > NOW()",
             [date, employeeId]
         );
         const lockedSlots = lockRows.map(row => row.time);
         
         // Clean expired locks
-        await connection.execute(
+        await pool.execute(
             'DELETE FROM wp_appointease_slot_locks WHERE expires_at <= NOW()'
         );
         
         return [...new Set([...bookedSlots, ...lockedSlots])];
-    } finally {
-        await connection.end();
+    } catch (error) {
+        console.error('[WebSocket] Error getting unavailable slots:', error.message);
+        return [];
     }
 }
 
@@ -415,9 +433,9 @@ async function broadcastAvailabilityUpdate(date, employeeId) {
 }
 
 async function getActiveLocks() {
-    const connection = await mysql.createConnection(DB_CONFIG);
     try {
-        const [rows] = await connection.execute(
+        const pool = getPool();
+        const [rows] = await pool.execute(
             'SELECT date, time, employee_id, client_id, TIMESTAMPDIFF(SECOND, NOW(), expires_at) as remaining FROM wp_appointease_slot_locks WHERE expires_at > NOW()'
         );
         return rows.map(row => ({
@@ -428,8 +446,9 @@ async function getActiveLocks() {
             remaining: row.remaining + 's',
             expired: false
         }));
-    } finally {
-        await connection.end();
+    } catch (error) {
+        console.error('[WebSocket] Error getting active locks:', error.message);
+        return [];
     }
 }
 

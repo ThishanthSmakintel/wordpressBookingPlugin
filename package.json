@@ -6,9 +6,10 @@
   "scripts": {
     "build": "wp-scripts build",
     "start": "wp-scripts start",
-    "dev": "concurrently \"wp-scripts start\" \"node websocket-server.js\"",
-    "ws:start": "node websocket-server.js",
-    "ws:dev": "nodemon websocket-server.js"
+    "dev": "npm run kill:ws && concurrently \"wp-scripts start\" \"node websocket-server.js\"",
+    "ws:start": "npm run kill:ws && node websocket-server.js",
+    "ws:dev": "npm run kill:ws && nodemon websocket-server.js",
+    "kill:ws": "taskkill /F /IM node.exe /FI \"WINDOWTITLE eq WebSocket*\" 2>nul || echo No WebSocket server running"
   },
   "dependencies": {
     "@wordpress/scripts": "^26.0.0",

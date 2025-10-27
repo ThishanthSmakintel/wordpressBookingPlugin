@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Slot Lock</title>
+</head>
+<body>
+    <h1>Test Slot Lock System</h1>
+    <button onclick="testLock()">Test Lock Slot</button>
+    <button onclick="checkLocks()">Check Active Locks</button>
+    <pre id="output"></pre>
+
+    <script>
+        const ws = new WebSocket('ws://localhost:8080');
+        const output = document.getElementById('output');
+
+        ws.onopen = () => {
+            output.textContent += 'WebSocket connected\n';
+        };
+
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            output.textContent += 'Received: ' + JSON.stringify(data, null, 2) + '\n';
+        };
+
+        function testLock() {
+            const lockData = {
+                type: 'lock_slot',
+                date: '2025-10-27',
+                time: '09:15',
+                employeeId: 1,
+                service: 'Test Service'
+            };
+            ws.send(JSON.stringify(lockData));
+            output.textContent += 'Sent lock_slot message\n';
+        }
+
+        function checkLocks() {
+            fetch('http://localhost:8080/debug')
+                .then(r => r.json())
+                .then(data => {
+                    output.textContent += 'Active locks: ' + JSON.stringify(data, null, 2) + '\n';
+                });
+        }
+    </script>
+</body>
+</html>

@@ -314,45 +314,48 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
         }
     }, [step, selectedService, selectedEmployee, selectedDate, selectedTime, connectionMode, sendRealtimeMessage]);
 
-    // Lock slot when time is selected (Step 4+) - Database-level locking
+    // Lock slot at Steps 4, 5, 6 - Update DB immediately when time selected
+    const previousSlotRef = useRef<{date: string, time: string, employeeId: number} | null>(null);
+    
     useEffect(() => {
-        console.log('[BookingApp] Lock check:', { 
-            step, 
-            hasDate: !!selectedDate, 
-            hasTime: !!selectedTime, 
-            hasEmployee: !!selectedEmployee,
-            connectionMode
-        });
-        
-        // Lock slot when all required data is available (Step 4+)
-        if (step >= 4 && selectedDate && selectedTime && selectedEmployee) {
-            if (connectionMode === 'websocket') {
-                console.log(`[BookingApp] 🔒 LOCKING slot at Step ${step}:`, { 
-                    date: selectedDate, 
-                    time: selectedTime, 
-                    employeeId: selectedEmployee.id 
+        if ((step === 4 || step === 5 || step === 6) && selectedDate && selectedTime && selectedEmployee && connectionMode === 'websocket') {
+            const currentSlot = { date: selectedDate, time: selectedTime, employeeId: selectedEmployee.id };
+            const previousSlot = previousSlotRef.current;
+            
+            // If user changed time selection, unlock old slot first
+            if (previousSlot && (previousSlot.time !== currentSlot.time || previousSlot.date !== currentSlot.date)) {
+                console.log(`[BookingApp] 🔄 Step ${step}: Unlocking old slot:`, previousSlot);
+                sendRealtimeMessage('unlock_slot', {
+                    date: previousSlot.date,
+                    time: previousSlot.time,
+                    employeeId: previousSlot.employeeId,
+                    completed: false
                 });
-                sendRealtimeMessage('lock_slot', {
-                    date: selectedDate,
-                    time: selectedTime,
-                    employeeId: selectedEmployee.id,
-                    service: selectedService?.name
-                });
-            } else {
-                console.warn('[BookingApp] ⚠️ Cannot lock - WebSocket not connected');
             }
+            
+            // Lock slot immediately in database
+            console.log(`[BookingApp] 🔒 Step ${step}: LOCKING slot in DB:`, currentSlot);
+            sendRealtimeMessage('lock_slot', {
+                date: selectedDate,
+                time: selectedTime,
+                employeeId: selectedEmployee.id,
+                service: selectedService?.name
+            });
+            
+            previousSlotRef.current = currentSlot;
         }
         
-        // Unlock when leaving booking flow or changing selection
+        // Unlock when leaving steps 4-6 or unmounting
         return () => {
-            if (step >= 4 && selectedDate && selectedTime && selectedEmployee && connectionMode === 'websocket') {
-                console.log('[BookingApp] 🔓 Unlocking slot:', { date: selectedDate, time: selectedTime });
+            if ((step === 4 || step === 5 || step === 6) && selectedDate && selectedTime && selectedEmployee && connectionMode === 'websocket') {
+                console.log(`[BookingApp] 🔓 Step ${step}: Unlocking slot on unmount`);
                 sendRealtimeMessage('unlock_slot', {
                     date: selectedDate,
                     time: selectedTime,
                     employeeId: selectedEmployee.id,
                     completed: step === 7
                 });
+                previousSlotRef.current = null;
             }
         };
     }, [step, selectedDate, selectedTime, selectedEmployee, selectedService, connectionMode, sendRealtimeMessage]);

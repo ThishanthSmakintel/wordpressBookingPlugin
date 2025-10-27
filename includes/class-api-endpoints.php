@@ -376,44 +376,62 @@ class Booking_API_Endpoints {
             }
         } else {
             $booked_appointments = $wpdb->get_results($wpdb->prepare(
-                "SELECT TIME_FORMAT(appointment_date, '%%H:%%i') as time_slot, name, email, status, strong_id, id, appointment_date FROM {$appointments_table} WHERE employee_id = %d AND DATE(appointment_date) = %s AND status IN ('confirmed', 'created')",
+                "SELECT TIME_FORMAT(appointment_date, '%%H:%%i') as time_slot, name, email, status, strong_id, id, appointment_date FROM {$appointments_table} WHERE employee_id = %d AND DATE(appointment_date) = %s AND status IN ('confirmed', 'created') ORDER BY id DESC",
                 $employee_id, $date
             ));
+        }
+        
+        // Debug: Log appointment query results
+        error_log('[AppointEase] Appointment query for date=' . $date . ', employee=' . $employee_id . ': Found ' . count($booked_appointments) . ' appointments');
+        if (count($booked_appointments) > 0) {
+            foreach ($booked_appointments as $apt) {
+                error_log('[AppointEase] - Appointment: ' . $apt->strong_id . ' at ' . $apt->time_slot . ' (ID: ' . $apt->id . ')');
+            }
         }
         
         $booked_times = array();
         $booking_details = array();
         
-        foreach ($booked_appointments as $appointment) {
-            $time_slot = $appointment->time_slot;
-            $booked_times[] = $time_slot;
-            $booking_details[$time_slot] = array(
-                'customer_name' => $appointment->name,
-                'customer_email' => $appointment->email,
-                'status' => $appointment->status,
-                'booking_id' => $appointment->strong_id ?: $appointment->id,
-                'booked_at' => $time_slot
-            );
-        }
-        
-        // CRITICAL FIX: Check active slot locks (processing bookings)
+        // CRITICAL FIX: Check active slot locks FIRST (processing bookings take priority)
         $locks_table = $wpdb->prefix . 'appointease_slot_locks';
         $locked_slots = $wpdb->get_results($wpdb->prepare(
-            "SELECT DATE_FORMAT(CONCAT(date, ' ', time), '%%H:%%i') as time_slot, client_id FROM {$locks_table} WHERE date = %s AND employee_id = %d AND expires_at > NOW()",
+            "SELECT DATE_FORMAT(CONCAT(date, ' ', time), '%%H:%%i') as time_slot, client_id, TIMESTAMPDIFF(SECOND, NOW(), expires_at) as remaining FROM {$locks_table} WHERE date = %s AND employee_id = %d AND expires_at > NOW()",
             $date, $employee_id
         ));
         
+        // Debug: Log lock query results
+        error_log('[AppointEase] Lock query for date=' . $date . ', employee=' . $employee_id . ': Found ' . count($locked_slots) . ' locks');
+        if (count($locked_slots) > 0) {
+            foreach ($locked_slots as $lock) {
+                error_log('[AppointEase] - Lock: ' . $lock->client_id . ' at ' . $lock->time_slot . ' (remaining: ' . $lock->remaining . 's)');
+            }
+        }
+        
         foreach ($locked_slots as $lock) {
             $time_slot = $lock->time_slot;
+            $booked_times[] = $time_slot;
+            $booking_details[$time_slot] = array(
+                'customer_name' => 'Processing',
+                'customer_email' => '',
+                'status' => 'processing',
+                'booking_id' => 'LOCK-' . substr($lock->client_id, 0, 8),
+                'booked_at' => $time_slot,
+                'is_locked' => true,
+                'lock_remaining' => intval($lock->remaining)
+            );
+        }
+        
+        // Then add confirmed appointments (locks override confirmed appointments)
+        foreach ($booked_appointments as $appointment) {
+            $time_slot = $appointment->time_slot;
             if (!in_array($time_slot, $booked_times)) {
                 $booked_times[] = $time_slot;
                 $booking_details[$time_slot] = array(
-                    'customer_name' => 'Processing',
-                    'customer_email' => '',
-                    'status' => 'processing',
-                    'booking_id' => 'LOCK-' . substr($lock->client_id, 0, 8),
-                    'booked_at' => $time_slot,
-                    'is_locked' => true
+                    'customer_name' => $appointment->name,
+                    'customer_email' => $appointment->email,
+                    'status' => $appointment->status,
+                    'booking_id' => $appointment->strong_id ?: $appointment->id,
+                    'booked_at' => $time_slot
                 );
             }
         }
@@ -421,6 +439,9 @@ class Booking_API_Endpoints {
         if ($wpdb->last_error) {
             return new WP_Error('db_error', 'Database error occurred', array('status' => 500));
         }
+        
+        // Clear WordPress object cache to ensure fresh data
+        wp_cache_flush();
         
         return rest_ensure_response(array(
             'unavailable' => $booked_times,
@@ -1468,34 +1489,36 @@ class Booking_API_Endpoints {
         $booked_times = array();
         $booking_details = array();
         
-        foreach ($booked_appointments as $appointment) {
-            $time_slot = $appointment->time_slot;
-            $booked_times[] = $time_slot;
-            $booking_details[$time_slot] = array(
-                'customer_name' => $appointment->name,
-                'customer_email' => $appointment->email,
-                'status' => $appointment->status,
-                'booking_id' => $appointment->strong_id ?: $appointment->id
-            );
-        }
-        
-        // Check active slot locks (processing bookings)
+        // Check active slot locks FIRST (processing bookings take priority)
         $locks_table = $wpdb->prefix . 'appointease_slot_locks';
         $locked_slots = $wpdb->get_results($wpdb->prepare(
-            "SELECT DATE_FORMAT(CONCAT(date, ' ', time), '%%H:%%i') as time_slot, client_id FROM {$locks_table} WHERE date = %s AND employee_id = %d AND expires_at > NOW()",
+            "SELECT DATE_FORMAT(CONCAT(date, ' ', time), '%%H:%%i') as time_slot, client_id, TIMESTAMPDIFF(SECOND, NOW(), expires_at) as remaining FROM {$locks_table} WHERE date = %s AND employee_id = %d AND expires_at > NOW()",
             $date, $employee_id
         ));
         
         foreach ($locked_slots as $lock) {
             $time_slot = $lock->time_slot;
+            $booked_times[] = $time_slot;
+            $booking_details[$time_slot] = array(
+                'customer_name' => 'Processing',
+                'customer_email' => '',
+                'status' => 'processing',
+                'booking_id' => 'LOCK-' . substr($lock->client_id, 0, 8),
+                'is_locked' => true,
+                'lock_remaining' => intval($lock->remaining)
+            );
+        }
+        
+        // Then add confirmed appointments (locks override confirmed appointments)
+        foreach ($booked_appointments as $appointment) {
+            $time_slot = $appointment->time_slot;
             if (!in_array($time_slot, $booked_times)) {
                 $booked_times[] = $time_slot;
                 $booking_details[$time_slot] = array(
-                    'customer_name' => 'Processing',
-                    'customer_email' => '',
-                    'status' => 'processing',
-                    'booking_id' => 'LOCK-' . substr($lock->client_id, 0, 8),
-                    'is_locked' => true
+                    'customer_name' => $appointment->name,
+                    'customer_email' => $appointment->email,
+                    'status' => $appointment->status,
+                    'booking_id' => $appointment->strong_id ?: $appointment->id
                 );
             }
         }

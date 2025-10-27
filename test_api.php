@@ -357,46 +357,65 @@ class APITester {
         global $wpdb;
         $table = $wpdb->prefix . 'appointease_slot_locks';
         
-        // Test lock creation
-        $lock_data = [
-            'date' => date('Y-m-d', strtotime('next Monday')),
-            'time' => '10:00:00',
-            'employee_id' => 1,
-            'client_id' => 'test_client_123',
-            'expires_at' => date('Y-m-d H:i:s', strtotime('+10 minutes'))
-        ];
+        // Test lock creation (FIXED: Use MySQL DATE_ADD to avoid timezone issues)
+        $test_date = date('Y-m-d', strtotime('next Monday'));
+        $test_time = '10:00:00';
+        $employee_id = 1;
         
-        $result = $wpdb->insert($table, $lock_data);
-        $this->log('Lock Creation', $result !== false, $result ? 'Lock created successfully' : 'Failed to create lock');
+        $wpdb->query($wpdb->prepare(
+            "INSERT INTO $table (date, time, employee_id, client_id, expires_at) 
+             VALUES (%s, %s, %d, %s, DATE_ADD(NOW(), INTERVAL 10 MINUTE))",
+            $test_date, $test_time, $employee_id, 'test_client_123'
+        ));
+        $result = $wpdb->insert_id;
+        $this->log('Lock Creation', $result > 0, $result ? 'Lock created successfully' : 'Failed to create lock');
         
         // Test lock retrieval
         $lock = $wpdb->get_row($wpdb->prepare(
-            "SELECT * FROM $table WHERE date = %s AND time = %s AND employee_id = %d",
-            $lock_data['date'], $lock_data['time'], $lock_data['employee_id']
+            "SELECT *, TIMESTAMPDIFF(SECOND, NOW(), expires_at) as remaining FROM $table WHERE date = %s AND time = %s AND employee_id = %d",
+            $test_date, $test_time, $employee_id
         ));
         $this->log('Lock Retrieval', $lock !== null, $lock ? 'Lock retrieved successfully' : 'Lock not found');
         
         // Test expiration
-        $remaining = strtotime($lock->expires_at) - time();
-        $this->log('Lock Expiration', $remaining > 0 && $remaining <= 600, "Expires in {$remaining}s (should be ~600s)");
+        if ($lock) {
+            $remaining = intval($lock->remaining);
+            $this->log('Lock Expiration', $remaining > 0 && $remaining <= 600, "Expires in {$remaining}s (should be ~600s)");
+        }
         
         // Test availability API includes locks
         $response = wp_remote_post(rest_url('booking/v1/availability'), [
             'headers' => ['Content-Type' => 'application/json'],
             'body' => json_encode([
-                'date' => $lock_data['date'],
-                'employee_id' => $lock_data['employee_id']
+                'date' => $test_date,
+                'employee_id' => $employee_id
             ])
         ]);
         
         if (!is_wp_error($response)) {
             $data = json_decode(wp_remote_retrieve_body($response), true);
             $locked_slot_visible = in_array('10:00', $data['unavailable']);
+            $has_processing_status = isset($data['booking_details']['10:00']) && 
+                                    $data['booking_details']['10:00']['status'] === 'processing';
+            $has_locked_flag = isset($data['booking_details']['10:00']['is_locked']) && 
+                              $data['booking_details']['10:00']['is_locked'] === true;
+            
             $this->log('Lock Visible in API', $locked_slot_visible, $locked_slot_visible ? 'Processing slot shown as unavailable' : 'Lock not detected by API');
+            $this->log('Processing Status', $has_processing_status, $has_processing_status ? 'Status = "processing"' : 'Missing processing status');
+            $this->log('Locked Flag', $has_locked_flag, $has_locked_flag ? 'is_locked = true' : 'Missing locked flag');
+            
+            // Show full response for debugging
+            if ($locked_slot_visible) {
+                echo "<div class='info' style='margin-left:20px;'>API Response: " . json_encode($data['booking_details']['10:00']) . "</div>\n";
+            }
+        } else {
+            $this->log('API Request', false, 'Failed: ' . $response->get_error_message());
         }
         
         // Cleanup
-        $wpdb->delete($table, ['id' => $lock->id]);
+        if ($lock) {
+            $wpdb->delete($table, ['id' => $lock->id]);
+        }
     }
     
     public function test_business_rules() {
@@ -477,16 +496,15 @@ class APITester {
         $test_time = '14:30:00';
         $employee_id = 1;
         
-        // Simulate User B processing a booking (create lock)
-        $lock_id = $wpdb->insert($locks_table, [
-            'date' => $test_date,
-            'time' => $test_time,
-            'employee_id' => $employee_id,
-            'client_id' => 'user_b_' . uniqid(),
-            'expires_at' => date('Y-m-d H:i:s', strtotime('+10 minutes'))
-        ]);
+        // Simulate User B processing a booking (create lock with MySQL DATE_ADD)
+        $wpdb->query($wpdb->prepare(
+            "INSERT INTO $locks_table (date, time, employee_id, client_id, expires_at) 
+             VALUES (%s, %s, %d, %s, DATE_ADD(NOW(), INTERVAL 10 MINUTE))",
+            $test_date, $test_time, $employee_id, 'user_b_' . uniqid()
+        ));
+        $lock_id = $wpdb->insert_id;
         
-        $this->log('User B Lock Created', $lock_id !== false, 'Slot locked during processing');
+        $this->log('User B Lock Created', $lock_id > 0, 'Slot locked during processing');
         
         // Simulate User C checking availability (new user)
         $response = wp_remote_post(rest_url('booking/v1/availability'), [
