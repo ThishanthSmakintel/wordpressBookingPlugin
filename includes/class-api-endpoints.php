@@ -5,6 +5,7 @@ class Booking_API_Endpoints {
     
     public function __construct() {
         require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-redis-helper.php';
+        require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-redis-pubsub.php';
         $this->redis = Appointease_Redis_Helper::get_instance();
         add_action('rest_api_init', array($this, 'register_routes'));
         add_action('rest_api_init', array($this, 'register_webhook_routes'));
@@ -250,6 +251,13 @@ class Booking_API_Endpoints {
         register_rest_route('appointease/v1', '/clear-locks', array(
             'methods' => 'POST',
             'callback' => array($this, 'clear_all_locks'),
+            'permission_callback' => '__return_true'
+        ));
+        
+        // Server-Sent Events stream
+        register_rest_route('appointease/v1', '/realtime/stream', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'realtime_stream'),
             'permission_callback' => '__return_true'
         ));
         
@@ -1545,17 +1553,30 @@ class Booking_API_Endpoints {
                 return new WP_Error('lock_not_found', 'Lock was not created in database. Insert result: ' . $result . ', Insert ID: ' . $wpdb->insert_id, array('status' => 500));
             }
             
+            // Publish event to Redis Pub/Sub
+            $pubsub = Appointease_Redis_PubSub::get_instance();
+            if ($pubsub->is_enabled()) {
+                $pubsub->publish('appointease:slots', array(
+                    'action' => 'lock',
+                    'date' => $date,
+                    'time' => $time,
+                    'employee_id' => $employee_id,
+                    'user_id' => $user_id
+                ));
+            }
+            
             // Return immediately for optimistic UI update
             return rest_ensure_response(array(
                 'success' => true,
                 'client_id' => $client_id,
                 'locked' => true,
                 'verified' => true,
-                'updated' => $old_lock !== null,
-                'old_time' => $old_lock ? $old_lock['time'] : null,
+                'updated' => $deleted > 0,
+                'old_time' => null,
                 'new_time' => $time,
                 'optimistic' => true,
-                'message' => $old_lock ? 'Slot updated successfully' : 'Slot locked successfully'
+                'realtime' => $pubsub->is_enabled(),
+                'message' => 'Slot locked successfully'
             ));
         } catch (Exception $e) {
             return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
@@ -1577,10 +1598,21 @@ class Booking_API_Endpoints {
             $time = sanitize_text_field($params['time']);
             $employee_id = $params['employee_id'];
             
-            $key = "appointease_active_{$date}_{$employee_id}";
-            $selections = get_transient($key) ?: array();
-            unset($selections[$time]);
-            set_transient($key, $selections, 300);
+            // Remove from Redis or fallback to transients
+            if ($this->redis->is_enabled()) {
+                $key = "appointease_active_{$date}_{$employee_id}_{$time}";
+                $this->redis->delete_lock($key);
+            } else {
+                // Fallback to transients
+                $key = "appointease_active_{$date}_{$employee_id}";
+                $selections = get_transient($key) ?: array();
+                unset($selections[$time]);
+                if (empty($selections)) {
+                    delete_transient($key);
+                } else {
+                    set_transient($key, $selections, 300);
+                }
+            }
             
             return rest_ensure_response(array('success' => true));
         } catch (Exception $e) {
@@ -1609,6 +1641,11 @@ class Booking_API_Endpoints {
             
             if ($deleted === false) {
                 return new WP_Error('db_error', 'Failed to unlock slot: ' . $wpdb->last_error, array('status' => 500));
+            }
+            
+            $pubsub = Appointease_Redis_PubSub::get_instance();
+            if ($pubsub->is_enabled() && $deleted > 0) {
+                $pubsub->publish('appointease:slots', array('action' => 'unlock', 'client_id' => $client_id));
             }
             
             return rest_ensure_response(array('success' => true, 'deleted' => $deleted));
@@ -1708,6 +1745,26 @@ class Booking_API_Endpoints {
         } catch (Exception $e) {
             return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
+    }
+    
+    public function realtime_stream($request) {
+        header('Content-Type: text/event-stream');
+        header('Cache-Control: no-cache');
+        header('Connection: keep-alive');
+        header('X-Accel-Buffering: no');
+        
+        $pubsub = Appointease_Redis_PubSub::get_instance();
+        
+        if (!$pubsub->is_enabled()) {
+            echo "data: {\"error\": \"Redis not available\"}\n\n";
+            flush();
+            return;
+        }
+        
+        $pubsub->subscribe(['appointease:slots'], function($redis, $channel, $message) {
+            echo "data: {$message}\n\n";
+            flush();
+        });
     }
     
     public function clear_all_locks($request) {

@@ -5,8 +5,11 @@ if (!defined('ABSPATH')) {
 }
 
 class Appointease_Heartbeat_Handler {
+    private $redis;
     
     public function __construct() {
+        require_once plugin_dir_path(__FILE__) . 'class-redis-helper.php';
+        $this->redis = Appointease_Redis_Helper::get_instance();
         add_filter('heartbeat_received', array($this, 'handle_heartbeat'), 10, 2);
         add_action('wp_enqueue_scripts', array($this, 'enqueue_heartbeat_scripts'));
         add_filter('heartbeat_nopriv_received', array($this, 'handle_heartbeat'), 10, 2);
@@ -79,31 +82,49 @@ class Appointease_Heartbeat_Handler {
                     $date, $employee_id, $user_id
                 ));
                 
-                // Get active selections from transient
-                $key = "appointease_active_{$date}_{$employee_id}";
-                $selections = get_transient($key) ?: array();
+                // Get active selections from Redis with transient fallback
+                $selections = array();
+                $now = time();
+                
+                if ($this->redis->is_enabled()) {
+                    $selections = $this->redis->get_active_selections($date, $employee_id);
+                    error_log('[Heartbeat] Using Redis for selections');
+                } else {
+                    // Fallback to transients
+                    $key = "appointease_active_{$date}_{$employee_id}";
+                    $selections = get_transient($key) ?: array();
+                    error_log('[Heartbeat] Using transients fallback');
+                }
                 
                 error_log('[Heartbeat] Found selections: ' . print_r($selections, true));
                 error_log('[Heartbeat] Booked slots: ' . print_r($booked_slots, true));
                 error_log('[Heartbeat] Locked slots: ' . print_r($locked_slots, true));
                 
                 // Refresh timestamp for current user's selection
-                $now = time();
-                if ($client_id && $selected_time && isset($selections[$selected_time])) {
-                    $sel_data = $selections[$selected_time];
-                    if (is_array($sel_data) && isset($sel_data['client_id']) && $sel_data['client_id'] === $client_id) {
-                        $selections[$selected_time]['timestamp'] = $now;
-                        set_transient($key, $selections, 300);
-                        error_log('[Heartbeat] Refreshed timestamp for ' . $selected_time);
+                if ($client_id && $selected_time) {
+                    if ($this->redis->is_enabled()) {
+                        $this->redis->set_active_selection($date, $employee_id, $selected_time, $client_id);
+                    } else {
+                        // Fallback to transients
+                        $key = "appointease_active_{$date}_{$employee_id}";
+                        $selections_data = get_transient($key) ?: array();
+                        $selections_data[$selected_time] = array('timestamp' => $now, 'client_id' => $client_id);
+                        set_transient($key, $selections_data, 300);
                     }
+                    error_log('[Heartbeat] Refreshed timestamp for ' . $selected_time);
                 }
                 
-                // Clean expired selections (older than 5 seconds)
+                // Extract active times
                 $active_times = array();
-                foreach ($selections as $time => $sel_data) {
-                    $timestamp = is_array($sel_data) ? ($sel_data['timestamp'] ?? 0) : $sel_data;
-                    if ($now - $timestamp < 5) {
-                        $active_times[] = $time;
+                if ($this->redis->is_enabled()) {
+                    $active_times = array_keys($selections);
+                } else {
+                    // Clean expired selections for transients (older than 10 seconds)
+                    foreach ($selections as $time => $sel_data) {
+                        $timestamp = is_array($sel_data) ? ($sel_data['timestamp'] ?? 0) : $sel_data;
+                        if ($now - $timestamp < 10) {
+                            $active_times[] = $time;
+                        }
                     }
                 }
                 
@@ -425,11 +446,16 @@ class Appointease_Heartbeat_Handler {
             return array('error' => 'Slot already booked', 'status' => 'booked');
         }
         
-        // Store selection in transient
-        $key = "appointease_active_{$date}_{$employee_id}";
-        $selections = get_transient($key) ?: array();
-        $selections[$time] = array('timestamp' => time(), 'client_id' => $client_id);
-        set_transient($key, $selections, 300);
+        // Store selection in Redis or fallback to transients
+        if ($this->redis->is_enabled()) {
+            $this->redis->set_active_selection($date, $employee_id, $time, $client_id);
+        } else {
+            // Fallback to transients
+            $key = "appointease_active_{$date}_{$employee_id}";
+            $selections = get_transient($key) ?: array();
+            $selections[$time] = array('timestamp' => time(), 'client_id' => $client_id);
+            set_transient($key, $selections, 300);
+        }
         
         return array('success' => true, 'status' => 'selected');
     }
@@ -443,15 +469,20 @@ class Appointease_Heartbeat_Handler {
         $time = sanitize_text_field($data['time']);
         $employee_id = intval($data['employee_id']);
         
-        // Remove selection from transient
-        $key = "appointease_active_{$date}_{$employee_id}";
-        $selections = get_transient($key) ?: array();
-        unset($selections[$time]);
-        
-        if (empty($selections)) {
-            delete_transient($key);
+        // Remove selection from Redis or transients
+        if ($this->redis->is_enabled()) {
+            $key = "appointease_active_{$date}_{$employee_id}_{$time}";
+            $this->redis->delete_lock($key);
         } else {
-            set_transient($key, $selections, 300);
+            // Fallback to transients
+            $key = "appointease_active_{$date}_{$employee_id}";
+            $selections = get_transient($key) ?: array();
+            unset($selections[$time]);
+            if (empty($selections)) {
+                delete_transient($key);
+            } else {
+                set_transient($key, $selections, 300);
+            }
         }
         
         return array('success' => true);
@@ -515,14 +546,20 @@ class Appointease_Heartbeat_Handler {
             
             $wpdb->query('COMMIT');
             
-            // Clean up selection
-            $key = "appointease_active_{$data['date']}_{$data['staff_id']}";
-            $selections = get_transient($key) ?: array();
-            unset($selections[$data['time']]);
-            if (empty($selections)) {
-                delete_transient($key);
+            // Clean up selection from Redis or transients
+            if ($this->redis->is_enabled()) {
+                $key = "appointease_active_{$data['date']}_{$data['staff_id']}_{$data['time']}";
+                $this->redis->delete_lock($key);
             } else {
-                set_transient($key, $selections, 300);
+                // Fallback to transients
+                $key = "appointease_active_{$data['date']}_{$data['staff_id']}";
+                $selections = get_transient($key) ?: array();
+                unset($selections[$data['time']]);
+                if (empty($selections)) {
+                    delete_transient($key);
+                } else {
+                    set_transient($key, $selections, 300);
+                }
             }
             
             $appointment_id = 'APT-' . date('Y') . '-' . str_pad($wpdb->insert_id, 6, '0', STR_PAD_LEFT);
@@ -539,65 +576,43 @@ class Appointease_Heartbeat_Handler {
     }
     
     private function get_debug_selections() {
-        global $wpdb;
-        
-        // Get all transients matching appointease_active_*
-        $transients = $wpdb->get_results(
-            "SELECT option_name, option_value FROM {$wpdb->options} 
-             WHERE option_name LIKE '_transient_appointease_active_%'"
-        );
-        
-        $selections = array();
+        // Get all active selections from Redis
+        $all_selections = array();
         $now = time();
         
-        foreach ($transients as $transient) {
-            $key = str_replace('_transient_', '', $transient->option_name);
-            $data = maybe_unserialize($transient->option_value);
+        // Note: This requires Redis KEYS command which may be slow in production
+        // Consider using SCAN for production environments
+        if ($this->redis->is_enabled()) {
+            $locks = $this->redis->get_locks_by_pattern('appointease_active_*');
             
-            if (preg_match('/appointease_active_([^_]+)_(.+)/', $key, $matches)) {
-                $date = $matches[1];
-                $employee_id = $matches[2];
-                
-                if (is_array($data)) {
-                    foreach ($data as $time => $sel_data) {
-                        $timestamp = is_array($sel_data) ? ($sel_data['timestamp'] ?? 0) : $sel_data;
-                        $age = $now - $timestamp;
-                        
-                        // Auto-clean expired (>5s)
-                        if ($age > 5) {
-                            unset($data[$time]);
-                        } else {
-                            $selections[] = array(
-                                'date' => $date,
-                                'time' => $time,
-                                'employee_id' => $employee_id,
-                                'age' => $age,
-                                'client_id' => is_array($sel_data) ? ($sel_data['client_id'] ?? 'unknown') : 'legacy'
-                            );
-                        }
-                    }
-                    
-                    // Update or delete transient
-                    if (empty($data)) {
-                        delete_transient($key);
-                    } else {
-                        set_transient($key, $data, 300);
-                    }
+            foreach ($locks as $lock) {
+                if (isset($lock['client_id'], $lock['timestamp'])) {
+                    $all_selections[] = array(
+                        'client_id' => $lock['client_id'],
+                        'age' => $now - $lock['timestamp'],
+                        'timestamp' => $lock['timestamp']
+                    );
                 }
             }
         }
         
         return array(
-            'selections' => $selections,
-            'count' => count($selections),
-            'timestamp' => $now
+            'selections' => $all_selections,
+            'count' => count($all_selections),
+            'timestamp' => $now,
+            'redis_enabled' => $this->redis->is_enabled()
         );
     }
     
     private function clear_all_locks() {
-        global $wpdb;
+        // Clear all locks from Redis
+        $count = 0;
+        if ($this->redis->is_enabled()) {
+            $count = $this->redis->clear_all_locks();
+        }
         
-        // Delete all appointease transients
+        // Also clear any legacy transients
+        global $wpdb;
         $wpdb->query(
             "DELETE FROM {$wpdb->options} 
              WHERE option_name LIKE '_transient_appointease_active_%' 
@@ -609,6 +624,7 @@ class Appointease_Heartbeat_Handler {
         return array(
             'success' => true,
             'message' => 'All locks cleared',
+            'redis_count' => $count,
             'timestamp' => time()
         );
     }
