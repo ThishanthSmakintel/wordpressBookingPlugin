@@ -21,7 +21,7 @@ export const useBookingActions = (bookingState: any) => {
         try {
             const requestBody: any = {
                 date: date,
-                employee_id: employeeId
+                employee_id: parseInt(String(employeeId), 10)
             };
             
             // Use different endpoint for rescheduling

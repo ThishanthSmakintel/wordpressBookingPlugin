@@ -1,8 +1,11 @@
 <?php
 
 class Booking_API_Endpoints {
+    private $redis;
     
     public function __construct() {
+        require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-redis-helper.php';
+        $this->redis = Appointease_Redis_Helper::get_instance();
         add_action('rest_api_init', array($this, 'register_routes'));
         add_action('rest_api_init', array($this, 'register_webhook_routes'));
     }
@@ -105,26 +108,7 @@ class Booking_API_Endpoints {
             'permission_callback' => '__return_true'
         ));
         
-        // Clear all appointments endpoint for testing
-        register_rest_route('appointease/v1', '/clear-appointments', array(
-            'methods' => 'POST',
-            'callback' => array($this, 'clear_all_appointments'),
-            'permission_callback' => function() { return current_user_can('manage_options'); }
-        ));
-        
-        // Fix existing appointments without strong_id
-        register_rest_route('appointease/v1', '/fix-appointments', array(
-            'methods' => 'POST',
-            'callback' => array($this, 'fix_existing_appointments'),
-            'permission_callback' => function() { return current_user_can('manage_options'); }
-        ));
-        
-        // Real-time appointments endpoint
-        register_rest_route('appointease/v1', '/appointments/stream', array(
-            'methods' => 'GET',
-            'callback' => array($this, 'stream_appointments'),
-            'permission_callback' => array($this, 'public_permission')
-        ));
+
         
         // Secure session endpoints
         register_rest_route('appointease/v1', '/session', array(
@@ -152,18 +136,25 @@ class Booking_API_Endpoints {
             'permission_callback' => '__return_true'
         ));
         
-        // Debug working days endpoint
-        register_rest_route('appointease/v1', '/debug/working-days', array(
+        // Debug active selections (needed for debug panel)
+        register_rest_route('appointease/v1', '/debug/selections', array(
             'methods' => 'GET',
-            'callback' => array($this, 'debug_working_days'),
-            'permission_callback' => function() { return current_user_can('manage_options'); }
+            'callback' => array($this, 'debug_selections'),
+            'permission_callback' => '__return_true'
         ));
         
-        // Fix working days endpoint
-        register_rest_route('appointease/v1', '/fix-working-days', array(
+        // Debug locked slots (needed for debug panel)
+        register_rest_route('appointease/v1', '/debug/locks', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'debug_locks'),
+            'permission_callback' => '__return_true'
+        ));
+        
+        // Debug raw availability data
+        register_rest_route('appointease/v1', '/debug/availability-raw', array(
             'methods' => 'POST',
-            'callback' => array($this, 'fix_working_days'),
-            'permission_callback' => function() { return current_user_can('manage_options'); }
+            'callback' => array($this, 'debug_availability_raw'),
+            'permission_callback' => '__return_true'
         ));
         
         // Server date endpoint for time sync
@@ -201,10 +192,16 @@ class Booking_API_Endpoints {
             'permission_callback' => '__return_true'
         ));
         
-        // Lock slot when user selects time
-        register_rest_route('appointease/v1', '/lock-slot', array(
+        // Real-time slot selection tracking
+        register_rest_route('appointease/v1', '/realtime/select', array(
             'methods' => 'POST',
-            'callback' => array($this, 'lock_slot'),
+            'callback' => array($this, 'realtime_select'),
+            'permission_callback' => '__return_true'
+        ));
+        
+        register_rest_route('appointease/v1', '/realtime/deselect', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'realtime_deselect'),
             'permission_callback' => '__return_true'
         ));
         
@@ -236,7 +233,7 @@ class Booking_API_Endpoints {
             'permission_callback' => '__return_true'
         ));
         
-        // Admin calendar endpoints
+        // Admin calendar endpoints (needed for admin panel)
         register_rest_route('appointease/v1', '/admin/appointments', array(
             'methods' => 'GET',
             'callback' => array($this, 'get_admin_appointments'),
@@ -249,59 +246,70 @@ class Booking_API_Endpoints {
             'permission_callback' => function() { return current_user_can('manage_options'); }
         ));
         
-        // Screenshot endpoints
-        register_rest_route('appointease/v1', '/screenshot/save', array(
+        // Clear all locks endpoint
+        register_rest_route('appointease/v1', '/clear-locks', array(
             'methods' => 'POST',
-            'callback' => array($this, 'save_screenshot'),
+            'callback' => array($this, 'clear_all_locks'),
             'permission_callback' => '__return_true'
         ));
         
-        register_rest_route('appointease/v1', '/screenshot/list', array(
+        // Test heartbeat endpoint
+        register_rest_route('appointease/v1', '/test-heartbeat', array(
             'methods' => 'GET',
-            'callback' => array($this, 'list_screenshots'),
+            'callback' => array($this, 'test_heartbeat'),
             'permission_callback' => '__return_true'
         ));
     }
     
-    public function save_screenshot($request) {
-        require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-screenshot-handler.php';
-        $handler = new Screenshot_Handler();
-        return $handler->save_screenshot($request);
+    public function test_heartbeat($request) {
+        $class_exists = class_exists('Appointease_Heartbeat_Handler');
+        $filter_exists = isset($GLOBALS['wp_filter']['heartbeat_received']);
+        $is_registered = $filter_exists && !empty($GLOBALS['wp_filter']['heartbeat_received']->callbacks);
+        
+        return rest_ensure_response(array(
+            'class_exists' => $class_exists,
+            'filter_registered' => $is_registered,
+            'heartbeat_enabled' => true
+        ));
     }
     
-    public function list_screenshots($request) {
-        require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-screenshot-handler.php';
-        $handler = new Screenshot_Handler();
-        return $handler->get_screenshots($request);
-    }
-    
+
     public function get_services() {
-        global $wpdb;
-        $table = $wpdb->prefix . 'appointease_services';
-        $services = $wpdb->get_results("SELECT * FROM {$table} ORDER BY name");
-        
-        if ($wpdb->last_error) {
-            return new WP_Error('db_error', 'Database error occurred', array('status' => 500));
+        try {
+            global $wpdb;
+            $table = $wpdb->prefix . 'appointease_services';
+            $services = $wpdb->get_results("SELECT * FROM {$table} ORDER BY name");
+            
+            if ($wpdb->last_error) {
+                return new WP_Error('db_error', 'Database error occurred', array('status' => 500));
+            }
+            
+            return rest_ensure_response($services);
+        } catch (Exception $e) {
+            return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
-        
-        return rest_ensure_response($services);
     }
     
     public function get_staff() {
-        global $wpdb;
-        $table = $wpdb->prefix . 'appointease_staff';
-        $staff = $wpdb->get_results("SELECT * FROM {$table} ORDER BY name");
-        
-        if ($wpdb->last_error) {
-            return new WP_Error('db_error', 'Database error occurred', array('status' => 500));
+        try {
+            global $wpdb;
+            $table = $wpdb->prefix . 'appointease_staff';
+            $staff = $wpdb->get_results("SELECT * FROM {$table} ORDER BY name");
+            
+            if ($wpdb->last_error) {
+                return new WP_Error('db_error', 'Database error occurred', array('status' => 500));
+            }
+            
+            return rest_ensure_response($staff);
+        } catch (Exception $e) {
+            return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
-        
-        return rest_ensure_response($staff);
     }
     
     public function check_availability($request) {
-        global $wpdb;
-        $params = $request->get_json_params();
+        try {
+            global $wpdb;
+            $params = $request->get_json_params();
         
         if (!isset($params['date'], $params['employee_id'])) {
             return new WP_Error('missing_params', 'Date and employee ID are required', array('status' => 400));
@@ -374,6 +382,13 @@ class Booking_API_Endpoints {
         // Check existing appointments for this staff member on this date
         $appointments_table = $wpdb->prefix . 'appointments';
         
+        // Verify table exists
+        $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$appointments_table}'");
+        if (!$table_exists) {
+            error_log('[AVAILABILITY] Table does not exist: ' . $appointments_table);
+            return rest_ensure_response(array('unavailable' => [], 'booking_details' => new stdClass(), 'error' => 'table_not_found'));
+        }
+        
         // Build query with optional exclusion for rescheduling
         $exclude_appointment_id = isset($params['exclude_appointment_id']) ? sanitize_text_field($params['exclude_appointment_id']) : null;
         
@@ -397,8 +412,10 @@ class Booking_API_Endpoints {
             ));
         }
         
-        // Debug: Log appointment query results
-        error_log('[AppointEase] Appointment query for date=' . $date . ', employee=' . $employee_id . ': Found ' . count($booked_appointments) . ' appointments');
+        // Debug: Log query and results
+        error_log('[AVAILABILITY] Table: ' . $appointments_table);
+        error_log('[AVAILABILITY] Query error: ' . $wpdb->last_error);
+        error_log('[AVAILABILITY] Found ' . count($booked_appointments) . ' appointments for date=' . $date . ', employee=' . $employee_id);
         if (count($booked_appointments) > 0) {
             foreach ($booked_appointments as $apt) {
                 error_log('[AppointEase] - Appointment: ' . $apt->strong_id . ' at ' . $apt->time_slot . ' (ID: ' . $apt->id . ')');
@@ -408,27 +425,38 @@ class Booking_API_Endpoints {
         $booked_times = array();
         $booking_details = array();
         
+        // Check active selections from transients
+        $key = "appointease_active_{$date}_{$employee_id}";
+        $active_selections = get_transient($key) ?: array();
+        error_log('[AVAILABILITY] Active selections from transient: ' . json_encode($active_selections));
+        
         // Check active slot locks FIRST (processing bookings take priority)
         $locks_table = $wpdb->prefix . 'appointease_slot_locks';
         
         // Clean expired locks first
-        $deleted = $wpdb->query("DELETE FROM {$locks_table} WHERE expires_at < NOW()");
+        $deleted = $wpdb->query("DELETE FROM {$locks_table} WHERE expires_at < UTC_TIMESTAMP()");
         if ($deleted > 0) {
             error_log("[AVAILABILITY] Cleaned {$deleted} expired locks");
         }
         
         $locked_slots = $wpdb->get_results($wpdb->prepare(
-            "SELECT TIME_FORMAT(time, '%%H:%%i') as time, client_id, TIMESTAMPDIFF(SECOND, NOW(), expires_at) as remaining FROM {$locks_table} WHERE date = %s AND employee_id = %d AND expires_at > NOW()",
+            "SELECT TIME_FORMAT(time, '%%H:%%i') as time_slot, client_id, TIMESTAMPDIFF(SECOND, UTC_TIMESTAMP(), expires_at) as remaining FROM {$locks_table} WHERE date = %s AND employee_id = %s AND expires_at > UTC_TIMESTAMP()",
             $date, $employee_id
         ));
         
-        error_log("[AVAILABILITY] Found " . count($locked_slots) . " locked slots: " . json_encode($locked_slots));
+        error_log('[AVAILABILITY] Date: ' . $date . ', Employee: ' . $employee_id);
+        error_log('[AVAILABILITY] Locks table: ' . $locks_table);
+        error_log('[AVAILABILITY] Locks query error: ' . $wpdb->last_error);
+        error_log('[AVAILABILITY] Found ' . count($locked_slots) . ' locked slots');
+        if (count($locked_slots) > 0) {
+            error_log('[AVAILABILITY] Lock details: ' . json_encode($locked_slots));
+        }
         
         foreach ($locked_slots as $lock) {
-            $time_slot = $lock->time;
+            $time_slot = $lock->time_slot;
             $booked_times[] = $time_slot;
             $booking_details[$time_slot] = array(
-                'customer_name' => 'Processing',
+                'customer_name' => 'Viewing by other user',
                 'customer_email' => '',
                 'status' => 'processing',
                 'booking_id' => 'LOCK-' . substr($lock->client_id, 0, 8),
@@ -436,6 +464,32 @@ class Booking_API_Endpoints {
                 'is_locked' => true,
                 'lock_remaining' => intval($lock->remaining)
             );
+        }
+        
+        // Clean old format entries and add active selections
+        $cleaned_selections = array();
+        foreach ($active_selections as $time => $data) {
+            // Only keep new format entries (with user_id)
+            if (is_array($data) && isset($data['user_id'])) {
+                $cleaned_selections[$time] = $data;
+                $time_slot = substr($time, 0, 5);
+                if (!in_array($time_slot, $booked_times)) {
+                    $booked_times[] = $time_slot;
+                    $booking_details[$time_slot] = array(
+                        'customer_name' => 'Viewing by other user',
+                        'customer_email' => '',
+                        'status' => 'processing',
+                        'booking_id' => 'ACTIVE-' . substr(md5($data['timestamp']), 0, 8),
+                        'booked_at' => $time_slot,
+                        'is_active' => true
+                    );
+                }
+            }
+        }
+        
+        // Update transient with cleaned data
+        if (count($cleaned_selections) !== count($active_selections)) {
+            set_transient($key, $cleaned_selections, 300);
         }
         
         // Then add confirmed appointments (locks override confirmed appointments)
@@ -472,11 +526,15 @@ class Booking_API_Endpoints {
             'unavailable' => $booked_times,
             'booking_details' => $booking_details
         ));
+        } catch (Exception $e) {
+            return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
     }
     
     public function create_appointment($request) {
-        // Load atomic booking class
-        require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-atomic-booking.php';
+        try {
+            // Load atomic booking class
+            require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-atomic-booking.php';
         
         $params = $request->get_json_params();
         
@@ -516,27 +574,35 @@ class Booking_API_Endpoints {
         $this->trigger_appointment_webhook($result['appointment_id'], $result['strong_id'], $booking_data);
         
         return rest_ensure_response($result);
+        } catch (Exception $e) {
+            return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
     }
     
 
     
     public function get_appointment($request) {
-        global $wpdb;
-        $id = $request['id'];
-        $table = $wpdb->prefix . 'appointments';
-        
-        $appointment = $this->find_appointment_by_id($id);
-        
-        if ($appointment) {
-            return rest_ensure_response($appointment);
+        try {
+            global $wpdb;
+            $id = $request['id'];
+            $table = $wpdb->prefix . 'appointments';
+            
+            $appointment = $this->find_appointment_by_id($id);
+            
+            if ($appointment) {
+                return rest_ensure_response($appointment);
+            }
+            
+            return new WP_Error('not_found', 'Appointment not found', array('status' => 404));
+        } catch (Exception $e) {
+            return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
-        
-        return new WP_Error('not_found', 'Appointment not found', array('status' => 404));
     }
     
     public function cancel_appointment($request) {
-        global $wpdb;
-        $id = sanitize_text_field($request['id']);
+        try {
+            global $wpdb;
+            $id = sanitize_text_field($request['id']);
         
         if (empty($id)) {
             return new WP_Error('missing_id', 'Appointment ID is required', array('status' => 400));
@@ -568,12 +634,16 @@ class Booking_API_Endpoints {
         }
         
         return rest_ensure_response(array('success' => true));
+        } catch (Exception $e) {
+            return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
     }
     
     public function reschedule_appointment($request) {
-        global $wpdb;
-        $id = sanitize_text_field($request['id']);
-        $params = $request->get_json_params();
+        try {
+            global $wpdb;
+            $id = sanitize_text_field($request['id']);
+            $params = $request->get_json_params();
         
         if (empty($id) || !isset($params['new_date'])) {
             return new WP_Error('missing_params', 'ID and new date are required', array('status' => 400));
@@ -612,11 +682,15 @@ class Booking_API_Endpoints {
         }
         
         return rest_ensure_response(array('success' => true));
+        } catch (Exception $e) {
+            return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
     }
     
     public function get_user_appointments($request) {
-        global $wpdb;
-        $params = $request->get_json_params();
+        try {
+            global $wpdb;
+            $params = $request->get_json_params();
         
         if (!isset($params['email'])) {
             return new WP_Error('missing_email', 'Email is required', array('status' => 400));
@@ -645,12 +719,16 @@ class Booking_API_Endpoints {
         $appointments = $wpdb->get_results($query);
         
         return rest_ensure_response($appointments);
+        } catch (Exception $e) {
+            return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
     }
     
     public function check_customer_by_email($request) {
-        global $wpdb;
-        
-        $email = $request->get_param('email');
+        try {
+            global $wpdb;
+            
+            $email = $request->get_param('email');
         if (!$email) {
             return new WP_Error('missing_email', 'Email is required', array('status' => 400));
         }
@@ -690,6 +768,9 @@ class Booking_API_Endpoints {
         }
         
         return rest_ensure_response(array('exists' => false));
+        } catch (Exception $e) {
+            return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
     }
     
     public function public_permission($request) {
@@ -731,8 +812,9 @@ class Booking_API_Endpoints {
     }
     
     private function find_appointment_by_id($id) {
-        global $wpdb;
-        $table = $wpdb->prefix . 'appointments';
+        try {
+            global $wpdb;
+            $table = $wpdb->prefix . 'appointments';
         
         if (strpos($id, 'APT-') === 0) {
             // Try to find by strong_id first
@@ -755,6 +837,10 @@ class Booking_API_Endpoints {
         }
         
         return $appointment;
+        } catch (Exception $e) {
+            error_log('[AppointEase] find_appointment_by_id error: ' . $e->getMessage());
+            return null;
+        }
     }
     
     private function get_where_clause_for_id($id) {
@@ -772,142 +858,28 @@ class Booking_API_Endpoints {
     }
     
     public function debug_appointments($request) {
-        global $wpdb;
-        $table = $wpdb->prefix . 'appointments';
-        
-        // Get all appointments with full details
-        $appointments = $wpdb->get_results(
-            "SELECT * FROM {$table} ORDER BY appointment_date DESC"
-        );
-        
-        if ($wpdb->last_error) {
-            return new WP_Error('db_error', 'Database error occurred', array('status' => 500));
-        }
-        
-        // Get counts by status
-        $status_counts = $wpdb->get_results(
-            "SELECT status, COUNT(*) as count FROM {$table} GROUP BY status"
-        );
-        
-        // Get appointments by employee
-        $employee_counts = $wpdb->get_results(
-            "SELECT employee_id, COUNT(*) as count FROM {$table} GROUP BY employee_id"
-        );
-        
-        // Get recent appointments (last 7 days)
-        $recent_appointments = $wpdb->get_results(
-            "SELECT * FROM {$table} WHERE appointment_date >= DATE_SUB(NOW(), INTERVAL 7 DAY) ORDER BY appointment_date DESC"
-        );
-        
-        // Get upcoming appointments (next 30 days)
-        $upcoming_appointments = $wpdb->get_results(
-            "SELECT * FROM {$table} WHERE appointment_date >= NOW() AND appointment_date <= DATE_ADD(NOW(), INTERVAL 30 DAY) ORDER BY appointment_date ASC"
-        );
-        
-        $total_count = $wpdb->get_var("SELECT COUNT(*) FROM {$table}");
-        $null_strong_ids = $wpdb->get_var("SELECT COUNT(*) FROM {$table} WHERE strong_id IS NULL OR strong_id = ''");
-        
-        return rest_ensure_response(array(
-            'table_name' => $table,
-            'server_time' => date('Y-m-d H:i:s'),
-            'total_count' => intval($total_count),
-            'null_strong_ids' => intval($null_strong_ids),
-            'status_counts' => $status_counts,
-            'employee_counts' => $employee_counts,
-            'all_appointments' => $appointments,
-            'recent_appointments' => $recent_appointments,
-            'upcoming_appointments' => $upcoming_appointments,
-            'database_info' => array(
-                'table_exists' => $wpdb->get_var("SHOW TABLES LIKE '{$table}'") === $table,
-                'table_structure' => $wpdb->get_results("DESCRIBE {$table}")
-            )
-        ));
-    }
-    
-    public function fix_existing_appointments($request) {
-        // Restrict to admin users only
-        if (!current_user_can('manage_options')) {
-            return new WP_Error('forbidden', 'Access denied', array('status' => 403));
-        }
-        
-        global $wpdb;
-        $table = $wpdb->prefix . 'appointments';
-        
-        // Process in batches to avoid memory issues
-        $batch_size = 100;
-        $offset = 0;
-        $fixed_count = 0;
-        
-        do {
-            $appointments = $wpdb->get_results($wpdb->prepare(
-                "SELECT id FROM {$table} WHERE strong_id IS NULL OR strong_id = '' LIMIT %d OFFSET %d",
-                $batch_size, $offset
-            ));
+        try {
+            global $wpdb;
+            $table = $wpdb->prefix . 'appointments';
+            
+            $appointments = $wpdb->get_results(
+                "SELECT * FROM {$table} ORDER BY appointment_date DESC"
+            );
             
             if ($wpdb->last_error) {
                 return new WP_Error('db_error', 'Database error occurred', array('status' => 500));
             }
             
-            foreach ($appointments as $appointment) {
-                $strong_id = sprintf('APT-%d-%06d', date('Y'), $appointment->id);
-                $result = $wpdb->update(
-                    $table,
-                    array('strong_id' => $strong_id),
-                    array('id' => $appointment->id),
-                    array('%s'),
-                    array('%d')
-                );
-                if ($result) $fixed_count++;
-            }
-            
-            $offset += $batch_size;
-        } while (count($appointments) === $batch_size);
-        
-        return rest_ensure_response(array(
-            'message' => "Fixed {$fixed_count} appointments",
-            'fixed_count' => $fixed_count
-        ));
+            return rest_ensure_response(array(
+                'all_appointments' => $appointments,
+                'total_count' => count($appointments)
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
     }
     
-    public function stream_appointments($request) {
-        $email = sanitize_email($request->get_param('email'));
-        
-        if (empty($email)) {
-            return new WP_Error('missing_email', 'Email parameter is required', array('status' => 400));
-        }
-        
-        global $wpdb;
-        $table = $wpdb->prefix . 'appointments';
-        
-        $appointments = $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$table} WHERE email = %s ORDER BY appointment_date DESC",
-            $email
-        ));
-        
-        if ($wpdb->last_error) {
-            return new WP_Error('db_error', 'Database error occurred', array('status' => 500));
-        }
-        
-        $formatted_appointments = array();
-        foreach ($appointments as $apt) {
-            $formatted_appointments[] = array(
-                'id' => $apt->strong_id ?: 'AE' . str_pad($apt->id, 6, '0', STR_PAD_LEFT),
-                'service' => 'Service',
-                'staff' => 'Staff Member', 
-                'date' => $apt->appointment_date,
-                'status' => $apt->status,
-                'name' => $apt->name,
-                'email' => $apt->email,
-                'last_updated' => current_time('timestamp')
-            );
-        }
-        
-        return rest_ensure_response(array(
-            'appointments' => $formatted_appointments,
-            'timestamp' => current_time('timestamp'),
-            'count' => count($formatted_appointments)
-        ));
-    }
+
     
     public function verify_otp_and_create_session($request) {
         $params = $request->get_json_params();
@@ -987,61 +959,7 @@ class Booking_API_Endpoints {
         return rest_ensure_response(array('success' => true));
     }
     
-    public function clear_all_appointments($request) {
-        global $wpdb;
-        $table = $wpdb->prefix . 'appointments';
-        
-        $result = $wpdb->query("TRUNCATE TABLE {$table}");
-        
-        if ($result === false) {
-            return new WP_Error('clear_failed', 'Failed to clear appointments', array('status' => 500));
-        }
-        
-        return rest_ensure_response(array(
-            'success' => true,
-            'message' => 'All appointments cleared successfully'
-        ));
-    }
-    
-    public function debug_working_days($request) {
-        $options = get_option('appointease_options', array());
-        $working_days = isset($options['working_days']) && is_array($options['working_days']) && !empty($options['working_days']) 
-            ? $options['working_days'] 
-            : ['1','2','3','4','5']; // Default: Monday-Friday
-        
-        return rest_ensure_response(array(
-            'working_days' => $working_days,
-            'all_options' => $options,
-            'server_date' => date('Y-m-d'),
-            'server_time' => date('Y-m-d H:i:s'),
-            'timezone' => date_default_timezone_get(),
-            'day_names' => array(
-                '0' => 'Sunday',
-                '1' => 'Monday', 
-                '2' => 'Tuesday',
-                '3' => 'Wednesday',
-                '4' => 'Thursday',
-                '5' => 'Friday',
-                '6' => 'Saturday'
-            )
-        ));
-    }
-    
-    public function fix_working_days($request) {
-        $options = get_option('appointease_options', array());
-        $options['working_days'] = ['1','2','3','4','5']; // Monday-Friday only
-        $result = update_option('appointease_options', $options);
-        
-        // Clear any caches
-        wp_cache_delete('appointease_options', 'options');
-        
-        return rest_ensure_response(array(
-            'success' => true,
-            'message' => 'Working days fixed to Monday-Friday only',
-            'working_days' => $options['working_days'],
-            'update_result' => $result
-        ));
-    }
+
     
     public function get_server_date($request) {
         return rest_ensure_response(array(
@@ -1083,8 +1001,9 @@ class Booking_API_Endpoints {
     }
     
     public function check_slot_booking($request) {
-        global $wpdb;
-        $params = $request->get_json_params();
+        try {
+            global $wpdb;
+            $params = $request->get_json_params();
         
         if (!isset($params['date'], $params['time'], $params['employee_id'])) {
             return new WP_Error('missing_params', 'Date, time and employee ID are required', array('status' => 400));
@@ -1127,6 +1046,9 @@ class Booking_API_Endpoints {
             'available' => true,
             'message' => 'Time slot is available'
         ));
+        } catch (Exception $e) {
+            return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
     }
     
     public function get_settings($request) {
@@ -1176,9 +1098,10 @@ class Booking_API_Endpoints {
     }
     
     public function get_admin_appointments($request) {
-        global $wpdb;
-        
-        $start_date = $request->get_param('start');
+        try {
+            global $wpdb;
+            
+            $start_date = $request->get_param('start');
         $end_date = $request->get_param('end');
         
         $where_clause = '';
@@ -1219,12 +1142,16 @@ class Booking_API_Endpoints {
         }
         
         return rest_ensure_response($events);
+        } catch (Exception $e) {
+            return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
     }
     
     public function update_admin_appointment($request) {
-        global $wpdb;
-        
-        $id = intval($request['id']);
+        try {
+            global $wpdb;
+            
+            $id = intval($request['id']);
         $params = $request->get_json_params();
         
         if (!$id) {
@@ -1264,16 +1191,19 @@ class Booking_API_Endpoints {
         }
         
         return rest_ensure_response(array('success' => true, 'updated' => $result));
+        } catch (Exception $e) {
+            return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
     }
     
     /**
      * Trigger webhook when new appointment is created
      */
     private function trigger_appointment_webhook($appointment_id, $strong_id, $appointment_data) {
-        // Get service and staff details
-        global $wpdb;
-        
-        $service = $wpdb->get_row($wpdb->prepare(
+        try {
+            global $wpdb;
+            
+            $service = $wpdb->get_row($wpdb->prepare(
             "SELECT name FROM {$wpdb->prefix}appointease_services WHERE id = %d",
             $appointment_data['service_id']
         ));
@@ -1283,47 +1213,11 @@ class Booking_API_Endpoints {
             $appointment_data['employee_id']
         ));
         
-        // Prepare webhook payload
-        $webhook_data = array(
-            'event' => 'appointment.created',
-            'appointment_id' => $strong_id,
-            'customer' => array(
-                'name' => $appointment_data['name'],
-                'email' => $appointment_data['email'],
-                'phone' => $appointment_data['phone']
-            ),
-            'appointment' => array(
-                'date' => $appointment_data['appointment_date'],
-                'service' => $service ? $service->name : 'Unknown Service',
-                'staff' => $staff ? $staff->name : 'Unknown Staff'
-            ),
-            'timestamp' => current_time('mysql')
-        );
-        
-        // Send admin email notification
-        $this->send_admin_notification($webhook_data);
-        
-        // Add to notification queue for admin panel
-        $this->add_to_notification_queue($webhook_data);
-        
-        // Trigger WordPress action hook for custom integrations
-        do_action('appointease_new_appointment', $webhook_data);
-        
-        // Send to external webhook URL if configured
-        $webhook_url = get_option('appointease_webhook_url');
-        if (!empty($webhook_url)) {
-            $this->send_webhook($webhook_url, $webhook_data);
-        }
-    }
-    
-    /**
-     * Send admin email notification
-     */
-    private function send_admin_notification($data) {
+        // Send admin email notification only
         $admin_email = get_option('admin_email');
         $site_name = get_bloginfo('name');
         
-        $subject = sprintf('[%s] New Appointment Booked - %s', $site_name, $data['appointment_id']);
+        $subject = sprintf('[%s] New Appointment Booked - %s', $site_name, $strong_id);
         
         $message = sprintf(
             "New appointment has been booked:\n\n" .
@@ -1335,133 +1229,33 @@ class Booking_API_Endpoints {
             "Staff: %s\n" .
             "Date & Time: %s\n\n" .
             "View all appointments: %s",
-            $data['appointment_id'],
-            $data['customer']['name'],
-            $data['customer']['email'],
-            $data['customer']['phone'],
-            $data['appointment']['service'],
-            $data['appointment']['staff'],
-            date('F j, Y \\a\\t g:i A', strtotime($data['appointment']['date'])),
+            $strong_id,
+            $appointment_data['name'],
+            $appointment_data['email'],
+            $appointment_data['phone'],
+            $service ? $service->name : 'Unknown Service',
+            $staff ? $staff->name : 'Unknown Staff',
+            date('F j, Y \\a\\t g:i A', strtotime($appointment_data['appointment_date'])),
             admin_url('admin.php?page=appointease-admin')
         );
         
         wp_mail($admin_email, $subject, $message);
+        } catch (Exception $e) {
+            error_log('[AppointEase] Webhook error: ' . $e->getMessage());
+        }
     }
     
     /**
-     * Send webhook to external URL
-     */
-    private function send_webhook($url, $data) {
-        wp_remote_post($url, array(
-            'headers' => array(
-                'Content-Type' => 'application/json',
-                'X-Webhook-Source' => 'AppointEase'
-            ),
-            'body' => json_encode($data),
-            'timeout' => 15
-        ));
-    }
-    
-    /**
-     * Register webhook URL endpoint
+     * Register webhook URL endpoint (removed - unused feature)
      */
     public function register_webhook_routes() {
-        register_rest_route('appointease/v1', '/webhook/config', array(
-            'methods' => 'POST',
-            'callback' => array($this, 'configure_webhook'),
-            'permission_callback' => function() { return current_user_can('manage_options'); }
-        ));
-        
-        register_rest_route('appointease/v1', '/webhook/test', array(
-            'methods' => 'POST',
-            'callback' => array($this, 'test_webhook'),
-            'permission_callback' => function() { return current_user_can('manage_options'); }
-        ));
-        
-        // WebSocket realtime endpoints
-        register_rest_route('appointease/v1', '/realtime/poll', array(
-            'methods' => 'GET',
-            'callback' => array($this, 'realtime_poll'),
-            'permission_callback' => array($this, 'public_permission')
-        ));
-        
-        // Add realtime subscribe endpoint
-        register_rest_route('appointease/v1', '/realtime/subscribe', array(
-            'methods' => 'POST',
-            'callback' => array($this, 'realtime_subscribe'),
-            'permission_callback' => array($this, 'public_permission')
-        ));
-        
-        // Add realtime broadcast endpoint
-        register_rest_route('appointease/v1', '/realtime/broadcast', array(
-            'methods' => 'POST',
-            'callback' => array($this, 'realtime_broadcast'),
-            'permission_callback' => function() { return current_user_can('manage_options'); }
-        ));
-    }
-    
-    public function configure_webhook($request) {
-        $params = $request->get_json_params();
-        
-        if (!isset($params['webhook_url'])) {
-            return new WP_Error('missing_url', 'Webhook URL is required', array('status' => 400));
-        }
-        
-        $webhook_url = esc_url_raw($params['webhook_url']);
-        
-        if (!filter_var($webhook_url, FILTER_VALIDATE_URL)) {
-            return new WP_Error('invalid_url', 'Invalid webhook URL', array('status' => 400));
-        }
-        
-        update_option('appointease_webhook_url', $webhook_url);
-        
-        return rest_ensure_response(array(
-            'success' => true,
-            'message' => 'Webhook URL configured successfully',
-            'webhook_url' => $webhook_url
-        ));
-    }
-    
-    public function test_webhook($request) {
-        $webhook_url = get_option('appointease_webhook_url');
-        
-        if (empty($webhook_url)) {
-            return new WP_Error('no_webhook', 'No webhook URL configured', array('status' => 400));
-        }
-        
-        $test_data = array(
-            'event' => 'webhook.test',
-            'message' => 'This is a test webhook from AppointEase',
-            'timestamp' => current_time('mysql'),
-            'site_url' => home_url()
-        );
-        
-        $response = wp_remote_post($webhook_url, array(
-            'headers' => array(
-                'Content-Type' => 'application/json',
-                'X-Webhook-Source' => 'AppointEase'
-            ),
-            'body' => json_encode($test_data),
-            'timeout' => 15
-        ));
-        
-        if (is_wp_error($response)) {
-            return new WP_Error('webhook_failed', $response->get_error_message(), array('status' => 500));
-        }
-        
-        $response_code = wp_remote_retrieve_response_code($response);
-        
-        return rest_ensure_response(array(
-            'success' => true,
-            'message' => 'Test webhook sent successfully',
-            'response_code' => $response_code,
-            'webhook_url' => $webhook_url
-        ));
+        // Webhooks removed - not used in current implementation
     }
     
     public function check_reschedule_availability($request) {
-        global $wpdb;
-        $params = $request->get_json_params();
+        try {
+            global $wpdb;
+            $params = $request->get_json_params();
         
         if (!isset($params['date'], $params['employee_id'], $params['exclude_appointment_id'])) {
             return new WP_Error('missing_params', 'Date, employee ID, and exclude appointment ID are required', array('status' => 400));
@@ -1499,6 +1293,13 @@ class Booking_API_Endpoints {
         // Get existing appointments EXCLUDING the current appointment being rescheduled
         $appointments_table = $wpdb->prefix . 'appointments';
         
+        // Verify table exists
+        $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$appointments_table}'");
+        if (!$table_exists) {
+            error_log('[RESCHEDULE] Table does not exist: ' . $appointments_table);
+            return rest_ensure_response(array('unavailable' => [], 'booking_details' => new stdClass(), 'error' => 'table_not_found'));
+        }
+        
         if (strpos($exclude_appointment_id, 'APT-') === 0) {
             $booked_appointments = $wpdb->get_results($wpdb->prepare(
                 "SELECT TIME_FORMAT(appointment_date, '%%H:%%i') as time_slot, name, email, status, strong_id, id FROM {$appointments_table} WHERE employee_id = %d AND DATE(appointment_date) = %s AND status IN ('confirmed', 'created') AND strong_id != %s",
@@ -1516,8 +1317,12 @@ class Booking_API_Endpoints {
         
         // Check active slot locks FIRST (processing bookings take priority)
         $locks_table = $wpdb->prefix . 'appointease_slot_locks';
+        
+        // Clean expired locks first
+        $wpdb->query("DELETE FROM {$locks_table} WHERE expires_at < UTC_TIMESTAMP()");
+        
         $locked_slots = $wpdb->get_results($wpdb->prepare(
-            "SELECT TIME_FORMAT(time, '%%H:%%i') as time_slot, client_id, TIMESTAMPDIFF(SECOND, NOW(), expires_at) as remaining FROM {$locks_table} WHERE date = %s AND employee_id = %d AND expires_at > NOW()",
+            "SELECT TIME_FORMAT(time, '%%H:%%i') as time_slot, client_id, TIMESTAMPDIFF(SECOND, UTC_TIMESTAMP(), expires_at) as remaining FROM {$locks_table} WHERE date = %s AND employee_id = %s AND expires_at > UTC_TIMESTAMP()",
             $date, $employee_id
         ));
         
@@ -1558,82 +1363,12 @@ class Booking_API_Endpoints {
             'booking_details' => $booking_details,
             'excluded_appointment' => $exclude_appointment_id
         ));
-    }
-    
-    /**
-     * Add notification to transient queue
-     */
-    private function add_to_notification_queue($webhook_data) {
-        $queue = get_transient('appointease_notification_queue');
-        if (!$queue) {
-            $queue = [];
-        }
-        
-        $notification = array(
-            'id' => $webhook_data['appointment_id'],
-            'name' => $webhook_data['customer']['name'],
-            'service_name' => $webhook_data['appointment']['service'],
-            'appointment_date' => $webhook_data['appointment']['date'],
-            'timestamp' => time()
-        );
-        
-        $queue[] = $notification;
-        
-        // Keep only last 10 notifications and expire after 1 hour
-        $queue = array_slice($queue, -10);
-        set_transient('appointease_notification_queue', $queue, HOUR_IN_SECONDS);
-        
-        // Broadcast to WebSocket (only if broadcaster exists)
-        $broadcaster_file = plugin_dir_path(dirname(__FILE__)) . 'includes/class-websocket-broadcaster.php';
-        if (file_exists($broadcaster_file)) {
-            require_once $broadcaster_file;
-            if (class_exists('WebSocket_Broadcaster')) {
-                $broadcaster = WebSocket_Broadcaster::getInstance();
-                $broadcaster->broadcast_appointment_update('appointment.created', $webhook_data);
-            }
+        } catch (Exception $e) {
+            return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
     }
     
-    public function realtime_poll($request) {
-        $email = $request->get_param('email');
-        $last_update = intval($request->get_param('last_update'));
-        
-        $updates = get_transient('appointease_realtime_updates') ?: [];
-        $new_updates = array_filter($updates, function($update) use ($last_update) {
-            return $update['timestamp'] > $last_update;
-        });
-        
-        if (!empty($new_updates)) {
-            return rest_ensure_response([
-                'type' => 'update',
-                'data' => array_values($new_updates),
-                'timestamp' => time()
-            ]);
-        }
-        
-        // Long polling - wait up to 25 seconds for updates
-        $timeout = time() + 25;
-        while (time() < $timeout) {
-            sleep(1);
-            $updates = get_transient('appointease_realtime_updates') ?: [];
-            $new_updates = array_filter($updates, function($update) use ($last_update) {
-                return $update['timestamp'] > $last_update;
-            });
-            
-            if (!empty($new_updates)) {
-                return rest_ensure_response([
-                    'type' => 'update',
-                    'data' => array_values($new_updates),
-                    'timestamp' => time()
-                ]);
-            }
-        }
-        
-        return rest_ensure_response([
-            'type' => 'no_update',
-            'timestamp' => time()
-        ]);
-    }
+
     
     /**
      * Generate OTP for authentication
@@ -1678,102 +1413,343 @@ class Booking_API_Endpoints {
     }
     
     /**
-     * Lock slot when user selects time - INFORMATIONAL ONLY
+     * Track active slot selections (real-time) + Database lock
      */
-    public function lock_slot($request) {
-        global $wpdb;
-        $params = $request->get_json_params();
-        
-        if (!isset($params['date'], $params['time'], $params['employee_id'])) {
-            return new WP_Error('missing_params', 'Date, time and employee_id required', array('status' => 400));
+    public function realtime_select($request) {
+        try {
+            $params = $request->get_json_params();
+            
+            if (!isset($params['date'], $params['time'], $params['employee_id'])) {
+                return new WP_Error('missing_params', 'Date, time and employee_id required', array('status' => 400));
+            }
+            
+            global $wpdb;
+            $date = sanitize_text_field($params['date']);
+            $time = sanitize_text_field($params['time']);
+            $employee_id = intval($params['employee_id']);
+            
+            // Get user identifier (IP + User Agent)
+            $user_ip = $_SERVER['REMOTE_ADDR'];
+            $user_agent = $_SERVER['HTTP_USER_AGENT'];
+            $user_id = md5($user_ip . $user_agent);
+            
+            error_log('[USER_ID] IP: ' . $user_ip . ', Agent: ' . substr($user_agent, 0, 50) . '..., Hash: ' . $user_id);
+            
+            // Try Redis first, fallback to transient
+            $key = "appointease_active_{$date}_{$employee_id}";
+            $selections = $this->redis->is_enabled() 
+                ? $this->redis->get_active_selections($date, $employee_id)
+                : (get_transient($key) ?: array());
+            
+            // Create database lock
+            $locks_table = $wpdb->prefix . 'appointease_slot_locks';
+            
+            // Check if table exists
+            $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$locks_table}'");
+            if (!$table_exists) {
+                return new WP_Error('table_missing', 'Slot locks table does not exist', array('status' => 500));
+            }
+            
+            // Add user_id column if it doesn't exist (migration)
+            $column_exists = $wpdb->get_results("SHOW COLUMNS FROM {$locks_table} LIKE 'user_id'");
+            if (empty($column_exists)) {
+                $wpdb->query("ALTER TABLE {$locks_table} ADD COLUMN user_id VARCHAR(32) NULL AFTER client_id");
+                error_log('[LOCK] Added user_id column to locks table');
+            }
+            
+            // Clean ALL expired locks immediately
+            $deleted_expired = $wpdb->query("DELETE FROM {$locks_table} WHERE expires_at < UTC_TIMESTAMP()");
+            error_log('[LOCK] Cleaned ' . $deleted_expired . ' expired locks');
+            
+            // PRODUCTION MODE: One user = one slot - DELETE OLD LOCK BY user_id
+            $deleted = $wpdb->delete($locks_table, array('user_id' => $user_id), array('%s'));
+            error_log('[LOCK] Deleted ' . $deleted . ' old locks for user_id: ' . $user_id);
+            
+            // Also clean transients/Redis
+            foreach ($selections as $slot_time => $data) {
+                if (is_array($data) && isset($data['user_id']) && $data['user_id'] === $user_id) {
+                    if ($this->redis->is_enabled()) {
+                        $this->redis->delete_lock("appointease_active_{$date}_{$employee_id}_{$slot_time}");
+                    } else {
+                        unset($selections[$slot_time]);
+                    }
+                }
+            }
+            
+            $time_formatted = $time . ':00';
+            
+            // Check if slot is already locked by SOMEONE ELSE
+            $existing = $wpdb->get_var($wpdb->prepare(
+                "SELECT client_id FROM {$locks_table} WHERE date = %s AND time = %s AND employee_id = %s AND expires_at > UTC_TIMESTAMP()",
+                $date, $time_formatted, $employee_id
+            ));
+            
+            if ($existing) {
+                return new WP_Error('already_locked', 'Slot is already locked by another user', array('status' => 409));
+            }
+            
+            $client_id = 'CLIENT_' . uniqid() . '_' . wp_generate_password(8, false);
+            
+            // Store in Redis (10 sec TTL) or transient fallback
+            if ($this->redis->is_enabled()) {
+                $this->redis->set_active_selection($date, $employee_id, $time, $client_id);
+            } else {
+                $selections[$time] = array('timestamp' => time(), 'user_id' => $user_id, 'client_id' => $client_id);
+                set_transient($key, $selections, 300);
+            }
+            
+            error_log('[LOCK] Attempting insert: date=' . $date . ', time=' . $time_formatted . ', employee_id=' . $employee_id . ', client_id=' . $client_id);
+            
+            // Industry standard: 10 minutes lock duration (Acuity/Bookly pattern)
+            $expires_at = date('Y-m-d H:i:s', time() + 600);
+            
+            // Store in Redis with 10 min TTL
+            if ($this->redis->is_enabled()) {
+                $lock_key = "appointease_lock_{$date}_{$employee_id}_{$time}";
+                $this->redis->lock_slot($lock_key, array(
+                    'date' => $date, 'time' => $time_formatted, 'employee_id' => $employee_id,
+                    'client_id' => $client_id, 'user_id' => $user_id
+                ), 600);
+            }
+            
+            // Always store in MySQL for persistence
+            $result = $wpdb->insert(
+                $locks_table,
+                array(
+                    'date' => $date,
+                    'time' => $time_formatted,
+                    'employee_id' => $employee_id,
+                    'client_id' => $client_id,
+                    'user_id' => $user_id,
+                    'expires_at' => $expires_at,
+                    'created_at' => current_time('mysql')
+                ),
+                array('%s', '%s', '%d', '%s', '%s', '%s', '%s')
+            );
+            
+            error_log('[LOCK] Insert result: ' . ($result === false ? 'FALSE' : $result) . ', last_error: ' . $wpdb->last_error . ', insert_id: ' . $wpdb->insert_id);
+            
+            if ($result === false) {
+                return new WP_Error('db_error', 'Failed to lock slot: ' . $wpdb->last_error, array('status' => 500));
+            }
+            
+            // Verify lock was created
+            $verify = $wpdb->get_var($wpdb->prepare(
+                "SELECT COUNT(*) FROM {$locks_table} WHERE client_id = %s",
+                $client_id
+            ));
+            
+            error_log('[LOCK] Verification count: ' . $verify);
+            
+            if ($verify == 0) {
+                return new WP_Error('lock_not_found', 'Lock was not created in database. Insert result: ' . $result . ', Insert ID: ' . $wpdb->insert_id, array('status' => 500));
+            }
+            
+            // Return immediately for optimistic UI update
+            return rest_ensure_response(array(
+                'success' => true,
+                'client_id' => $client_id,
+                'locked' => true,
+                'verified' => true,
+                'updated' => $old_lock !== null,
+                'old_time' => $old_lock ? $old_lock['time'] : null,
+                'new_time' => $time,
+                'optimistic' => true,
+                'message' => $old_lock ? 'Slot updated successfully' : 'Slot locked successfully'
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
-        
-        $date = sanitize_text_field($params['date']);
-        $time = sanitize_text_field($params['time']);
-        $employee_id = intval($params['employee_id']);
-        $client_id = 'CLIENT_' . uniqid() . '_' . wp_generate_password(8, false);
-        
-        error_log("[LOCK_SLOT] Attempting to lock slot: {$date} {$time} for employee {$employee_id}");
-        
-        // Clean expired locks first
-        $locks_table = $wpdb->prefix . 'appointease_slot_locks';
-        $wpdb->query("DELETE FROM {$locks_table} WHERE expires_at < NOW()");
-        
-        // Insert lock for informational purposes only (don't block if fails)
-        $expires_at = date('Y-m-d H:i:s', time() + 300);
-        
-        $result = $wpdb->query($wpdb->prepare(
-            "INSERT IGNORE INTO {$locks_table} (date, time, employee_id, client_id, expires_at, created_at) VALUES (%s, %s, %d, %s, %s, %s)",
-            $date, $time, $employee_id, $client_id, $expires_at, current_time('mysql')
-        ));
-        
-        if ($result) {
-            error_log("[LOCK_SLOT] Successfully locked slot with client_id: {$client_id}");
-        } else {
-            error_log("[LOCK_SLOT] Failed to lock slot or slot already locked: " . $wpdb->last_error);
-        }
-        
-        // Broadcast to other users
-        $this->broadcast_slot_update($date, $time, $employee_id, 'processing');
-        
-        // Always return success - never block users
-        return rest_ensure_response(array(
-            'success' => true,
-            'client_id' => $client_id,
-            'expires_at' => $expires_at
-        ));
     }
+    
+    /**
+     * Remove active slot selection
+     */
+    public function realtime_deselect($request) {
+        try {
+            $params = $request->get_json_params();
+            
+            if (!isset($params['date'], $params['time'], $params['employee_id'])) {
+                return new WP_Error('missing_params', 'Date, time and employee_id required', array('status' => 400));
+            }
+            
+            $date = sanitize_text_field($params['date']);
+            $time = sanitize_text_field($params['time']);
+            $employee_id = $params['employee_id'];
+            
+            $key = "appointease_active_{$date}_{$employee_id}";
+            $selections = get_transient($key) ?: array();
+            unset($selections[$time]);
+            set_transient($key, $selections, 300);
+            
+            return rest_ensure_response(array('success' => true));
+        } catch (Exception $e) {
+            return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+
     
     /**
      * Release slot lock
      */
     public function unlock_slot($request) {
-        global $wpdb;
-        $params = $request->get_json_params();
-        
-        if (!isset($params['client_id'])) {
-            return new WP_Error('missing_client_id', 'Client ID required', array('status' => 400));
-        }
-        
-        $client_id = sanitize_text_field($params['client_id']);
-        $locks_table = $wpdb->prefix . 'appointease_slot_locks';
-        
-        error_log("[UNLOCK_SLOT] Attempting to unlock slot with client_id: {$client_id}");
-        
-        // Get lock details before deleting
-        $lock = $wpdb->get_row($wpdb->prepare(
-            "SELECT date, time, employee_id FROM {$locks_table} WHERE client_id = %s",
-            $client_id
-        ));
-        
-        if ($lock) {
+        try {
+            global $wpdb;
+            $params = $request->get_json_params();
+            
+            if (!isset($params['client_id'])) {
+                return new WP_Error('missing_client_id', 'Client ID required', array('status' => 400));
+            }
+            
+            $client_id = sanitize_text_field($params['client_id']);
+            $locks_table = $wpdb->prefix . 'appointease_slot_locks';
+            
             $deleted = $wpdb->delete($locks_table, array('client_id' => $client_id), array('%s'));
-            error_log("[UNLOCK_SLOT] Deleted lock for {$lock->date} {$lock->time}, rows affected: {$deleted}");
-            $this->broadcast_slot_update($lock->date, $lock->time, $lock->employee_id, 'available');
-        } else {
-            error_log("[UNLOCK_SLOT] No lock found for client_id: {$client_id}");
+            
+            if ($deleted === false) {
+                return new WP_Error('db_error', 'Failed to unlock slot: ' . $wpdb->last_error, array('status' => 500));
+            }
+            
+            return rest_ensure_response(array('success' => true, 'deleted' => $deleted));
+        } catch (Exception $e) {
+            return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
-        
-        return rest_ensure_response(array('success' => true));
     }
     
-    /**
-     * Broadcast slot status update
-     */
-    private function broadcast_slot_update($date, $time, $employee_id, $status) {
-        error_log("[BROADCAST] Slot update: {$date} {$time} employee {$employee_id} status {$status}");
-        
-        $updates = get_transient('appointease_realtime_updates') ?: array();
-        $updates[] = array(
-            'type' => 'slot_update',
-            'date' => $date,
-            'time' => $time,
-            'employee_id' => $employee_id,
-            'status' => $status,
-            'timestamp' => time()
-        );
-        
-        set_transient('appointease_realtime_updates', array_slice($updates, -50), 300);
-        error_log("[BROADCAST] Added update to transient, total updates: " . count($updates));
+    public function debug_selections($request) {
+        try {
+            global $wpdb;
+            $all_transients = $wpdb->get_results(
+                "SELECT option_name, option_value FROM {$wpdb->options} WHERE option_name LIKE '_transient_appointease_active_%'"
+            );
+            $selections = array();
+            $now = time();
+            $cleaned_count = 0;
+            
+            foreach ($all_transients as $transient) {
+                $key = str_replace('_transient_', '', $transient->option_name);
+                $data = maybe_unserialize($transient->option_value);
+                
+                // Clean expired entries (>5 seconds old)
+                $cleaned_data = array();
+                foreach ($data as $time => $timeData) {
+                    if (is_array($timeData) && isset($timeData['timestamp'])) {
+                        if ($now - $timeData['timestamp'] <= 5) {
+                            $cleaned_data[$time] = $timeData;
+                        } else {
+                            $cleaned_count++;
+                        }
+                    }
+                }
+                
+                // Update or delete transient
+                if (empty($cleaned_data)) {
+                    delete_transient($key);
+                } else if (count($cleaned_data) !== count($data)) {
+                    set_transient($key, $cleaned_data, 300);
+                    $selections[$key] = $cleaned_data;
+                } else {
+                    $selections[$key] = $data;
+                }
+            }
+            
+            return rest_ensure_response(array(
+                'active_selections' => $selections, 
+                'count' => count($selections),
+                'cleaned' => $cleaned_count
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    public function debug_locks($request) {
+        try {
+            global $wpdb;
+            $locks_table = $wpdb->prefix . 'appointease_slot_locks';
+            $locks = $wpdb->get_results("SELECT * FROM {$locks_table} WHERE expires_at > UTC_TIMESTAMP()");
+            return rest_ensure_response(array('locked_slots' => $locks, 'count' => count($locks)));
+        } catch (Exception $e) {
+            return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    public function debug_availability_raw($request) {
+        try {
+            global $wpdb;
+            $params = $request->get_json_params();
+            
+            $date = isset($params['date']) ? sanitize_text_field($params['date']) : date('Y-m-d');
+            $employee_id = isset($params['employee_id']) ? intval($params['employee_id']) : 1;
+            
+            $appointments_table = $wpdb->prefix . 'appointments';
+            $locks_table = $wpdb->prefix . 'appointease_slot_locks';
+            
+            $appointments = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM {$appointments_table} WHERE employee_id = %d AND DATE(appointment_date) = %s",
+                $employee_id, $date
+            ));
+            
+            $locks = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM {$locks_table} WHERE date = %s AND employee_id = %s",
+                $date, $employee_id
+            ));
+            
+            return rest_ensure_response(array(
+                'date' => $date,
+                'employee_id' => $employee_id,
+                'appointments' => $appointments,
+                'appointments_count' => count($appointments),
+                'locks' => $locks,
+                'locks_count' => count($locks),
+                'last_error' => $wpdb->last_error
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
+    }
+    
+    public function clear_all_locks($request) {
+        try {
+            global $wpdb;
+            $locks_table = $wpdb->prefix . 'appointease_slot_locks';
+            
+            // Clear Redis locks
+            $redis_cleared = 0;
+            if ($this->redis->is_enabled()) {
+                $redis_cleared = $this->redis->clear_all_locks();
+            }
+            
+            // Clear database locks
+            $deleted_locks = $wpdb->query("DELETE FROM {$locks_table}");
+            
+            // Clear transients
+            $transients = $wpdb->get_results(
+                "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE '_transient_appointease_active_%'"
+            );
+            
+            $deleted_transients = 0;
+            foreach ($transients as $transient) {
+                $key = str_replace('_transient_', '', $transient->option_name);
+                if (delete_transient($key)) {
+                    $deleted_transients++;
+                }
+            }
+            
+            wp_cache_flush();
+            
+            error_log('[CLEAR_LOCKS] Redis: ' . $redis_cleared . ', MySQL: ' . $deleted_locks . ', Transients: ' . $deleted_transients);
+            
+            return rest_ensure_response(array(
+                'success' => true,
+                'deleted_locks' => $deleted_locks,
+                'deleted_transients' => $deleted_transients,
+                'redis_cleared' => $redis_cleared,
+                'message' => 'All locked data cleared successfully'
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
     }
 }

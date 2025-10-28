@@ -40,35 +40,13 @@ export class RealtimeService {
   }
 
   /**
-   * Connect to real-time service (tries WebSocket first, falls back to polling)
+   * Connect to real-time service (WordPress Heartbeat only - no polling)
    */
   async connect(): Promise<void> {
-    if (this.isConnecting) {
-      //console.log('[RealtimeService] Already connecting, skipping...');
-      return;
-    }
+    if (this.isConnecting) return;
     this.isConnecting = true;
-
-    //console.log('[RealtimeService] Starting connection...');
-    //console.log('[RealtimeService] Config:', this.config);
-
-    // Try WebSocket first if URL provided
-    if (this.config.wsUrl) {
-      //console.log('[RealtimeService] Attempting WebSocket connection to:', this.config.wsUrl);
-      const wsConnected = await this.connectWebSocket();
-      if (wsConnected) {
-        //console.log('[RealtimeService] WebSocket connection successful');
-        this.isConnecting = false;
-        return;
-      }
-      //console.log('[RealtimeService] WebSocket failed, falling back to polling');
-    } else {
-      //console.log('[RealtimeService] No WebSocket URL provided, using polling only');
-    }
-
-    // Fallback to polling
-    //console.log('[RealtimeService] Starting polling mode');
-    this.connectPolling();
+    // Using WordPress Heartbeat API only - no WebSocket, no polling
+    this.mode = 'disconnected';
     this.isConnecting = false;
   }
 
@@ -146,48 +124,18 @@ export class RealtimeService {
   }
 
   /**
-   * Start HTTP polling
+   * Start HTTP polling (DISABLED - using WordPress Heartbeat)
    */
   private connectPolling(): void {
-    if (this.pollingInterval) {
-      clearInterval(this.pollingInterval);
-    }
-
-    this.mode = 'polling';
-    //console.log('[RealtimeService] Using HTTP polling mode');
-    this.emit('connection', { mode: 'polling', status: 'connected' });
-
-    // Initial fetch
-    this.pollData();
-
-    // Set up interval
-    this.pollingInterval = window.setInterval(() => {
-      this.pollData();
-    }, this.config.pollingInterval);
+    // Polling disabled - WordPress Heartbeat API handles real-time updates
+    this.mode = 'disconnected';
   }
 
   /**
-   * Poll data from HTTP endpoint
+   * Poll data from HTTP endpoint (DISABLED - using WordPress Heartbeat)
    */
   private async pollData(): Promise<void> {
-    try {
-      const url = new URL(this.config.pollingUrl, window.location.origin);
-      const response = await fetch(url.toString(), {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        if (data.type === 'update') {
-          this.handleMessage(data);
-        }
-      }
-    } catch (error) {
-      console.error('[RealtimeService] Polling failed:', error);
-    }
+    // Polling disabled - WordPress Heartbeat API handles real-time updates
   }
 
 

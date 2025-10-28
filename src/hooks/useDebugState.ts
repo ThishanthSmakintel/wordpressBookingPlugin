@@ -19,6 +19,8 @@ export const useDebugState = () => {
     const [workingDays, setWorkingDays] = useState<string[]>([]);
     const [debugTimeSlots, setDebugTimeSlots] = useState<string[]>([]);
     const [availabilityData, setAvailabilityData] = useState<any>(null);
+    const [activeSelections, setActiveSelections] = useState<any[]>([]);
+    const [lockedSlots, setLockedSlots] = useState<any[]>([]);
 
     // Enable debug mode with keyboard shortcut
     useEffect(() => {
@@ -43,6 +45,8 @@ export const useDebugState = () => {
         debugStaff, setDebugStaff,
         workingDays, setWorkingDays,
         debugTimeSlots, setDebugTimeSlots,
-        availabilityData, setAvailabilityData
+        availabilityData, setAvailabilityData,
+        activeSelections, setActiveSelections,
+        lockedSlots, setLockedSlots
     };
 };

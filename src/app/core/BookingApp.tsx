@@ -277,11 +277,7 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
         return () => clearInterval(interval);
     }, [bookingState.isLoggedIn, bookingState.showDashboard, loadUserAppointmentsRealtime]);
 
-    useEffect(() => {
-        if (step === 4 && selectedDate && selectedEmployee) {
-            checkAvailability(selectedDate, selectedEmployee.id);
-        }
-    }, [step, selectedDate, selectedEmployee, checkAvailability, bookingState.isRescheduling, bookingState.currentAppointment?.id]);
+    // Removed: Heartbeat now provides real-time booked slots
     
     // Listen for availability refresh requests from TimeSelector
     useEffect(() => {
@@ -309,15 +305,7 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
         }
     }, [step, selectedService, selectedEmployee, selectedDate, selectedTime, connectionMode, sendRealtimeMessage]);
     
-    // Refresh availability when entering step 4
-    useEffect(() => {
-        if (step === 4 && selectedDate && selectedEmployee) {
-            // Small delay to ensure component is mounted
-            setTimeout(() => {
-                checkAvailability(selectedDate, selectedEmployee.id);
-            }, 100);
-        }
-    }, [step]);
+    // Removed: Heartbeat provides real-time booked slots
 
     // Lock slot at Steps 4, 5, 6 - Update DB immediately when time selected
     const previousSlotRef = useRef<{date: string, time: string, employeeId: number} | null>(null);
@@ -347,10 +335,7 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
             
             previousSlotRef.current = currentSlot;
             
-            // Refresh availability after locking to show updated status
-            setTimeout(() => {
-                checkAvailability(selectedDate, selectedEmployee.id);
-            }, 200);
+            // Removed: Heartbeat provides real-time updates
         }
         
         // Unlock when leaving steps 4-6 or unmounting
@@ -371,15 +356,7 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
         loadInitialData();
     }, [loadInitialData]);
     
-    // Periodic availability refresh for step 4
-    useEffect(() => {
-        if (step === 4 && selectedDate && selectedEmployee) {
-            const interval = setInterval(() => {
-                checkAvailability(selectedDate, selectedEmployee.id);
-            }, 3000); // Refresh every 3 seconds
-            return () => clearInterval(interval);
-        }
-    }, [step, selectedDate, selectedEmployee, checkAvailability]);
+    // Removed: Heartbeat provides real-time booked slots every 15 seconds
 
     // Scroll to top when step changes
     useEffect(() => {
@@ -392,12 +369,14 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
         if (!window.bookingAPI || !debugState.showDebug) return;
         
         try {
-            const [appointmentsRes, servicesRes, staffRes, settingsRes, timeSlotsRes] = await Promise.all([
+            const [appointmentsRes, servicesRes, staffRes, settingsRes, timeSlotsRes, selectionsRes, locksRes] = await Promise.all([
                 fetch(`${window.bookingAPI.root}appointease/v1/debug/appointments`),
                 fetch(`${window.bookingAPI.root}booking/v1/services`),
                 fetch(`${window.bookingAPI.root}booking/v1/staff`),
                 fetch(`${window.bookingAPI.root}appointease/v1/business-hours`),
-                fetch(`${window.bookingAPI.root}appointease/v1/time-slots`)
+                fetch(`${window.bookingAPI.root}appointease/v1/time-slots`),
+                fetch(`${window.bookingAPI.root}appointease/v1/debug/selections`),
+                fetch(`${window.bookingAPI.root}appointease/v1/debug/locks`)
             ]);
             
             if (appointmentsRes.ok) {
@@ -423,6 +402,16 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
             if (timeSlotsRes.ok) {
                 const timeSlotsData = await timeSlotsRes.json();
                 debugState.setDebugTimeSlots(timeSlotsData.time_slots || []);
+            }
+            
+            if (selectionsRes.ok) {
+                const selectionsData = await selectionsRes.json();
+                debugState.setActiveSelections(selectionsData.selections || []);
+            }
+            
+            if (locksRes.ok) {
+                const locksData = await locksRes.json();
+                debugState.setLockedSlots(locksData.locks || []);
             }
             
             if (selectedEmployee && selectedDate) {

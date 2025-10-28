@@ -219,7 +219,7 @@ add_filter('rest_pre_dispatch', function($response, $server, $request) {
     }
     
     // Skip session endpoints and public endpoints
-    $public_endpoints = ['/session', '/verify-otp', '/services', '/staff', '/appointments', '/user-appointments', '/availability', '/debug', '/fix-working-days', '/server-date', '/settings', '/business-hours', '/time-slots', '/check-slot', '/health'];
+    $public_endpoints = ['/session', '/verify-otp', '/services', '/staff', '/appointments', '/user-appointments', '/availability', '/debug', '/fix-working-days', '/server-date', '/settings', '/business-hours', '/time-slots', '/check-slot', '/health', '/realtime/poll', '/realtime/select', '/realtime/deselect', '/test-heartbeat', '/generate-otp', '/unlock-slot', '/clear-locks'];
     
     foreach ($public_endpoints as $endpoint) {
         if (strpos($route, $endpoint) !== false) {
@@ -249,4 +249,38 @@ add_action('wp', function() {
 
 add_action('booking_cleanup_sessions', function() {
     BookingSessionManager::getInstance()->cleanExpiredSessions();
+});
+
+// WordPress Heartbeat API integration for real-time slot visibility
+add_filter('heartbeat_received', function($response, $data) {
+    if (isset($data['appointease_poll'])) {
+        $date = sanitize_text_field($data['appointease_poll']['date']);
+        $employee_id = intval($data['appointease_poll']['employee_id']);
+        
+        if ($date && $employee_id) {
+            $key = "selection_{$date}_{$employee_id}";
+            $selections = get_transient($key) ?: array();
+            
+            $now = time();
+            $active_slots = array();
+            
+            foreach ($selections as $time => $sessions) {
+                foreach ($sessions as $session_id => $timestamp) {
+                    if ($now - $timestamp < 30) {
+                        $active_slots[] = $time;
+                        break;
+                    }
+                }
+            }
+            
+            $response['appointease_active_selections'] = array_unique($active_slots);
+        }
+    }
+    
+    return $response;
+}, 10, 2);
+
+add_filter('heartbeat_settings', function($settings) {
+    $settings['interval'] = 3;
+    return $settings;
 });

@@ -1,0 +1,559 @@
+=== APPOINTEASE DATABASE SCHEMA ===
+
+Database: blog_promoplus
+Prefix: wp_
+Generated: 2025-10-28 05:30:47
+
+TABLE: wp_appointments
+================================================================================
+  id                        mediumint(9)         NOT NULL
+  name                      varchar(100)         NOT NULL
+  email                     varchar(100)         NOT NULL
+  phone                     varchar(20)          NULL
+  appointment_date          datetime             NOT NULL
+  status                    varchar(20)          NULL
+  created_at                datetime             NULL
+  service_id                mediumint(9)         NULL
+  employee_id               mediumint(9)         NULL
+  strong_id                 varchar(20)          NULL
+  customer_id               mediumint(9)         NULL
+  user_id                   bigint(20) unsigned  NULL
+  notes                     text                 NULL
+  payment_status            varchar(20)          NULL
+  total_amount              decimal(10,2)        NULL
+  updated_at                datetime             NULL
+  rescheduled_at            datetime             NULL
+  original_date             datetime             NULL
+  idempotency_key           varchar(64)          NULL
+
+  Total Records: 13
+
+  ALL DATA:
+    Row 1: {
+    "id": "206",
+    "name": "thishanth",
+    "email": "dev15.smakintel@gmail.com",
+    "phone": "",
+    "appointment_date": "2025-10-24 09:15:00",
+    "status": "cancelled",
+    "created_at": "2025-10-21 07:08:39",
+    "service_id": "1",
+    "employee_id": "2",
+    "strong_id": "APT-2025-000206",
+    "customer_id": null,
+    "user_id": null,
+    "notes": null,
+    "payment_status": "pending",
+    "total_amount": null,
+    "updated_at": "2025-10-23 07:29:45",
+    "rescheduled_at": null,
+    "original_date": null,
+    "idempotency_key": null
+}
+    Row 2: {
+    "id": "207",
+    "name": "thishanth",
+    "email": "dev15.smakintel@gmail.com",
+    "phone": "",
+    "appointment_date": "2025-10-24 09:00:00",
+    "status": "cancelled",
+    "created_at": "2025-10-21 07:12:34",
+    "service_id": "1",
+    "employee_id": "2",
+    "strong_id": "APT-2025-000207",
+    "customer_id": null,
+    "user_id": null,
+    "notes": null,
+    "payment_status": "pending",
+    "total_amount": null,
+    "updated_at": "2025-10-22 08:31:45",
+    "rescheduled_at": null,
+    "original_date": null,
+    "idempotency_key": null
+}
+    Row 3: {
+    "id": "208",
+    "name": "thishanth",
+    "email": "dev15.smakintel@gmail.com",
+    "phone": "",
+    "appointment_date": "2025-10-24 09:30:00",
+    "status": "cancelled",
+    "created_at": "2025-10-21 07:14:48",
+    "service_id": "1",
+    "employee_id": "2",
+    "strong_id": "APT-2025-000208",
+    "customer_id": null,
+    "user_id": null,
+    "notes": null,
+    "payment_status": "pending",
+    "total_amount": null,
+    "updated_at": "2025-10-23 07:53:36",
+    "rescheduled_at": null,
+    "original_date": null,
+    "idempotency_key": null
+}
+    Row 4: {
+    "id": "209",
+    "name": "thishanth",
+    "email": "dev15.smakintel@gmail.com",
+    "phone": "",
+    "appointment_date": "2025-10-22 09:15:00",
+    "status": "cancelled",
+    "created_at": "2025-10-21 07:28:36",
+    "service_id": "1",
+    "employee_id": "2",
+    "strong_id": "APT-2025-000209",
+    "customer_id": null,
+    "user_id": null,
+    "notes": null,
+    "payment_status": "pending",
+    "total_amount": null,
+    "updated_at": "2025-10-22 08:17:17",
+    "rescheduled_at": null,
+    "original_date": null,
+    "idempotency_key": null
+}
+    Row 5: {
+    "id": "210",
+    "name": "thishanth",
+    "email": "dev15.smakintel@gmail.com",
+    "phone": "",
+    "appointment_date": "2025-10-24 09:00:00",
+    "status": "cancelled",
+    "created_at": "2025-10-21 07:56:56",
+    "service_id": "1",
+    "employee_id": "2",
+    "strong_id": "APT-2025-000210",
+    "customer_id": null,
+    "user_id": null,
+    "notes": null,
+    "payment_status": "pending",
+    "total_amount": null,
+    "updated_at": "2025-10-23 08:04:56",
+    "rescheduled_at": null,
+    "original_date": null,
+    "idempotency_key": null
+}
+    Row 6: {
+    "id": "211",
+    "name": "aa",
+    "email": "iamthishanth@gmail.com",
+    "phone": "",
+    "appointment_date": "2025-10-24 10:00:00",
+    "status": "confirmed",
+    "created_at": "2025-10-21 08:16:26",
+    "service_id": "1",
+    "employee_id": "2",
+    "strong_id": "APT-2025-000211",
+    "customer_id": null,
+    "user_id": null,
+    "notes": null,
+    "payment_status": "pending",
+    "total_amount": null,
+    "updated_at": "2025-10-21 08:16:26",
+    "rescheduled_at": null,
+    "original_date": null,
+    "idempotency_key": null
+}
+    Row 7: {
+    "id": "212",
+    "name": "thishanth",
+    "email": "dev15.smakintel@gmail.com",
+    "phone": "",
+    "appointment_date": "2025-10-23 09:00:00",
+    "status": "cancelled",
+    "created_at": "2025-10-22 08:13:57",
+    "service_id": "1",
+    "employee_id": "2",
+    "strong_id": "APT-2025-000212",
+    "customer_id": null,
+    "user_id": null,
+    "notes": null,
+    "payment_status": "pending",
+    "total_amount": null,
+    "updated_at": "2025-10-23 08:06:21",
+    "rescheduled_at": null,
+    "original_date": null,
+    "idempotency_key": null
+}
+    Row 8: {
+    "id": "214",
+    "name": "thishanth",
+    "email": "dev15.smakintel@gmail.com",
+    "phone": "",
+    "appointment_date": "2025-10-23 10:00:00",
+    "status": "cancelled",
+    "created_at": "2025-10-23 07:24:46",
+    "service_id": "1",
+    "employee_id": "2",
+    "strong_id": "APT-2025-000214",
+    "customer_id": null,
+    "user_id": null,
+    "notes": null,
+    "payment_status": "pending",
+    "total_amount": null,
+    "updated_at": "2025-10-23 07:29:39",
+    "rescheduled_at": null,
+    "original_date": null,
+    "idempotency_key": null
+}
+    Row 9: {
+    "id": "215",
+    "name": "thishanth",
+    "email": "dev15.smakintel@gmail.com",
+    "phone": "",
+    "appointment_date": "2025-10-29 09:00:00",
+    "status": "cancelled",
+    "created_at": "2025-10-23 07:30:58",
+    "service_id": "1",
+    "employee_id": "2",
+    "strong_id": "APT-2025-000215",
+    "customer_id": null,
+    "user_id": null,
+    "notes": null,
+    "payment_status": "pending",
+    "total_amount": null,
+    "updated_at": "2025-10-23 08:05:58",
+    "rescheduled_at": null,
+    "original_date": null,
+    "idempotency_key": null
+}
+    Row 10: {
+    "id": "216",
+    "name": "thishanth",
+    "email": "dev15.smakintel@gmail.com",
+    "phone": "",
+    "appointment_date": "2025-10-23 09:00:00",
+    "status": "confirmed",
+    "created_at": "2025-10-23 08:35:39",
+    "service_id": "1",
+    "employee_id": "2",
+    "strong_id": "APT-2025-000216",
+    "customer_id": null,
+    "user_id": null,
+    "notes": null,
+    "payment_status": "pending",
+    "total_amount": null,
+    "updated_at": "2025-10-23 08:35:39",
+    "rescheduled_at": null,
+    "original_date": null,
+    "idempotency_key": null
+}
+    Row 11: {
+    "id": "217",
+    "name": "thishanth",
+    "email": "dev15.smakintel@gmail.co",
+    "phone": "",
+    "appointment_date": "2025-10-27 09:00:00",
+    "status": "confirmed",
+    "created_at": "2025-10-23 11:04:43",
+    "service_id": "1",
+    "employee_id": "2",
+    "strong_id": "APT-2025-000217",
+    "customer_id": null,
+    "user_id": null,
+    "notes": null,
+    "payment_status": "pending",
+    "total_amount": null,
+    "updated_at": "2025-10-23 11:04:43",
+    "rescheduled_at": null,
+    "original_date": null,
+    "idempotency_key": null
+}
+    Row 12: {
+    "id": "235",
+    "name": "Test",
+    "email": "",
+    "phone": "555-0000",
+    "appointment_date": "2025-10-27 10:00:00",
+    "status": "confirmed",
+    "created_at": "2025-10-24 02:12:42",
+    "service_id": "1",
+    "employee_id": "1",
+    "strong_id": "APT-2025-000235",
+    "customer_id": null,
+    "user_id": null,
+    "notes": null,
+    "payment_status": "pending",
+    "total_amount": null,
+    "updated_at": "2025-10-24 07:42:42",
+    "rescheduled_at": null,
+    "original_date": null,
+    "idempotency_key": null
+}
+    Row 13: {
+    "id": "286",
+    "name": "Test User",
+    "email": "test@example.com",
+    "phone": "555-0000",
+    "appointment_date": "2025-11-03 10:00:00",
+    "status": "confirmed",
+    "created_at": "2025-10-27 00:59:15",
+    "service_id": "1",
+    "employee_id": "1",
+    "strong_id": "APT-2025-000286",
+    "customer_id": null,
+    "user_id": null,
+    "notes": null,
+    "payment_status": "pending",
+    "total_amount": null,
+    "updated_at": "2025-10-27 06:29:15",
+    "rescheduled_at": null,
+    "original_date": null,
+    "idempotency_key": "192d9762f2fa043165fdafa2285addc5f86276152c01ddc71420f5280aea0077"
+}
+
+
+TABLE: wp_appointease_services
+================================================================================
+  id                        mediumint(9)         NOT NULL
+  name                      varchar(255)         NOT NULL
+  description               text                 NULL
+  duration                  int(11)              NOT NULL
+  price                     decimal(10,2)        NOT NULL
+  created_at                datetime             NULL
+  category_id               mediumint(9)         NULL
+  capacity                  int(11)              NULL
+  advance_booking_days      int(11)              NULL
+
+  Total Records: 3
+
+  ALL DATA:
+    Row 1: {
+    "id": "1",
+    "name": "Consultation",
+    "description": "Initial consultation session",
+    "duration": "30",
+    "price": "75.00",
+    "created_at": "2025-09-05 09:23:25",
+    "category_id": null,
+    "capacity": "1",
+    "advance_booking_days": "30"
+}
+    Row 2: {
+    "id": "2",
+    "name": "Premium Service",
+    "description": "Extended premium service",
+    "duration": "60",
+    "price": "150.00",
+    "created_at": "2025-09-05 09:23:25",
+    "category_id": null,
+    "capacity": "1",
+    "advance_booking_days": "30"
+}
+    Row 3: {
+    "id": "3",
+    "name": "Treatment",
+    "description": "Treatment session",
+    "duration": "60",
+    "price": "100.00",
+    "created_at": "2025-10-28 08:01:08",
+    "category_id": null,
+    "capacity": "1",
+    "advance_booking_days": "30"
+}
+
+
+TABLE: wp_appointease_staff
+================================================================================
+  id                        mediumint(9)         NOT NULL
+  name                      varchar(255)         NOT NULL
+  email                     varchar(100)         NOT NULL
+  phone                     varchar(20)          NULL
+  created_at                datetime             NULL
+  working_hours             text                 NULL
+
+  Total Records: 3
+
+  ALL DATA:
+    Row 1: {
+    "id": "1",
+    "name": "Sarah Johnson",
+    "email": "sarah@appointease.com",
+    "phone": "555-0123",
+    "created_at": "2025-09-05 09:23:25",
+    "working_hours": null
+}
+    Row 2: {
+    "id": "2",
+    "name": "Mike Wilson",
+    "email": "mike@appointease.com",
+    "phone": "555-0124",
+    "created_at": "2025-09-05 09:23:25",
+    "working_hours": null
+}
+    Row 3: {
+    "id": "3",
+    "name": "Dr. Brown",
+    "email": "brown@clinic.com",
+    "phone": null,
+    "created_at": "2025-10-28 08:01:42",
+    "working_hours": null
+}
+
+
+TABLE: wp_appointease_categories
+================================================================================
+  id                        mediumint(9)         NOT NULL
+  name                      varchar(255)         NOT NULL
+  description               text                 NULL
+  color                     varchar(7)           NULL
+  created_at                datetime             NULL
+
+  Total Records: 2
+
+  ALL DATA:
+    Row 1: {
+    "id": "1",
+    "name": "General Services",
+    "description": "General booking services",
+    "color": "#1CBC9B",
+    "created_at": "2025-09-07 08:55:24"
+}
+    Row 2: {
+    "id": "2",
+    "name": "Premium Services",
+    "description": "Premium booking services",
+    "color": "#3498db",
+    "created_at": "2025-09-07 08:55:24"
+}
+
+
+TABLE: wp_appointease_availability
+================================================================================
+  id                        mediumint(9)         NOT NULL
+  staff_id                  mediumint(9)         NOT NULL
+  day_of_week               tinyint(1)           NOT NULL
+  start_time                time                 NOT NULL
+  end_time                  time                 NOT NULL
+  is_available              tinyint(1)           NULL
+  created_at                datetime             NULL
+
+  Total Records: 0
+
+
+TABLE: wp_appointease_timeoff
+================================================================================
+  id                        mediumint(9)         NOT NULL
+  staff_id                  mediumint(9)         NOT NULL
+  start_date                date                 NOT NULL
+  end_date                  date                 NOT NULL
+  reason                    varchar(255)         NULL
+  created_at                datetime             NULL
+
+  Total Records: 0
+
+
+TABLE: wp_appointease_customers
+================================================================================
+  id                        mediumint(9)         NOT NULL
+  name                      varchar(255)         NOT NULL
+  email                     varchar(100)         NOT NULL
+  phone                     varchar(20)          NULL
+  notes                     text                 NULL
+  total_appointments        int(11)              NULL
+  created_at                datetime             NULL
+
+  Total Records: 0
+
+
+TABLE: wp_appointease_email_templates
+================================================================================
+  id                        mediumint(9)         NOT NULL
+  name                      varchar(255)         NOT NULL
+  subject                   varchar(255)         NOT NULL
+  body                      text                 NOT NULL
+  type                      varchar(50)          NOT NULL
+  is_active                 tinyint(1)           NULL
+  created_at                datetime             NULL
+
+  Total Records: 5
+
+  ALL DATA:
+    Row 1: {
+    "id": "1",
+    "name": "Booking Confirmation",
+    "subject": "Appointment Confirmed - ID: {{appointment_id}}",
+    "body": "Dear {{customer_name}},\\n\\nYour appointment has been successfully booked!\\n\\nAppointment Details:\\n- ID: {{appointment_id}}\\n- Date & Time: {{appointment_date}}\\n- Service: {{service_name}}\\n- Staff: {{staff_name}}\\n- Duration: {{duration}} minutes\\n- Total: ${{total_amount}}\\n\\nTo manage your appointment, use ID: {{appointment_id}}\\n\\nThank you for choosing us!\\n\\nBest regards,\\n{{business_name}}",
+    "type": "confirmation",
+    "is_active": "1",
+    "created_at": "2025-09-07 08:55:24"
+}
+    Row 2: {
+    "id": "2",
+    "name": "Appointment Reminder",
+    "subject": "Reminder: Your appointment is tomorrow",
+    "body": "Dear {{customer_name}},\\n\\nThis is a friendly reminder about your upcoming appointment:\\n\\n- Date & Time: {{appointment_date}}\\n- Service: {{service_name}}\\n- Staff: {{staff_name}}\\n- Location: {{business_address}}\\n\\nIf you need to reschedule or cancel, please use your appointment ID: {{appointment_id}}\\n\\nSee you soon!\\n\\n{{business_name}}",
+    "type": "reminder",
+    "is_active": "1",
+    "created_at": "2025-09-07 08:55:24"
+}
+    Row 3: {
+    "id": "3",
+    "name": "Cancellation Confirmation",
+    "subject": "Appointment Cancelled - ID: {{appointment_id}}",
+    "body": "Dear {{customer_name}},\\n\\nYour appointment has been successfully cancelled.\\n\\nCancelled Appointment Details:\\n- ID: {{appointment_id}}\\n- Original Date: {{appointment_date}}\\n- Service: {{service_name}}\\n\\nWe hope to serve you again in the future.\\n\\nBest regards,\\n{{business_name}}",
+    "type": "cancellation",
+    "is_active": "1",
+    "created_at": "2025-09-07 08:55:24"
+}
+    Row 4: {
+    "id": "4",
+    "name": "Reschedule Confirmation",
+    "subject": "Appointment Rescheduled - ID: {{appointment_id}}",
+    "body": "Dear {{customer_name}},\\n\\nYour appointment has been successfully rescheduled.\\n\\nUpdated Appointment Details:\\n- ID: {{appointment_id}}\\n- New Date & Time: {{appointment_date}}\\n- Service: {{service_name}}\\n- Staff: {{staff_name}}\\n\\nThank you for your flexibility!\\n\\nBest regards,\\n{{business_name}}",
+    "type": "reschedule",
+    "is_active": "1",
+    "created_at": "2025-09-07 08:55:24"
+}
+    Row 5: {
+    "id": "5",
+    "name": "Admin New Booking",
+    "subject": "New Appointment Booked - {{appointment_date}}",
+    "body": "New appointment booked:\\n\\nCustomer: {{customer_name}}\\nEmail: {{customer_email}}\\nPhone: {{customer_phone}}\\nDate: {{appointment_date}}\\nService: {{service_name}}\\nStaff: {{staff_name}}\\nID: {{appointment_id}}",
+    "type": "admin_notification",
+    "is_active": "1",
+    "created_at": "2025-09-07 08:55:24"
+}
+
+
+TABLE: wp_appointease_blackout_dates
+================================================================================
+  id                        mediumint(9)         NOT NULL
+  start_date                date                 NOT NULL
+  end_date                  date                 NOT NULL
+  reason                    varchar(255)         NULL
+  created_at                datetime             NULL
+
+  Total Records: 2
+
+  ALL DATA:
+    Row 1: {
+    "id": "1",
+    "start_date": "2025-01-01",
+    "end_date": "2025-01-01",
+    "reason": "New Year's Day",
+    "created_at": "2025-09-07 08:55:24"
+}
+    Row 2: {
+    "id": "2",
+    "start_date": "2025-12-25",
+    "end_date": "2025-12-25",
+    "reason": "Christmas Day",
+    "created_at": "2025-09-07 08:55:24"
+}
+
+
+TABLE: wp_appointease_slot_locks
+================================================================================
+  id                        mediumint(9)         NOT NULL
+  date                      date                 NOT NULL
+  time                      time                 NOT NULL
+  employee_id               mediumint(9)         NOT NULL
+  client_id                 varchar(255)         NOT NULL
+  expires_at                datetime             NOT NULL
+  created_at                timestamp            NULL
+
+  Total Records: 0
+
+

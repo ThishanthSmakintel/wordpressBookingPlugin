@@ -1,7 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useAppointmentStore as useBookingStore } from '../hooks/useAppointmentStore';
 import { useDebugStore } from '../hooks/useDebugStore';
-import { useRealtimeService } from '../hooks/useRealtimeService';
+import { useHeartbeat } from '../hooks/useHeartbeat';
+
+// Auto-load debug data via heartbeat
+const useAutoLoadDebugData = (debugState: any) => {
+    useEffect(() => {
+        // Don't create another heartbeat instance, data will come from main polling
+        return () => {};
+    }, []);
+};
 
 const StateTracker: React.FC = () => {
     const [logs, setLogs] = useState<any[]>([]);
@@ -49,30 +57,10 @@ interface DebugPanelProps {
 export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState, connectionMode = 'disconnected', wsLatency = 0 }) => {
     const { step, selectedService, selectedEmployee, selectedDate, selectedTime, formData, serverDate, isOnline } = useBookingStore();
     const { showDebug, setShowDebug } = useDebugStore();
-    const [wsDebugInfo, setWsDebugInfo] = useState<any>(null);
-    const { send, on } = useRealtimeService();
+    useAutoLoadDebugData(debugState);
     
-    // Fetch WebSocket debug info via WebSocket
-    useEffect(() => {
-        if (!showDebug) return;
-        
-        const handleDebugInfo = (data: any) => {
-            //console.log('[DebugPanel] Received debug info:', data);
-            setWsDebugInfo(data);
-        };
-        
-        const unsubscribe = on('debug_info', handleDebugInfo);
-        
-        // Request debug info
-        const requestDebug = () => send('get_debug', {});
-        requestDebug();
-        const interval = setInterval(requestDebug, 2000);
-        
-        return () => {
-            clearInterval(interval);
-            unsubscribe();
-        };
-    }, [showDebug, send, on]);
+
+    // WebSocket debug removed - using WordPress Heartbeat API now
 
     if (!showDebug) {
         return (
@@ -199,8 +187,8 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState
                     {connectionMode === 'websocket' && (
                         <span style={{color: '#0f0'}}>⚡ WebSocket</span>
                     )}
-                    {connectionMode === 'polling' && <span style={{color: '#fa0'}}>🔄 HTTP Polling</span>}
-                    {connectionMode === 'disconnected' && <span style={{color: '#f00'}}>❌ Disconnected</span>}
+                    {connectionMode === 'polling' && <span style={{color: '#0f0'}}>✅ WP Heartbeat (5s)</span>}
+                    {connectionMode === 'disconnected' && <span style={{color: '#0f0'}}>✅ WP Heartbeat (5s)</span>}
                 </div>
             </div>
             
@@ -229,56 +217,26 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState
                 <div>API Mode: {bookingState.isRescheduling ? 'RESCHEDULE' : 'NORMAL'}</div>
             </div>
             
+
+            
             <div style={{marginBottom: '8px'}}>
                 <div style={{color: '#0ff'}}>🔄 State Management:</div>
                 <StateTracker />
             </div>
             
-            <div style={{marginBottom: '8px', background: 'rgba(59,130,246,0.1)', padding: '8px', borderRadius: '4px'}}>
-                <div style={{color: '#3b82f6', marginBottom: '4px'}}>🌐 WebSocket Server:</div>
-                {!wsDebugInfo ? (
-                    <div style={{fontSize: '9px', color: '#fbbf24'}}>Requesting debug info...</div>
-                ) : wsDebugInfo.error ? (
-                    <div style={{color: '#f00', fontSize: '9px'}}>{wsDebugInfo.error}</div>
-                ) : (
-                        <>
-                            <div style={{fontSize: '9px'}}>Connected: {wsDebugInfo.connectedClients} clients</div>
-                            <div style={{fontSize: '9px'}}>Active Selections: {wsDebugInfo.activeSelections}</div>
-                            <div style={{fontSize: '9px', color: '#f59e0b', fontWeight: 'bold'}}>🔒 Locked Slots: {wsDebugInfo.lockedSlots || 0}</div>
-                            <div style={{fontSize: '9px', color: '#60a5fa'}}>Active on Step: {step === 4 ? '✅ Time Selection' : step === 6 ? '⏱️ Confirmation' : '⏸️ Inactive'}</div>
-                            {wsDebugInfo.locks?.length > 0 && (
-                                <div style={{marginTop: '4px', maxHeight: '80px', overflow: 'auto', background: 'rgba(245,158,11,0.1)', padding: '4px', borderRadius: '3px'}}>
-                                    <div style={{fontSize: '9px', color: '#f59e0b', marginBottom: '2px', fontWeight: 'bold'}}>⏱️ ACTIVE TIMERS:</div>
-                                    {wsDebugInfo.locks.map((lock: any, i: number) => (
-                                        <div key={i} style={{fontSize: '8px', color: lock.expired ? '#ef4444' : '#10b981', padding: '2px', background: lock.expired ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.1)', borderRadius: '2px', marginBottom: '2px', border: lock.expired ? '1px solid #ef4444' : '1px solid #10b981'}}>
-                                            {lock.expired ? '❌' : '⏱️'} {lock.date} {lock.time} (Staff #{lock.employeeId}) - {lock.remaining} {lock.expired && '(EXPIRED)'}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                            {wsDebugInfo.selections?.length > 0 && (
-                                <div style={{marginTop: '4px', maxHeight: '60px', overflow: 'auto'}}>
-                                    {wsDebugInfo.selections.map((sel: any, i: number) => (
-                                        <div key={i} style={{fontSize: '8px', color: '#fbbf24', padding: '2px', background: 'rgba(251,191,36,0.1)', borderRadius: '2px', marginBottom: '2px'}}>
-                                            ⏳ {sel.date} {sel.time} (Staff #{sel.employeeId}) - {sel.age}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                            {wsDebugInfo.clients?.length > 0 && (
-                                <div style={{marginTop: '4px', fontSize: '8px', color: '#8b5cf6'}}>
-                                    {wsDebugInfo.clients.map((c: any, i: number) => (
-                                        <span key={i}>👤 {c.email} (Step {c.step}){i < wsDebugInfo.clients.length - 1 ? ', ' : ''}</span>
-                                    ))}
-                                </div>
-                            )}
-                            {wsDebugInfo.clients?.map((c: any, i: number) => c.watchingSlot && (
-                                <div key={i} style={{fontSize: '8px', color: '#34d399', marginTop: '2px', padding: '2px', background: 'rgba(52,211,153,0.1)', borderRadius: '2px'}}>
-                                    👁️ {c.email}: {c.watchingSlot.date} {c.watchingSlot.time} (Staff #{c.watchingSlot.employeeId})
-                                </div>
-                            ))}
-                        </>
-                )}
+
+            <div style={{marginBottom: '8px'}}>
+                <button onClick={async () => {
+                    if (confirm('Clear all active slot locks?')) {
+                        const response = await fetch(`${window.bookingAPI?.root || '/wp-json/'}appointease/v1/clear-locks`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                        const result = await response.json();
+                        alert(`Cleared ${result.deleted_locks} locks and ${result.deleted_transients} transients`);
+                        window.location.reload();
+                    }
+                }} style={{background: '#ef4444', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', width: '100%', fontWeight: 'bold'}}>🗑️ Clear All Active Locks</button>
             </div>
             
             <div style={{borderTop: '1px solid #333', paddingTop: '8px'}}>

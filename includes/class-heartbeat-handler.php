@@ -9,6 +9,7 @@ class Appointease_Heartbeat_Handler {
     public function __construct() {
         add_filter('heartbeat_received', array($this, 'handle_heartbeat'), 10, 2);
         add_action('wp_enqueue_scripts', array($this, 'enqueue_heartbeat_scripts'));
+        add_filter('heartbeat_nopriv_received', array($this, 'handle_heartbeat'), 10, 2);
     }
 
     public function enqueue_heartbeat_scripts() {
@@ -17,17 +18,110 @@ class Appointease_Heartbeat_Handler {
         wp_enqueue_script('heartbeat');
         wp_add_inline_script('heartbeat', '
             jQuery(document).ready(function($) {
-                wp.heartbeat.interval("15");
+                wp.heartbeat.interval(1);
             });
         ');
     }
 
     public function handle_heartbeat($response, $data) {
+        error_log('[Heartbeat] ===== FILTER CALLED ===== Keys: ' . print_r(array_keys($data), true));
+        error_log('[Heartbeat] Full data: ' . print_r($data, true));
+        
+        // Always add a test response to verify filter is working
+        $response['appointease_test'] = 'heartbeat_working';
+        
+        try {
+            // Handle slot selection
+            if (isset($data['appointease_select'])) {
+                error_log('[Heartbeat] Processing slot selection: ' . print_r($data['appointease_select'], true));
+                $response['appointease_select'] = $this->handle_slot_selection($data['appointease_select']);
+                error_log('[Heartbeat] Selection response: ' . print_r($response['appointease_select'], true));
+            }
+            
+            // Handle slot deselection
+            if (isset($data['appointease_deselect'])) {
+                $response['appointease_deselect'] = $this->handle_slot_deselection($data['appointease_deselect']);
+            }
+            
+            // Handle real-time slot polling
+            if (isset($data['appointease_poll'])) {
+                $poll_data = $data['appointease_poll'];
+                $date = sanitize_text_field($poll_data['date']);
+                $employee_id = intval($poll_data['employee_id']);
+                $client_id = isset($poll_data['client_id']) ? sanitize_text_field($poll_data['client_id']) : null;
+                $selected_time = isset($poll_data['selected_time']) ? sanitize_text_field($poll_data['selected_time']) : null;
+                
+                error_log('[Heartbeat] Polling for date: ' . $date . ', employee: ' . $employee_id . ', client: ' . $client_id . ', time: ' . $selected_time);
+                
+                // Get booked slots from database
+                global $wpdb;
+                $booked_slots = $wpdb->get_col($wpdb->prepare(
+                    "SELECT TIME_FORMAT(TIME(appointment_date), '%%H:%%i') FROM {$wpdb->prefix}appointments 
+                     WHERE DATE(appointment_date) = %s AND employee_id = %d AND status IN ('confirmed', 'created')",
+                    $date, $employee_id
+                ));
+                
+                // Get locked slots from database (exclude user's own locks)
+                $locks_table = $wpdb->prefix . 'appointease_slot_locks';
+                
+                // Clean expired locks first
+                $wpdb->query("DELETE FROM {$locks_table} WHERE expires_at < UTC_TIMESTAMP()");
+                
+                // Get user identifier to exclude their locks
+                $user_ip = $_SERVER['REMOTE_ADDR'];
+                $user_agent = $_SERVER['HTTP_USER_AGENT'];
+                $user_id = md5($user_ip . $user_agent);
+                
+                // Simple SQL query: exclude locks with current user_id
+                $locked_slots = $wpdb->get_col($wpdb->prepare(
+                    "SELECT TIME_FORMAT(time, '%%H:%%i') FROM {$locks_table} 
+                     WHERE date = %s AND employee_id = %d AND expires_at > UTC_TIMESTAMP() AND user_id != %s",
+                    $date, $employee_id, $user_id
+                ));
+                
+                // Get active selections from transient
+                $key = "appointease_active_{$date}_{$employee_id}";
+                $selections = get_transient($key) ?: array();
+                
+                error_log('[Heartbeat] Found selections: ' . print_r($selections, true));
+                error_log('[Heartbeat] Booked slots: ' . print_r($booked_slots, true));
+                error_log('[Heartbeat] Locked slots: ' . print_r($locked_slots, true));
+                
+                // Refresh timestamp for current user's selection
+                $now = time();
+                if ($client_id && $selected_time && isset($selections[$selected_time])) {
+                    $sel_data = $selections[$selected_time];
+                    if (is_array($sel_data) && isset($sel_data['client_id']) && $sel_data['client_id'] === $client_id) {
+                        $selections[$selected_time]['timestamp'] = $now;
+                        set_transient($key, $selections, 300);
+                        error_log('[Heartbeat] Refreshed timestamp for ' . $selected_time);
+                    }
+                }
+                
+                // Clean expired selections (older than 5 seconds)
+                $active_times = array();
+                foreach ($selections as $time => $sel_data) {
+                    $timestamp = is_array($sel_data) ? ($sel_data['timestamp'] ?? 0) : $sel_data;
+                    if ($now - $timestamp < 5) {
+                        $active_times[] = $time;
+                    }
+                }
+                
+                error_log('[Heartbeat] Active times: ' . print_r($active_times, true));
+                $response['appointease_active_selections'] = $active_times;
+                $response['appointease_booked_slots'] = $booked_slots;
+                $response['appointease_locked_slots'] = $locked_slots;
+            }
+        } catch (Exception $e) {
+            error_log('[Heartbeat] Error in poll handler: ' . $e->getMessage());
+        }
+        
         if (!isset($data['appointease_booking'])) {
             return $response;
         }
 
-        $booking_data = $data['appointease_booking'];
+        try {
+            $booking_data = $data['appointease_booking'];
         
         switch ($booking_data['action']) {
             case 'get_user_data':
@@ -61,8 +155,31 @@ class Appointease_Heartbeat_Handler {
             case 'verify_otp':
                 $response['appointease_booking'] = $this->verify_otp($booking_data);
                 break;
+            }
+        } catch (Exception $e) {
+            error_log('[Heartbeat] Error in booking handler: ' . $e->getMessage());
+            $response['appointease_booking'] = array('error' => 'Server error: ' . $e->getMessage());
+        }
+        
+        // Handle debug requests
+        if (isset($data['appointease_debug'])) {
+            try {
+                $debug_data = $data['appointease_debug'];
+                switch ($debug_data['action']) {
+                    case 'get_selections':
+                        $response['appointease_debug'] = $this->get_debug_selections();
+                        break;
+                    case 'clear_locks':
+                        $response['appointease_debug'] = $this->clear_all_locks();
+                        break;
+                }
+            } catch (Exception $e) {
+                error_log('[Heartbeat] Error in debug handler: ' . $e->getMessage());
+                $response['appointease_debug'] = array('error' => $e->getMessage());
+            }
         }
 
+        error_log('[Heartbeat] ===== RETURNING RESPONSE ===== ' . print_r(array_keys($response), true));
         return $response;
     }
 
@@ -158,7 +275,7 @@ class Appointease_Heartbeat_Handler {
         
         $booked_slots = $wpdb->get_col($wpdb->prepare(
             "SELECT TIME(appointment_date) as time_slot FROM $table_name 
-             WHERE DATE(appointment_date) = %s AND staff_id = %d AND status != 'cancelled' AND appointment_date >= NOW()",
+             WHERE DATE(appointment_date) = %s AND employee_id = %d AND status != 'cancelled' AND appointment_date >= UTC_TIMESTAMP()",
             $data['date'],
             $data['staff_id']
         ));
@@ -190,7 +307,7 @@ class Appointease_Heartbeat_Handler {
         
         $count = $wpdb->get_var($wpdb->prepare(
             "SELECT COUNT(*) FROM $table_name 
-             WHERE appointment_date = %s AND staff_id = %d AND status != 'cancelled'",
+             WHERE appointment_date = %s AND employee_id = %d AND status != 'cancelled'",
             $datetime,
             $staff_id
         ));
@@ -285,9 +402,64 @@ class Appointease_Heartbeat_Handler {
         return array('error' => 'Failed to reschedule appointment');
     }
 
+    private function handle_slot_selection($data) {
+        if (!isset($data['date'], $data['time'], $data['employee_id'], $data['client_id'])) {
+            return array('error' => 'Missing required parameters');
+        }
+        
+        $date = sanitize_text_field($data['date']);
+        $time = sanitize_text_field($data['time']);
+        $employee_id = intval($data['employee_id']);
+        $client_id = sanitize_text_field($data['client_id']);
+        
+        // Check if slot is already booked
+        global $wpdb;
+        $datetime = $date . ' ' . $time . ':00';
+        $count = $wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}appointments 
+             WHERE appointment_date = %s AND employee_id = %d AND status IN ('confirmed', 'created')",
+            $datetime, $employee_id
+        ));
+        
+        if ($count > 0) {
+            return array('error' => 'Slot already booked', 'status' => 'booked');
+        }
+        
+        // Store selection in transient
+        $key = "appointease_active_{$date}_{$employee_id}";
+        $selections = get_transient($key) ?: array();
+        $selections[$time] = array('timestamp' => time(), 'client_id' => $client_id);
+        set_transient($key, $selections, 300);
+        
+        return array('success' => true, 'status' => 'selected');
+    }
+    
+    private function handle_slot_deselection($data) {
+        if (!isset($data['date'], $data['time'], $data['employee_id'])) {
+            return array('error' => 'Missing required parameters');
+        }
+        
+        $date = sanitize_text_field($data['date']);
+        $time = sanitize_text_field($data['time']);
+        $employee_id = intval($data['employee_id']);
+        
+        // Remove selection from transient
+        $key = "appointease_active_{$date}_{$employee_id}";
+        $selections = get_transient($key) ?: array();
+        unset($selections[$time]);
+        
+        if (empty($selections)) {
+            delete_transient($key);
+        } else {
+            set_transient($key, $selections, 300);
+        }
+        
+        return array('success' => true);
+    }
+    
     private function confirm_booking($data) {
         // Validate required fields
-        $required_fields = ['firstName', 'lastName', 'email', 'phone', 'service_id', 'staff_id', 'date', 'time'];
+        $required_fields = ['firstName', 'lastName', 'email', 'phone', 'service_id', 'staff_id', 'date', 'time', 'client_id'];
         foreach ($required_fields as $field) {
             if (empty($data[$field])) {
                 return array('error' => ucfirst($field) . ' is required');
@@ -300,33 +472,59 @@ class Appointease_Heartbeat_Handler {
             return $validation_result;
         }
 
-        // Check slot availability one more time
-        if (!$this->is_slot_available($data['date'], $data['time'], $data['staff_id'])) {
-            return array('error' => 'Time slot is no longer available');
-        }
-
-        // Insert booking
         global $wpdb;
-        $table_name = $wpdb->prefix . 'appointments';
+        $wpdb->query('START TRANSACTION');
         
-        $appointment_datetime = $data['date'] . ' ' . $data['time'] . ':00';
-        
-        $result = $wpdb->insert(
-            $table_name,
-            array(
-                'name' => $data['firstName'] . ' ' . $data['lastName'],
-                'email' => sanitize_email($data['email']),
-                'phone' => sanitize_text_field($data['phone']),
-                'service_id' => intval($data['service_id']),
-                'staff_id' => intval($data['staff_id']),
-                'appointment_date' => $appointment_datetime,
-                'status' => 'confirmed',
-                'created_at' => current_time('mysql')
-            ),
-            array('%s', '%s', '%s', '%d', '%d', '%s', '%s', '%s')
-        );
-
-        if ($result !== false) {
+        try {
+            $appointment_datetime = $data['date'] . ' ' . $data['time'] . ':00';
+            
+            // Lock and check slot availability
+            $conflict = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM {$wpdb->prefix}appointments 
+                 WHERE appointment_date = %s AND staff_id = %d AND status IN ('confirmed', 'created') 
+                 FOR UPDATE",
+                $appointment_datetime, intval($data['staff_id'])
+            ));
+            
+            if ($conflict) {
+                $wpdb->query('ROLLBACK');
+                return array('error' => 'Time slot is no longer available');
+            }
+            
+            // Insert booking
+            $result = $wpdb->insert(
+                $wpdb->prefix . 'appointments',
+                array(
+                    'name' => $data['firstName'] . ' ' . $data['lastName'],
+                    'email' => sanitize_email($data['email']),
+                    'phone' => sanitize_text_field($data['phone']),
+                    'service_id' => intval($data['service_id']),
+                    'staff_id' => intval($data['staff_id']),
+                    'appointment_date' => $appointment_datetime,
+                    'status' => 'confirmed',
+                    'created_at' => current_time('mysql'),
+                    'idempotency_key' => sanitize_text_field($data['client_id'])
+                ),
+                array('%s', '%s', '%s', '%d', '%d', '%s', '%s', '%s', '%s')
+            );
+            
+            if ($result === false) {
+                $wpdb->query('ROLLBACK');
+                return array('error' => 'Failed to create booking');
+            }
+            
+            $wpdb->query('COMMIT');
+            
+            // Clean up selection
+            $key = "appointease_active_{$data['date']}_{$data['staff_id']}";
+            $selections = get_transient($key) ?: array();
+            unset($selections[$data['time']]);
+            if (empty($selections)) {
+                delete_transient($key);
+            } else {
+                set_transient($key, $selections, 300);
+            }
+            
             $appointment_id = 'APT-' . date('Y') . '-' . str_pad($wpdb->insert_id, 6, '0', STR_PAD_LEFT);
             
             return array(
@@ -334,8 +532,84 @@ class Appointease_Heartbeat_Handler {
                 'appointment_id' => $appointment_id,
                 'message' => 'Booking confirmed successfully'
             );
+        } catch (Exception $e) {
+            $wpdb->query('ROLLBACK');
+            return array('error' => 'Transaction failed: ' . $e->getMessage());
         }
-
-        return array('error' => 'Failed to create booking');
+    }
+    
+    private function get_debug_selections() {
+        global $wpdb;
+        
+        // Get all transients matching appointease_active_*
+        $transients = $wpdb->get_results(
+            "SELECT option_name, option_value FROM {$wpdb->options} 
+             WHERE option_name LIKE '_transient_appointease_active_%'"
+        );
+        
+        $selections = array();
+        $now = time();
+        
+        foreach ($transients as $transient) {
+            $key = str_replace('_transient_', '', $transient->option_name);
+            $data = maybe_unserialize($transient->option_value);
+            
+            if (preg_match('/appointease_active_([^_]+)_(.+)/', $key, $matches)) {
+                $date = $matches[1];
+                $employee_id = $matches[2];
+                
+                if (is_array($data)) {
+                    foreach ($data as $time => $sel_data) {
+                        $timestamp = is_array($sel_data) ? ($sel_data['timestamp'] ?? 0) : $sel_data;
+                        $age = $now - $timestamp;
+                        
+                        // Auto-clean expired (>5s)
+                        if ($age > 5) {
+                            unset($data[$time]);
+                        } else {
+                            $selections[] = array(
+                                'date' => $date,
+                                'time' => $time,
+                                'employee_id' => $employee_id,
+                                'age' => $age,
+                                'client_id' => is_array($sel_data) ? ($sel_data['client_id'] ?? 'unknown') : 'legacy'
+                            );
+                        }
+                    }
+                    
+                    // Update or delete transient
+                    if (empty($data)) {
+                        delete_transient($key);
+                    } else {
+                        set_transient($key, $data, 300);
+                    }
+                }
+            }
+        }
+        
+        return array(
+            'selections' => $selections,
+            'count' => count($selections),
+            'timestamp' => $now
+        );
+    }
+    
+    private function clear_all_locks() {
+        global $wpdb;
+        
+        // Delete all appointease transients
+        $wpdb->query(
+            "DELETE FROM {$wpdb->options} 
+             WHERE option_name LIKE '_transient_appointease_active_%' 
+             OR option_name LIKE '_transient_timeout_appointease_active_%'"
+        );
+        
+        wp_cache_flush();
+        
+        return array(
+            'success' => true,
+            'message' => 'All locks cleared',
+            'timestamp' => time()
+        );
     }
 }

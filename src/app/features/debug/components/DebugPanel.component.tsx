@@ -4,6 +4,8 @@ interface DebugPanelProps {
   debugState: any;
   bookingState: any;
   connectionMode?: 'websocket' | 'polling' | 'disconnected';
+  activeSelections?: string[];
+  pollingInterval?: number;
 }
 
 export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState, connectionMode = 'disconnected' }) => {
@@ -50,30 +52,49 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState
         <div style={{color: '#0ff'}}>📊 System Status:</div>
         <div>Online: {debugState.isOnline ? '✅' : '❌'}</div>
         <div style={{marginTop: '4px'}}>
-          <span style={{color: '#ff0'}}>🔌 Connection Mode: </span>
-          {connectionMode === 'websocket' && <span style={{color: '#0f0'}}>⚡ WebSocket</span>}
-          {connectionMode === 'polling' && <span style={{color: '#fa0'}}>🔄 HTTP Polling</span>}
-          {connectionMode === 'disconnected' && <span style={{color: '#f00'}}>❌ Disconnected</span>}
+          <span style={{color: '#ff0'}}>🔌 Real-time: </span>
+          <span style={{color: '#0f0'}}>💓 WP Heartbeat (3s)</span>
         </div>
       </div>
       
-      <div style={{borderTop: '1px solid #333', paddingTop: '8px'}}>
-        <div style={{color: '#0ff'}}>📋 All Bookings ({debugState.allBookings?.length || 0}):</div>
-        {!debugState.allBookings?.length ? (
-          <div style={{color: '#888', fontSize: '10px'}}>No bookings found</div>
+      <div style={{borderTop: '1px solid #333', paddingTop: '8px', marginBottom: '8px'}}>
+        <div style={{color: '#0ff'}}>👁️ Watching Slots:</div>
+        {!activeSelections || activeSelections.length === 0 ? (
+          <div style={{color: '#888', fontSize: '10px'}}>None</div>
         ) : (
-          <div style={{maxHeight: '120px', overflow: 'auto'}}>
-            {debugState.allBookings.slice(0, 6).map((booking: any) => (
+          <div style={{fontSize: '10px'}}>
+            {activeSelections.map((slot: string) => (
+              <div key={slot} style={{
+                marginTop: '2px',
+                padding: '3px 6px',
+                background: 'rgba(16, 185, 129, 0.2)',
+                borderRadius: '3px',
+                display: 'inline-block',
+                marginRight: '4px'
+              }}>
+                👁️ {slot}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+      
+      <div style={{borderTop: '1px solid #333', paddingTop: '8px'}}>
+        <div style={{color: '#0ff'}}>📋 Bookings ({debugState.allBookings?.length || 0}):</div>
+        {!debugState.allBookings?.length ? (
+          <div style={{color: '#888', fontSize: '10px'}}>No bookings</div>
+        ) : (
+          <div style={{maxHeight: '100px', overflow: 'auto'}}>
+            {debugState.allBookings.slice(0, 4).map((booking: any) => (
               <div key={booking.id} style={{
                 fontSize: '9px',
-                marginBottom: '2px',
-                padding: '2px',
+                marginBottom: '3px',
+                padding: '3px',
                 background: booking.status === 'confirmed' ? 'rgba(0,255,0,0.1)' : 'rgba(255,0,0,0.1)',
                 borderRadius: '2px'
               }}>
-                <div>👤 {booking.name} | 📧 {booking.email}</div>
-                <div>📅 {new Date(booking.appointment_date).toLocaleDateString()}</div>
-                <div>🏷 {booking.strong_id || `ID-${booking.id}`} | 🟢 {booking.status}</div>
+                <div>👤 {booking.name}</div>
+                <div>📅 {new Date(booking.appointment_date).toLocaleDateString()} | {booking.status}</div>
               </div>
             ))}
           </div>

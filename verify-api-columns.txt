@@ -1,0 +1,70 @@
+=== API COLUMN VERIFICATION ===
+
+CHECKING: check_availability() method
+Query: SELECT TIME_FORMAT(appointment_date, '%H:%i') as time_slot, name, email, status, strong_id, id, appointment_date
+Table: wp_appointments
+Columns Used: appointment_date ✓, name ✓, email ✓, status ✓, strong_id ✓, id ✓
+Status Filter: status IN ('confirmed', 'created')
+Issue: Database has 'confirmed' status but NOT 'created' status
+Fix Needed: Change to status IN ('confirmed', 'pending') OR just status = 'confirmed'
+
+CHECKING: Slot locks query
+Query: SELECT TIME_FORMAT(time, '%H:%i') as time_slot, client_id, TIMESTAMPDIFF(SECOND, NOW(), expires_at)
+Table: wp_appointease_slot_locks
+Columns Used: time ✓, client_id ✓, expires_at ✓, date ✓, employee_id ✓
+Status: ALL COLUMNS MATCH ✓
+
+CHECKING: get_services()
+Query: SELECT * FROM wp_appointease_services
+Columns: id, name, description, duration, price, created_at, category_id, capacity, advance_booking_days
+Status: ALL COLUMNS MATCH ✓
+
+CHECKING: get_staff()
+Query: SELECT * FROM wp_appointease_staff
+Columns: id, name, email, phone, created_at, working_hours
+Status: ALL COLUMNS MATCH ✓
+
+CHECKING: create_appointment()
+Inserts: name, email, phone, appointment_date, service_id, employee_id, idempotency_key
+Table: wp_appointments
+Status: ALL COLUMNS MATCH ✓
+
+CHECKING: get_user_appointments()
+Query: SELECT * FROM wp_appointments WHERE email = %s
+Columns: email ✓
+Status: ALL COLUMNS MATCH ✓
+
+CHECKING: check_customer_by_email()
+Query: SELECT name, phone FROM wp_appointease_customers WHERE email = %s
+Columns: name ✓, phone ✓, email ✓
+Status: ALL COLUMNS MATCH ✓
+
+=== CRITICAL ISSUE FOUND ===
+
+The availability check is filtering by:
+  status IN ('confirmed', 'created')
+
+But the database only has these statuses:
+  - 'confirmed' (exists in data)
+  - 'cancelled' (exists in data)
+  - 'pending' (default value)
+
+The status 'created' does NOT exist in the database!
+
+This means appointments with status='confirmed' ARE being returned correctly.
+The empty response means there are NO appointments matching:
+  - The specific date being queried
+  - The specific employee_id being queried
+  - With status='confirmed' or 'created'
+
+=== SOLUTION ===
+
+The API is working correctly. The empty unavailable[] response means:
+  ✓ No appointments exist for that date/employee combination
+  ✓ All time slots are available
+  ✓ This is the CORRECT behavior
+
+To verify, check what date/employee you're querying:
+  - Current appointments are for dates: 2025-10-23, 2025-10-24, 2025-10-27, 2025-11-03
+  - Current employees: 1 (Sarah Johnson), 2 (Mike Wilson)
+  - Only 'confirmed' status appointments will block slots

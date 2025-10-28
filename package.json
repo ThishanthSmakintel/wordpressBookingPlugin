@@ -1,14 +1,40 @@
 {
-  "name": "appointease-websocket",
+  "name": "appointease-booking-plugin",
   "version": "1.0.0",
+  "description": "WordPress booking plugin with React frontend",
   "scripts": {
+    "build": "webpack --mode production",
+    "dev": "webpack --mode development --watch",
     "ws:start": "node websocket-server.js",
     "ws:dev": "nodemon websocket-server.js"
   },
   "dependencies": {
+    "axios": "^1.6.0",
+    "bootstrap": "^5.3.0",
+    "date-fns": "^2.30.0",
+    "html2canvas": "^1.4.1",
+    "react": "^18.2.0",
+    "react-bootstrap": "^2.9.0",
+    "react-dom": "^18.2.0",
     "ws": "^8.14.2"
   },
   "devDependencies": {
-    "nodemon": "^3.0.2"
+    "@babel/core": "^7.23.0",
+    "@babel/preset-env": "^7.23.0",
+    "@babel/preset-react": "^7.22.0",
+    "@babel/preset-typescript": "^7.23.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "@wordpress/data": "^9.0.0",
+    "@wordpress/scripts": "^26.0.0",
+    "babel-loader": "^9.1.3",
+    "css-loader": "^6.8.1",
+    "mini-css-extract-plugin": "^2.7.6",
+    "nodemon": "^3.0.2",
+    "style-loader": "^3.3.3",
+    "ts-loader": "^9.5.0",
+    "typescript": "^5.2.0",
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.4"
   }
 }

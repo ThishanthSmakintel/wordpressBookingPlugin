@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { useAppointmentStore } from '../../hooks/useAppointmentStore';
 import { useBookingState } from '../../hooks/useBookingState';
+import { useHeartbeat } from '../../hooks/useHeartbeat';
+import { useHeartbeatSlotPolling } from '../../hooks/useHeartbeatSlotPolling';
 import { SettingsService } from '../../app/shared/services/settings.service';
 import { format, parseISO } from 'date-fns';
-import { useRealtimeService } from '../../hooks/useRealtimeService';
 
 // Memoized TimeSlot component for performance
 const TimeSlot = memo(({ 
@@ -138,8 +139,6 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
     const { selectedDate = '', selectedTime = '', selectedService, selectedEmployee, setSelectedTime, setStep } = useAppointmentStore();
     const bookingState = useBookingState();
     const [tempSelected, setTempSelected] = useState<string>(selectedTime || '');
-    const [activeSelections, setActiveSelections] = useState<string[]>([]);
-    const { send, on, off } = useRealtimeService();
     
 
     
@@ -158,47 +157,62 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
     
 
     
+    // Generate client ID
+    const clientId = useMemo(() => `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, []);
+    
+    // Heartbeat hooks
+    const { selectSlot, deselectSlot } = useHeartbeat({ enabled: true });
+    const { activeSelections: heartbeatSelections, bookedSlots: heartbeatBookedSlots, lockedSlots: heartbeatLockedSlots } = useHeartbeatSlotPolling({
+        date: selectedDate,
+        employeeId: selectedEmployee?.id || 0,
+        enabled: !!selectedDate && !!selectedEmployee,
+        clientId: clientId,
+        selectedTime: tempSelected
+    });
+    
+    // Merge heartbeat booked slots + locked slots + active selections with initial unavailable slots
+    const allUnavailableSlots = useMemo(() => {
+        if (unavailableSlots === 'all') return 'all';
+        const initial = Array.isArray(unavailableSlots) ? unavailableSlots : [];
+        const merged = [...new Set([...initial, ...heartbeatBookedSlots, ...heartbeatLockedSlots, ...heartbeatSelections])];
+        console.log('[TimeSelector] Merging unavailable slots:');
+        console.log('  - Initial:', initial);
+        console.log('  - Heartbeat booked:', heartbeatBookedSlots);
+        console.log('  - Heartbeat locked:', heartbeatLockedSlots);
+        console.log('  - Heartbeat selections:', heartbeatSelections);
+        console.log('  - Final merged:', merged);
+        return merged;
+    }, [unavailableSlots, heartbeatBookedSlots, heartbeatLockedSlots, heartbeatSelections]);
+    
+    const [isSelecting, setIsSelecting] = useState(false);
+    
     const handleTimeSelect = useCallback(async (time: string) => {
-        if (unavailableSlots !== 'all' && (!Array.isArray(unavailableSlots) || !unavailableSlots.includes(time))) {
-            setTempSelected(time);
+        if (isSelecting) return;
+        if (allUnavailableSlots !== 'all' && (!Array.isArray(allUnavailableSlots) || !allUnavailableSlots.includes(time))) {
+            setIsSelecting(true);
             
-            // Send WebSocket notification for real-time updates
-            send('selecting_slot', {
-                date: selectedDate,
-                time: time,
-                employeeId: selectedEmployee?.id
-            });
-            
-            // Auto-clear selection after 30 seconds (sync with server)
-            setTimeout(() => {
-                setTempSelected(prev => prev === time ? '' : prev);
-            }, 30000);
-            
-            // Try to lock slot (informational only - don't block on failure)
             try {
-                const response = await fetch(`${window.bookingAPI.root}appointease/v1/lock-slot`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        date: selectedDate,
-                        time: time,
-                        employee_id: selectedEmployee?.id
-                    })
-                });
-                
-                if (response.ok) {
-                    const data = await response.json();
-                    if (data.success && data.client_id) {
-                        (window as any).currentSlotLock = data.client_id;
-                    }
+                // If user already has a selection, deselect it first
+                if (tempSelected && tempSelected !== time) {
+                    console.log('[Heartbeat] Deselecting previous slot:', tempSelected);
+                    await deselectSlot(selectedDate, tempSelected, selectedEmployee?.id || 0);
                 }
-            } catch (error) {
-                // Silently fail - slot locking is informational only
+                
+                // Select new slot
+                setTempSelected(time);
+                await selectSlot(selectedDate, time, selectedEmployee?.id || 0, clientId);
+                console.log('[Heartbeat] Slot selected:', time);
+            } catch (error: any) {
+                console.error('[Heartbeat] Slot selection failed:', error.message);
+                // Revert to previous selection on error
+                if (tempSelected) {
+                    setTempSelected(tempSelected);
+                }
+            } finally {
+                setIsSelecting(false);
             }
         }
-    }, [selectedDate, selectedEmployee, send]);
+    }, [selectedDate, selectedEmployee, allUnavailableSlots, selectSlot, deselectSlot, clientId, tempSelected, isSelecting]);
     
     const handleNext = useCallback(() => {
         if (tempSelected && setSelectedTime && setStep) {
@@ -216,6 +230,7 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
     const [timeSlots, setTimeSlots] = useState<string[]>([]);
     const [isLoadingSlots, setIsLoadingSlots] = useState(true);
     const [errorDetails, setErrorDetails] = useState<string>('');
+    const [isRateLimited, setIsRateLimited] = useState(false);
     
     // Load time slots from settings API
     const loadTimeSlots = useCallback(async () => {
@@ -243,90 +258,23 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
         loadTimeSlots();
     }, [loadTimeSlots]);
     
-
-
-    // Listen for active selections and availability updates
+    // Check availability when date/employee changes
     useEffect(() => {
-        const handleActiveSelections = (data: any) => {
-            if (data.date === selectedDate && data.employeeId === selectedEmployee?.id) {
-                setActiveSelections(data.slots || []);
-            }
-        };
-        
-        const handleSelectionConfirmed = (data: any) => {
-            if (data.date === selectedDate && data.time && data.employeeId === selectedEmployee?.id) {
-                setTempSelected(data.time);
-            }
-        };
-        
-        const handleDeselectionConfirmed = (data: any) => {
-            if (data.date === selectedDate && data.time && data.employeeId === selectedEmployee?.id) {
-                setTempSelected('');
-            }
-        };
-        
-        const unsubscribe1 = on('active_selections', handleActiveSelections);
-        const unsubscribe2 = on('selection_confirmed', handleSelectionConfirmed);
-        const unsubscribe3 = on('deselection_confirmed', handleDeselectionConfirmed);
-        
-        // Request real-time availability check from WebSocket
         if (selectedDate && selectedEmployee?.id) {
-            send('check_availability', {
-                date: selectedDate,
-                employeeId: selectedEmployee.id
-            });
-            
-            // Watch this slot for conflicts
-            send('watch_slot', {
-                date: selectedDate,
-                time: tempSelected,
-                employeeId: selectedEmployee.id
-            });
+            console.log('[TimeSelector] Checking availability for:', selectedDate, selectedEmployee.id);
+            // Heartbeat will automatically fetch locked slots and booked slots
+            // No need for manual API call - heartbeat polling handles it
         }
-        
-        // Force refresh availability data when component mounts
-        if (selectedDate && selectedEmployee?.id && (unavailableSlots.length === 0 && Object.keys(bookingDetails).length === 0)) {
-            // Trigger parent to refresh availability
-            const event = new CustomEvent('refreshAvailability', {
-                detail: { date: selectedDate, employeeId: selectedEmployee.id }
-            });
-            window.dispatchEvent(event);
-        }
-        
-        return () => {
-            unsubscribe1();
-            unsubscribe2();
-            unsubscribe3();
-            // Unlock slot on unmount
-            if ((window as any).currentSlotLock) {
-                fetch(`${window.bookingAPI.root}appointease/v1/unlock-slot`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
-                    body: JSON.stringify({
-                        client_id: (window as any).currentSlotLock
-                    })
-                });
-                (window as any).currentSlotLock = null;
-            }
-        };
-    }, [selectedDate, selectedEmployee, tempSelected, on, send]);
-    
-    // Global cleanup on page unload
+    }, [selectedDate, selectedEmployee]);
+
+    // Cleanup on unmount
     useEffect(() => {
-        const handleBeforeUnload = () => {
-            if ((window as any).currentSlotLock) {
-                navigator.sendBeacon(
-                    `${window.bookingAPI.root}appointease/v1/unlock-slot`,
-                    JSON.stringify({ client_id: (window as any).currentSlotLock })
-                );
+        return () => {
+            if (tempSelected && selectedDate && selectedEmployee) {
+                deselectSlot(selectedDate, tempSelected, selectedEmployee.id).catch(() => {});
             }
         };
-        
-        window.addEventListener('beforeunload', handleBeforeUnload);
-        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-    }, []);
+    }, [tempSelected, selectedDate, selectedEmployee, deselectSlot]);
 
     return (
         <div className="appointease-step-content">
@@ -412,28 +360,44 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                         marginBottom: '32px'
                     }}>
                     {(timeSlots || []).map(time => {
-                        const isUnavailable = unavailableSlots === 'all' || (Array.isArray(unavailableSlots) && unavailableSlots.includes(time));
-                        const serviceDuration = selectedService?.duration || 30;
                         const isSelected = tempSelected === time || selectedTime === time;
+                        
+                        // Check if slot is locked by another user (from heartbeatLockedSlots)
+                        // Exclude your own selection from being marked as locked
+                        const isLockedByOther = heartbeatLockedSlots.includes(time) && !isSelected && time !== tempSelected;
+                        
+                        // Check if slot is permanently booked (from heartbeatBookedSlots)
+                        const isPermanentlyBooked = heartbeatBookedSlots.includes(time);
+                        
+                        // Check if slot is in initial unavailable list
+                        const isInitiallyUnavailable = unavailableSlots === 'all' || (Array.isArray(unavailableSlots) && unavailableSlots.includes(time));
+                        
+                        const serviceDuration = selectedService?.duration || 30;
                         const isCurrentAppointment = currentAppointmentTime === time;
-                        const isBeingBooked = activeSelections.includes(time) && !isSelected;
-                        const slotDetails = bookingDetails?.[time];
-                        const isProcessing = slotDetails?.is_locked === true || slotDetails?.status === 'processing';
-                        const isDisabled = (isUnavailable || isCurrentAppointment || isBeingBooked || isProcessing) && !isSelected;
+                        
+                        // Processing = locked by another user
+                        const isProcessing = isLockedByOther;
+                        
+                        // Unavailable = permanently booked
+                        const isUnavailable = isPermanentlyBooked || isInitiallyUnavailable;
+                        
+                        // Disable if: permanently booked, locked by another user, current appointment
+                        const isDisabled = (isUnavailable || isProcessing || isCurrentAppointment) && !isSelected;
                         
                         return (
-                            <TimeSlot
-                                key={time}
-                                time={time}
-                                isSelected={isSelected}
-                                isCurrentAppointment={isCurrentAppointment}
-                                isBeingBooked={isBeingBooked}
-                                isUnavailable={isUnavailable}
-                                isProcessing={isProcessing}
-                                isDisabled={isDisabled}
-                                serviceDuration={serviceDuration}
-                                onSelect={handleTimeSelect}
-                            />
+                            <div key={time} style={{position: 'relative'}}>
+                                <TimeSlot
+                                    time={time}
+                                    isSelected={isSelected}
+                                    isCurrentAppointment={isCurrentAppointment}
+                                    isBeingBooked={false}
+                                    isUnavailable={isUnavailable}
+                                    isProcessing={isProcessing}
+                                    isDisabled={isDisabled}
+                                    serviceDuration={serviceDuration}
+                                    onSelect={handleTimeSelect}
+                                />
+                            </div>
                         );
                     })}
                     </div>

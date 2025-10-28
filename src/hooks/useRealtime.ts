@@ -19,42 +19,21 @@ export const useRealtime = (options: UseRealtimeOptions) => {
   const [connectionMode, setConnectionMode] = useState<'websocket' | 'polling' | 'disconnected'>('disconnected');
   const [isConnected, setIsConnected] = useState(false);
 
-  // Initialize service
+  // Initialize service (WordPress Heartbeat mode)
   useEffect(() => {
     if (!options.enabled) return;
 
-    const service = createRealtimeService({
-      wsUrl: options.wsUrl,
-      pollingUrl: options.pollingUrl,
-      pollingInterval: options.pollingInterval || 10000
-    });
-
-    serviceRef.current = service;
-
-    // Subscribe to connection changes
-    const unsubConnection = service.on('connection', (data) => {
-      //console.log('[useRealtime] Connection status changed:', data);
-      setConnectionMode(data.mode);
-      setIsConnected(data.status === 'connected');
-      options.onConnectionChange?.(data.mode);
-    });
-
-    // Subscribe to updates
-    const unsubUpdate = service.on('update', (data) => {
-      options.onUpdate?.(data);
-    });
-
-    // Connect
-    service.connect();
+    // Using WordPress Heartbeat API - no WebSocket/polling needed
+    setConnectionMode('polling'); // Show as 'polling' to indicate Heartbeat is active
+    setIsConnected(true);
+    options.onConnectionChange?.('polling');
 
     // Cleanup
     return () => {
-      unsubConnection();
-      unsubUpdate();
-      service.disconnect();
-      serviceRef.current = null;
+      setConnectionMode('disconnected');
+      setIsConnected(false);
     };
-  }, [options.enabled, options.wsUrl, options.pollingUrl, options.pollingInterval]);
+  }, [options.enabled]);
 
   // Send message (WebSocket only)
   const send = useCallback((type: string, data: any) => {

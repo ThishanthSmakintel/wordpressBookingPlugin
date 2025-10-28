@@ -48,13 +48,18 @@ booking_plugin_require_file('includes/session-manager.php');
 register_activation_hook(__FILE__, array('Booking_Activator', 'activate'));
 register_deactivation_hook(__FILE__, array('Booking_Deactivator', 'deactivate'));
 
+// Initialize heartbeat handler at plugins_loaded (before init)
+add_action('plugins_loaded', function() {
+    new Appointease_Heartbeat_Handler();
+    error_log('[Plugin] Heartbeat handler instantiated at plugins_loaded');
+});
+
 function run_booking_plugin() {
     $plugin = Booking_Plugin::get_instance();
     
-    // Initialize API endpoints, heartbeat handler, and reset filters
+    // Initialize API endpoints and reset filters
     add_action('init', function() {
         new Booking_API_Endpoints();
-        new Appointease_Heartbeat_Handler();
         new Booking_DB_Reset_Filters();
     });
     
@@ -78,6 +83,13 @@ function run_booking_plugin() {
     });
 }
 run_booking_plugin();
+
+// Debug: Verify heartbeat handler is loaded
+add_action('init', function() {
+    if (defined('WP_DEBUG') && WP_DEBUG) {
+        error_log('[Plugin] Heartbeat handler loaded: ' . (class_exists('Appointease_Heartbeat_Handler') ? 'YES' : 'NO'));
+    }
+});
 
 if (is_admin()) {
     require_once BOOKING_PLUGIN_PATH . 'admin/appointease-admin.php';

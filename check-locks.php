@@ -1,122 +1,43 @@
 <?php
-/**
- * Quick Database Lock Checker
- * Run: php check-locks.php
- */
+require_once('C:/xampp/htdocs/wordpress/blog.promoplus.com/wp-load.php');
 
-// WordPress database connection
-$db_host = 'localhost';
-$db_user = 'root';
-$db_pass = '';
-$db_name = 'blog_promoplus';
+global $wpdb;
 
-$conn = new mysqli($db_host, $db_user, $db_pass, $db_name);
+echo "=== CHECKING SLOT LOCKS ===\n\n";
 
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
+$locks_table = $wpdb->prefix . 'appointease_slot_locks';
 
-echo "=== ACTIVE SLOT LOCKS ===\n\n";
+// Get all locks
+$all_locks = $wpdb->get_results("SELECT * FROM {$locks_table}");
+echo "Total locks in table: " . count($all_locks) . "\n\n";
 
-// Check active locks
-$sql = "SELECT 
-    id,
-    date,
-    time,
-    employee_id,
-    client_id,
-    created_at,
-    expires_at,
-    TIMESTAMPDIFF(SECOND, NOW(), expires_at) as remaining_seconds,
-    NOW() as server_time
-FROM wp_appointease_slot_locks 
-WHERE expires_at > NOW()
-ORDER BY created_at DESC";
-
-$result = $conn->query($sql);
-
-if ($result->num_rows > 0) {
-    echo "Found " . $result->num_rows . " active lock(s):\n\n";
-    while($row = $result->fetch_assoc()) {
-        echo "Lock ID: " . $row['id'] . "\n";
-        echo "  Date: " . $row['date'] . "\n";
-        echo "  Time: " . $row['time'] . "\n";
-        echo "  Employee: #" . $row['employee_id'] . "\n";
-        echo "  Client: " . $row['client_id'] . "\n";
-        echo "  Created: " . $row['created_at'] . "\n";
-        echo "  Expires: " . $row['expires_at'] . "\n";
-        echo "  Remaining: " . $row['remaining_seconds'] . " seconds\n";
-        echo "  Server Time: " . $row['server_time'] . "\n";
-        echo "  ---\n";
+if (count($all_locks) > 0) {
+    echo "ALL LOCKS:\n";
+    foreach ($all_locks as $lock) {
+        $expired = strtotime($lock->expires_at) < time() ? 'EXPIRED' : 'ACTIVE';
+        echo "  - Date: {$lock->date}, Time: {$lock->time}, Employee: {$lock->employee_id}, Status: {$expired}\n";
+        echo "    Client: {$lock->client_id}\n";
+        echo "    Expires: {$lock->expires_at}\n\n";
     }
-} else {
-    echo "No active locks found.\n";
 }
 
-echo "\n=== EXPIRED LOCKS ===\n\n";
+// Get active locks only
+$active_locks = $wpdb->get_results("SELECT * FROM {$locks_table} WHERE expires_at > NOW()");
+echo "Active locks (not expired): " . count($active_locks) . "\n\n";
 
-// Check expired locks
-$sql_expired = "SELECT 
-    id,
-    date,
-    time,
-    employee_id,
-    client_id,
-    created_at,
-    expires_at,
-    TIMESTAMPDIFF(SECOND, expires_at, NOW()) as expired_seconds_ago
-FROM wp_appointease_slot_locks 
-WHERE expires_at <= NOW()
-ORDER BY expires_at DESC
-LIMIT 10";
+// Check transients
+echo "=== CHECKING TRANSIENTS ===\n\n";
+$transients = $wpdb->get_results(
+    "SELECT option_name, option_value FROM {$wpdb->options} WHERE option_name LIKE '_transient_appointease_active_%'"
+);
 
-$result_expired = $conn->query($sql_expired);
+echo "Total active selection transients: " . count($transients) . "\n\n";
 
-if ($result_expired->num_rows > 0) {
-    echo "Found " . $result_expired->num_rows . " expired lock(s):\n\n";
-    while($row = $result_expired->fetch_assoc()) {
-        echo "Lock ID: " . $row['id'] . "\n";
-        echo "  Date: " . $row['date'] . "\n";
-        echo "  Time: " . $row['time'] . "\n";
-        echo "  Expired: " . $row['expired_seconds_ago'] . " seconds ago\n";
-        echo "  ---\n";
-    }
-} else {
-    echo "No expired locks found.\n";
+foreach ($transients as $transient) {
+    $key = str_replace('_transient_', '', $transient->option_name);
+    $data = maybe_unserialize($transient->option_value);
+    echo "Transient: {$key}\n";
+    echo "Data: " . print_r($data, true) . "\n\n";
 }
 
-echo "\n=== ALL LOCKS (Last 20) ===\n\n";
-
-// Check all locks
-$sql_all = "SELECT 
-    id,
-    date,
-    time,
-    employee_id,
-    client_id,
-    created_at,
-    expires_at,
-    CASE 
-        WHEN expires_at > NOW() THEN 'ACTIVE'
-        ELSE 'EXPIRED'
-    END as status
-FROM wp_appointease_slot_locks 
-ORDER BY created_at DESC
-LIMIT 20";
-
-$result_all = $conn->query($sql_all);
-
-if ($result_all->num_rows > 0) {
-    echo "Total locks in table: " . $result_all->num_rows . "\n\n";
-    while($row = $result_all->fetch_assoc()) {
-        echo "[" . $row['status'] . "] " . $row['date'] . " " . $row['time'] . " (Employee #" . $row['employee_id'] . ")\n";
-        echo "  Client: " . $row['client_id'] . "\n";
-        echo "  Created: " . $row['created_at'] . " | Expires: " . $row['expires_at'] . "\n";
-        echo "  ---\n";
-    }
-} else {
-    echo "No locks found in table.\n";
-}
-
-$conn->close();
-?>
+echo "=== END CHECK ===\n";
