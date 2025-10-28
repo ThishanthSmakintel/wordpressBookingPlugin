@@ -77,7 +77,7 @@ wss.on('connection', (ws, req) => {
     const clientId = email || `anonymous_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
     clients.set(clientId, { ws, email, isAnonymous: !email, watchingSlot: null });
-    console.log(`[WebSocket] Client connected: ${email || 'Anonymous'} (ID: ${clientId})`);
+    //console.log(`[WebSocket] Client connected: ${email || 'Anonymous'} (ID: ${clientId})`);
     
     ws.send(JSON.stringify({
         type: 'connection',
@@ -91,7 +91,7 @@ wss.on('connection', (ws, req) => {
     ws.on('message', async (message) => {
         try {
             const data = JSON.parse(message);
-            console.log(`[WebSocket] Message from ${email || 'Anonymous'}:`, data);
+            //console.log(`[WebSocket] Message from ${email || 'Anonymous'}:`, data);
             
             if (data.type === 'subscribe' && email) {
                 const appointments = await getAppointments(email);
@@ -110,7 +110,7 @@ wss.on('connection', (ws, req) => {
                     client.date = data.date;
                     client.time = data.time;
                 }
-                console.log(`[WebSocket] Booking session Step ${data.step}: ${data.service || 'N/A'} with ${data.employee || 'N/A'}`);
+                //console.log(`[WebSocket] Booking session Step ${data.step}: ${data.service || 'N/A'} with ${data.employee || 'N/A'}`);
                 ws.send(JSON.stringify({
                     type: 'session_tracked',
                     step: data.step,
@@ -120,7 +120,7 @@ wss.on('connection', (ws, req) => {
                 // Lock slot in database (Calendly standard: 10 min)
                 const expiresAt = new Date(Date.now() + 600000);
                 await lockSlotInDB(data.date, data.time, data.employeeId, clientId, expiresAt);
-                console.log(`[WebSocket] Slot locked in DB: ${data.date} ${data.time} for 10 minutes`);
+                //console.log(`[WebSocket] Slot locked in DB: ${data.date} ${data.time} for 10 minutes`);
                 const client = clients.get(clientId);
                 if (client) client.step = 6;
                 ws.send(JSON.stringify({
@@ -135,7 +135,7 @@ wss.on('connection', (ws, req) => {
             } else if (data.type === 'unlock_slot') {
                 // Unlock slot from database
                 await unlockSlotInDB(data.date, data.time, data.employeeId);
-                console.log(`[WebSocket] Slot unlocked from DB: ${data.date} ${data.time}`);
+                //console.log(`[WebSocket] Slot unlocked from DB: ${data.date} ${data.time}`);
                 const client = clients.get(clientId);
                 if (client) client.step = data.completed ? 7 : 4;
                 ws.send(JSON.stringify({
@@ -150,7 +150,7 @@ wss.on('connection', (ws, req) => {
                 // User is actively selecting a slot
                 const slotKey = `${data.date}_${data.time}_${data.employeeId}`;
                 activeSelections.set(slotKey, { clientId, timestamp: Date.now() });
-                console.log(`[WebSocket] User selecting slot: ${data.date} ${data.time} (Staff #${data.employeeId})`);
+                //console.log(`[WebSocket] User selecting slot: ${data.date} ${data.time} (Staff #${data.employeeId})`);
                 ws.send(JSON.stringify({
                     type: 'selection_confirmed',
                     date: data.date,
@@ -173,7 +173,7 @@ wss.on('connection', (ws, req) => {
                 broadcastActiveSelections(data.date, data.employeeId, clientId);
             } else if (data.type === 'watch_slot' && data.date && data.time && data.employeeId) {
                 // Watch specific time slot for conflicts (Calendly-style)
-                console.log(`[WebSocket] Watching slot: ${data.date} ${data.time} for employee ${data.employeeId}`);
+                //console.log(`[WebSocket] Watching slot: ${data.date} ${data.time} for employee ${data.employeeId}`);
                 const client = clients.get(clientId);
                 if (client) {
                     client.watchingSlot = {
@@ -183,8 +183,14 @@ wss.on('connection', (ws, req) => {
                     };
                 }
             } else if (data.type === 'get_debug') {
-                // Send debug info via WebSocket
+                // Clean expired locks from memory
                 const now = Date.now();
+                for (const [key, lock] of lockedSlots.entries()) {
+                    if (lock.expiresAt <= now) {
+                        lockedSlots.delete(key);
+                    }
+                }
+                
                 ws.send(JSON.stringify({
                     type: 'debug_info',
                     connectedClients: clients.size,
@@ -269,7 +275,7 @@ wss.on('connection', (ws, req) => {
             console.error(`[WebSocket] Error cleaning up locks for ${clientId}:`, error.message);
         }
         clients.delete(clientId);
-        console.log(`[WebSocket] Client disconnected: ${email || 'Anonymous'} (ID: ${clientId})`);
+        //console.log(`[WebSocket] Client disconnected: ${email || 'Anonymous'} (ID: ${clientId})`);
     });
     
     ws.on('error', (error) => {
@@ -294,14 +300,14 @@ async function getAppointments(email) {
 async function lockSlotInDB(date, time, employeeId, clientId, expiresAt) {
     try {
         const pool = getPool();
-        console.log(`[WebSocket] Attempting lock: date=${date}, time=${time}, employee=${employeeId}, client=${clientId}`);
+        //console.log(`[WebSocket] Attempting lock: date=${date}, time=${time}, employee=${employeeId}, client=${clientId}`);
         
         const [result] = await pool.execute(
             'INSERT INTO wp_appointease_slot_locks (date, time, employee_id, client_id, expires_at) VALUES (?, ?, ?, ?, DATE_ADD(NOW(), INTERVAL 10 MINUTE)) ON DUPLICATE KEY UPDATE client_id = ?, expires_at = DATE_ADD(NOW(), INTERVAL 10 MINUTE)',
             [date, time, employeeId, clientId, clientId]
         );
         
-        console.log(`[WebSocket] ✅ Lock inserted successfully! Affected rows: ${result.affectedRows}, Insert ID: ${result.insertId}`);
+        //console.log(`[WebSocket] ✅ Lock inserted successfully! Affected rows: ${result.affectedRows}, Insert ID: ${result.insertId}`);
         lockedSlots.set(`${date}_${time}_${employeeId}`, { clientId, expiresAt: Date.now() + 600000 });
     } catch (error) {
         console.error('[WebSocket] ❌ Error locking slot:', error.message);
@@ -365,7 +371,7 @@ async function broadcastUpdate(email, data) {
 // Broadcast slot conflicts to watching clients (Calendly-style real-time conflicts)
 async function broadcastSlotConflict(date, time, employeeId) {
     const conflictSlot = `${date} ${time}`;
-    console.log(`[WebSocket] Broadcasting slot conflict: ${conflictSlot} for employee ${employeeId}`);
+    //console.log(`[WebSocket] Broadcasting slot conflict: ${conflictSlot} for employee ${employeeId}`);
     
     for (const [clientId, client] of clients.entries()) {
         if (client.ws.readyState === WebSocket.OPEN && client.watchingSlot) {
@@ -435,6 +441,7 @@ async function broadcastAvailabilityUpdate(date, employeeId) {
 async function getActiveLocks() {
     try {
         const pool = getPool();
+        await pool.execute('DELETE FROM wp_appointease_slot_locks WHERE expires_at <= NOW()');
         const [rows] = await pool.execute(
             'SELECT date, time, employee_id, client_id, TIMESTAMPDIFF(SECOND, NOW(), expires_at) as remaining FROM wp_appointease_slot_locks WHERE expires_at > NOW()'
         );
@@ -475,14 +482,14 @@ setInterval(async () => {
 }, 5000);
 
 server.listen(PORT, '0.0.0.0', () => {
-    console.log(`[WebSocket] Server running on port ${PORT}`);
-    console.log(`\n🔗 WebSocket URLs:`);
-    console.log(`   Local:     ws://localhost:${PORT}`);
-    console.log(`   Domain:    ws://blog.promoplus.com:${PORT}`);
-    console.log(`   Example:   ws://blog.promoplus.com:${PORT}?email=user@example.com`);
-    console.log(`\n🔍 Debug Panel:`);
-    console.log(`   HTTP:      http://localhost:${PORT}/debug`);
-    console.log(`   Info:      Real-time connections & active selections`);
-    console.log(`\n🌐 WordPress Site: http://blog.promoplus.com/`);
-    console.log(`\n✅ Ready for connections!\n`);
+    //console.log(`[WebSocket] Server running on port ${PORT}`);
+    //console.log(`\n🔗 WebSocket URLs:`);
+    //console.log(`   Local:     ws://localhost:${PORT}`);
+    //console.log(`   Domain:    ws://blog.promoplus.com:${PORT}`);
+    //console.log(`   Example:   ws://blog.promoplus.com:${PORT}?email=user@example.com`);
+    //console.log(`\n🔍 Debug Panel:`);
+    //console.log(`   HTTP:      http://localhost:${PORT}/debug`);
+    //console.log(`   Info:      Real-time connections & active selections`);
+    //console.log(`\n🌐 WordPress Site: http://blog.promoplus.com/`);
+    //console.log(`\n✅ Ready for connections!\n`);
 });

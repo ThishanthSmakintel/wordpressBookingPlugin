@@ -68,10 +68,10 @@ Book Apt → create_appointment → broadcast_update → Real-time UI Update
 ```javascript
 const ws = new WebSocket('ws://localhost:8080');
 ws.onopen = () => {
-    console.log('Connected');
+    //console.log('Connected');
     ws.send(JSON.stringify({type: 'subscribe', email: 'test@example.com'}));
 };
-ws.onmessage = (e) => console.log('Message:', e.data);
+ws.onmessage = (e) => //console.log('Message:', e.data);
 ```
 
 ### Test Polling Fallback

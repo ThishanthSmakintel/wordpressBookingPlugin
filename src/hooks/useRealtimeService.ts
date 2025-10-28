@@ -11,7 +11,7 @@ export const useRealtimeService = () => {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
             const wsUrl = `${protocol}//${window.location.hostname}:8080`;
             const pollingUrl = `${window.bookingAPI?.root || '/wp-json/'}appointease/v1/realtime/poll`;
-            console.log('[useRealtimeService] Connecting to:', wsUrl);
+            //console.log('[useRealtimeService] Connecting to:', wsUrl);
             
             globalRealtimeService = createRealtimeService({
                 wsUrl,

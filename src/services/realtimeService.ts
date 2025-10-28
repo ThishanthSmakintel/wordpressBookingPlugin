@@ -44,30 +44,30 @@ export class RealtimeService {
    */
   async connect(): Promise<void> {
     if (this.isConnecting) {
-      console.log('[RealtimeService] Already connecting, skipping...');
+      //console.log('[RealtimeService] Already connecting, skipping...');
       return;
     }
     this.isConnecting = true;
 
-    console.log('[RealtimeService] Starting connection...');
-    console.log('[RealtimeService] Config:', this.config);
+    //console.log('[RealtimeService] Starting connection...');
+    //console.log('[RealtimeService] Config:', this.config);
 
     // Try WebSocket first if URL provided
     if (this.config.wsUrl) {
-      console.log('[RealtimeService] Attempting WebSocket connection to:', this.config.wsUrl);
+      //console.log('[RealtimeService] Attempting WebSocket connection to:', this.config.wsUrl);
       const wsConnected = await this.connectWebSocket();
       if (wsConnected) {
-        console.log('[RealtimeService] WebSocket connection successful');
+        //console.log('[RealtimeService] WebSocket connection successful');
         this.isConnecting = false;
         return;
       }
-      console.log('[RealtimeService] WebSocket failed, falling back to polling');
+      //console.log('[RealtimeService] WebSocket failed, falling back to polling');
     } else {
-      console.log('[RealtimeService] No WebSocket URL provided, using polling only');
+      //console.log('[RealtimeService] No WebSocket URL provided, using polling only');
     }
 
     // Fallback to polling
-    console.log('[RealtimeService] Starting polling mode');
+    //console.log('[RealtimeService] Starting polling mode');
     this.connectPolling();
     this.isConnecting = false;
   }
@@ -78,16 +78,16 @@ export class RealtimeService {
   private connectWebSocket(): Promise<boolean> {
     return new Promise((resolve) => {
       try {
-        console.log('[RealtimeService] Creating WebSocket instance...');
+        //console.log('[RealtimeService] Creating WebSocket instance...');
         this.ws = new WebSocket(this.config.wsUrl!);
-        console.log('[RealtimeService] WebSocket created, waiting for connection...');
+        //console.log('[RealtimeService] WebSocket created, waiting for connection...');
         
         const timeout = setTimeout(() => {
           if (this.ws?.readyState !== WebSocket.OPEN) {
             console.error('[RealtimeService] WebSocket timeout after 3 seconds');
-            console.log('[RealtimeService] WebSocket state:', this.ws?.readyState);
+            //console.log('[RealtimeService] WebSocket state:', this.ws?.readyState);
             this.ws?.close();
-            console.log('[RealtimeService] WebSocket timeout, falling back to polling');
+            //console.log('[RealtimeService] WebSocket timeout, falling back to polling');
             resolve(false);
           }
         }, 3000);
@@ -96,8 +96,8 @@ export class RealtimeService {
           clearTimeout(timeout);
           this.mode = 'websocket';
           this.reconnectAttempts = 0;
-          console.log('[RealtimeService] WebSocket connected successfully!');
-          console.log('[RealtimeService] Emitting connection event: websocket');
+          //console.log('[RealtimeService] WebSocket connected successfully!');
+          //console.log('[RealtimeService] Emitting connection event: websocket');
           this.emit('connection', { mode: 'websocket', status: 'connected' });
           this.startPingPong();
           resolve(true);
@@ -108,7 +108,7 @@ export class RealtimeService {
             const data = JSON.parse(event.data);
             if (data.type === 'pong') {
               this.latency = performance.now() - this.lastPingTime;
-              console.log(`[RealtimeService] Latency: ${this.latency.toFixed(2)}ms`);
+
               this.emit('latency', { latency: Math.round(this.latency) });
             } else {
               this.handleMessage(data);
@@ -122,14 +122,14 @@ export class RealtimeService {
           clearTimeout(timeout);
           console.error('[RealtimeService] WebSocket error event:', error);
           console.error('[RealtimeService] WebSocket URL was:', this.config.wsUrl);
-          console.log('[RealtimeService] WebSocket error, using polling');
+          //console.log('[RealtimeService] WebSocket error, using polling');
           resolve(false);
         };
 
         this.ws.onclose = () => {
           clearTimeout(timeout);
           if (this.mode === 'websocket') {
-            console.log('[RealtimeService] WebSocket closed, switching to polling');
+            //console.log('[RealtimeService] WebSocket closed, switching to polling');
             this.mode = 'disconnected';
             this.connectPolling();
           }
@@ -154,7 +154,7 @@ export class RealtimeService {
     }
 
     this.mode = 'polling';
-    console.log('[RealtimeService] Using HTTP polling mode');
+    //console.log('[RealtimeService] Using HTTP polling mode');
     this.emit('connection', { mode: 'polling', status: 'connected' });
 
     // Initial fetch
@@ -239,7 +239,7 @@ export class RealtimeService {
   send(type: string, data: any): void {
     if (this.mode === 'websocket' && this.ws?.readyState === WebSocket.OPEN) {
       const message = JSON.stringify({ type, ...data });
-      console.log('[RealtimeService] Sending message:', type, data);
+
       this.ws.send(message);
     } else {
       console.warn('[RealtimeService] Cannot send message, mode:', this.mode, 'readyState:', this.ws?.readyState);
@@ -310,7 +310,7 @@ export class RealtimeService {
 
     this.mode = 'disconnected';
     this.emit('connection', { mode: 'disconnected', status: 'disconnected' });
-    console.log('[RealtimeService] Disconnected');
+    //console.log('[RealtimeService] Disconnected');
   }
 }
 

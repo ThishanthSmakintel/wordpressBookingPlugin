@@ -33,7 +33,7 @@ export const useRealtime = (options: UseRealtimeOptions) => {
 
     // Subscribe to connection changes
     const unsubConnection = service.on('connection', (data) => {
-      console.log('[useRealtime] Connection status changed:', data);
+      //console.log('[useRealtime] Connection status changed:', data);
       setConnectionMode(data.mode);
       setIsConnected(data.status === 'connected');
       options.onConnectionChange?.(data.mode);

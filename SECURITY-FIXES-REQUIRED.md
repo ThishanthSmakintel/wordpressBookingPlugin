@@ -156,10 +156,10 @@ if ($wpdb->last_error) {
 **Example Fix:**
 ```typescript
 // ❌ VULNERABLE
-console.log('User input:', userInput);
+//console.log('User input:', userInput);
 
 // ✅ SECURE
-console.log('User input:', JSON.stringify(userInput).replace(/[\n\r]/g, ''));
+//console.log('User input:', JSON.stringify(userInput).replace(/[\n\r]/g, ''));
 ```
 
 ### 8. Weak Random Number Generation
@@ -244,7 +244,7 @@ const data = JSON.parse(userInput);
 
 - [ ] Replace `innerHTML` with `textContent` or sanitize
 - [ ] Use HTTPS for all external API calls
-- [ ] Sanitize console.log() outputs
+- [ ] Sanitize //console.log() outputs
 - [ ] Remove or secure eval() usage
 - [ ] Validate all user inputs client-side
 - [ ] Implement CSP headers

@@ -42,7 +42,7 @@ export const useRealtimeConflicts = (watchedSlots: Array<{date: string, time: st
       const ws = new WebSocket(wsUrl);
       
       ws.onopen = () => {
-        console.log('[RealtimeConflicts] WebSocket connected');
+        //console.log('[RealtimeConflicts] WebSocket connected');
         setState(prev => ({
           ...prev,
           isConnected: true,
@@ -71,7 +71,7 @@ export const useRealtimeConflicts = (watchedSlots: Array<{date: string, time: st
       };
       
       ws.onclose = () => {
-        console.log('[RealtimeConflicts] WebSocket disconnected, falling back to polling');
+        //console.log('[RealtimeConflicts] WebSocket disconnected, falling back to polling');
         setState(prev => ({
           ...prev,
           isConnected: false,

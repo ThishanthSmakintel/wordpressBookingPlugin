@@ -109,18 +109,18 @@ $otp = AppointEase_Security_Helper::generate_secure_otp(6);
 ```php
 // BEFORE (VULNERABLE):
 error_log('User data: ' . $user_input);
-console.log('Data:', userData);
+//console.log('Data:', userData);
 
 // AFTER (SECURE - PHP):
 error_log('User data: ' . AppointEase_Security_Helper::sanitize_log($user_input));
 
 // AFTER (SECURE - JavaScript):
-console.log('Data:', JSON.stringify(userData).replace(/[\n\r]/g, ''));
+//console.log('Data:', JSON.stringify(userData).replace(/[\n\r]/g, ''));
 ```
 
 **Apply to:**
 - All PHP files with error_log()
-- All TypeScript/JavaScript files with console.log()
+- All TypeScript/JavaScript files with //console.log()
 
 ### Pattern 7: Fix XSS in JavaScript
 

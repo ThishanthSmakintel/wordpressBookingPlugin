@@ -418,7 +418,7 @@ class Booking_API_Endpoints {
         }
         
         $locked_slots = $wpdb->get_results($wpdb->prepare(
-            "SELECT TIME_FORMAT(time, '%%H:%%i') as time, client_id, TIMESTAMPDIFF(SECOND, NOW(), expires_at) as remaining FROM {$locks_table} WHERE date = %s AND employee_id = %d AND expires_at > NOW()",
+            "SELECT time, client_id, TIMESTAMPDIFF(SECOND, NOW(), expires_at) as remaining FROM {$locks_table} WHERE date = %s AND employee_id = %d AND expires_at > NOW()",
             $date, $employee_id
         ));
         
@@ -1517,7 +1517,7 @@ class Booking_API_Endpoints {
         // Check active slot locks FIRST (processing bookings take priority)
         $locks_table = $wpdb->prefix . 'appointease_slot_locks';
         $locked_slots = $wpdb->get_results($wpdb->prepare(
-            "SELECT TIME_FORMAT(time, '%%H:%%i') as time_slot, client_id, TIMESTAMPDIFF(SECOND, NOW(), expires_at) as remaining FROM {$locks_table} WHERE date = %s AND employee_id = %d AND expires_at > NOW()",
+            "SELECT DATE_FORMAT(CONCAT(date, ' ', time), '%%H:%%i') as time_slot, client_id, TIMESTAMPDIFF(SECOND, NOW(), expires_at) as remaining FROM {$locks_table} WHERE date = %s AND employee_id = %d AND expires_at > NOW()",
             $date, $employee_id
         ));
         

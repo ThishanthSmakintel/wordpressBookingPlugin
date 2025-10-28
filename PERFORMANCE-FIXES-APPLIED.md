@@ -43,13 +43,13 @@
 ### 4. Date Selector (`src/components/forms/DateSelector.tsx`)
 **Issues Fixed:**
 - Sequential API calls (blocking)
-- Excessive console.log statements
+- Excessive //console.log statements
 - No request batching
 
 **Changes:**
 - Implemented batch processing (5 dates at a time)
 - Parallel API calls with Promise.all()
-- Removed debug console.log statements
+- Removed debug //console.log statements
 - Reduced network overhead
 
 ### 5. Customer Info Form (`src/components/forms/CustomerInfoForm.tsx`)

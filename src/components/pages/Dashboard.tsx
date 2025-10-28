@@ -68,12 +68,7 @@ const Dashboard: React.FC<DashboardProps> = ({
         return filteredAppointments.slice((currentPage - 1) * appointmentsPerPage, currentPage * appointmentsPerPage);
     }, [filteredAppointments, currentPage, appointmentsPerPage]);
     
-    console.log('[Dashboard] Component rendered with:', {
-        loginEmail,
-        appointments: appointments?.length || 0,
-        appointmentsLoading,
-        appointmentsData: appointments
-    });
+
     return (
         <div className="wp-block-group appointease-booking">
             {/* Single Cohesive Header */}
@@ -134,7 +129,7 @@ const Dashboard: React.FC<DashboardProps> = ({
                     </button>
                     <button 
                         onClick={() => {
-                            console.log('[Dashboard] Refresh clicked, current loading state:', appointmentsLoading);
+
                             onRefresh();
                         }} 
                         disabled={appointmentsLoading}

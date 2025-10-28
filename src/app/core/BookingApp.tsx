@@ -90,12 +90,7 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
             debugState.showDebug  // Debug: Connection monitoring
         );
         
-        console.log('[BookingApp] WebSocket enabled:', needsRealtime, {
-            dashboard: bookingState.showDashboard,
-            timeSelection: step === 4 && selectedDate && selectedEmployee,
-            rescheduling: bookingState.isRescheduling,
-            debug: debugState.showDebug
-        });
+
         
         return {
             wsUrl: email ? `${wsUrl}?email=${encodeURIComponent(email)}` : wsUrl,
@@ -116,7 +111,6 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                 }
                 // Booking conflict notifications (Calendly-style)
                 if (data.type === 'slot_taken' && step === 4) {
-                    console.warn('[WebSocket] Slot conflict detected:', data.slot);
                     // Immediately disable conflicted slot
                     const conflictTime = data.time;
                     debugState.setUnavailableSlots?.(prev => [...(prev || []), conflictTime]);
@@ -135,10 +129,7 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
     
     const { connectionMode, isConnected: isRealtimeConnected, subscribe, send: sendRealtimeMessage } = useRealtime(realtimeConfig);
     
-    // Debug connectionMode
-    useEffect(() => {
-        console.log('[BookingApp] connectionMode from useRealtime:', connectionMode);
-    }, [connectionMode]);
+
     const [wsLatency, setWsLatency] = React.useState<number>(0);
     
     React.useEffect(() => {
@@ -148,15 +139,7 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
         return unsubscribe;
     }, [subscribe]);
     
-    // Debug logging for form data
-    useEffect(() => {
-        console.log('[BookingApp] Form data changed:', formData);
-        console.log('[BookingApp] Booking state:', {
-            isLoggedIn: bookingState.isLoggedIn,
-            loginEmail: bookingState.loginEmail,
-            step
-        });
-    }, [formData, bookingState.isLoggedIn, bookingState.loginEmail, step]);
+
 
     // ✅ Callbacks
     const calculateCardsPerPage = useCallback(() => {
@@ -299,11 +282,23 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
             checkAvailability(selectedDate, selectedEmployee.id);
         }
     }, [step, selectedDate, selectedEmployee, checkAvailability, bookingState.isRescheduling, bookingState.currentAppointment?.id]);
+    
+    // Listen for availability refresh requests from TimeSelector
+    useEffect(() => {
+        const handleRefreshAvailability = (event: CustomEvent) => {
+            const { date, employeeId } = event.detail;
+            if (date && employeeId) {
+                checkAvailability(date, employeeId);
+            }
+        };
+        
+        window.addEventListener('refreshAvailability', handleRefreshAvailability as EventListener);
+        return () => window.removeEventListener('refreshAvailability', handleRefreshAvailability as EventListener);
+    }, [checkAvailability]);
 
     // Start booking session from Step 1 - Track entire user journey (Calendly/Acuity pattern)
     useEffect(() => {
         if (step >= 1 && connectionMode === 'websocket') {
-            console.log(`[BookingApp] 📋 Booking session active at Step ${step}`);
             sendRealtimeMessage('booking_session', {
                 step,
                 service: selectedService?.name,
@@ -313,6 +308,16 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
             });
         }
     }, [step, selectedService, selectedEmployee, selectedDate, selectedTime, connectionMode, sendRealtimeMessage]);
+    
+    // Refresh availability when entering step 4
+    useEffect(() => {
+        if (step === 4 && selectedDate && selectedEmployee) {
+            // Small delay to ensure component is mounted
+            setTimeout(() => {
+                checkAvailability(selectedDate, selectedEmployee.id);
+            }, 100);
+        }
+    }, [step]);
 
     // Lock slot at Steps 4, 5, 6 - Update DB immediately when time selected
     const previousSlotRef = useRef<{date: string, time: string, employeeId: number} | null>(null);
@@ -324,7 +329,6 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
             
             // If user changed time selection, unlock old slot first
             if (previousSlot && (previousSlot.time !== currentSlot.time || previousSlot.date !== currentSlot.date)) {
-                console.log(`[BookingApp] 🔄 Step ${step}: Unlocking old slot:`, previousSlot);
                 sendRealtimeMessage('unlock_slot', {
                     date: previousSlot.date,
                     time: previousSlot.time,
@@ -334,7 +338,6 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
             }
             
             // Lock slot immediately in database
-            console.log(`[BookingApp] 🔒 Step ${step}: LOCKING slot in DB:`, currentSlot);
             sendRealtimeMessage('lock_slot', {
                 date: selectedDate,
                 time: selectedTime,
@@ -343,12 +346,16 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
             });
             
             previousSlotRef.current = currentSlot;
+            
+            // Refresh availability after locking to show updated status
+            setTimeout(() => {
+                checkAvailability(selectedDate, selectedEmployee.id);
+            }, 200);
         }
         
         // Unlock when leaving steps 4-6 or unmounting
         return () => {
             if ((step === 4 || step === 5 || step === 6) && selectedDate && selectedTime && selectedEmployee && connectionMode === 'websocket') {
-                console.log(`[BookingApp] 🔓 Step ${step}: Unlocking slot on unmount`);
                 sendRealtimeMessage('unlock_slot', {
                     date: selectedDate,
                     time: selectedTime,
@@ -358,11 +365,21 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                 previousSlotRef.current = null;
             }
         };
-    }, [step, selectedDate, selectedTime, selectedEmployee, selectedService, connectionMode, sendRealtimeMessage]);
+    }, [step, selectedDate, selectedTime, selectedEmployee, selectedService, connectionMode, sendRealtimeMessage, checkAvailability]);
 
     useEffect(() => {
         loadInitialData();
     }, [loadInitialData]);
+    
+    // Periodic availability refresh for step 4
+    useEffect(() => {
+        if (step === 4 && selectedDate && selectedEmployee) {
+            const interval = setInterval(() => {
+                checkAvailability(selectedDate, selectedEmployee.id);
+            }, 3000); // Refresh every 3 seconds
+            return () => clearInterval(interval);
+        }
+    }, [step, selectedDate, selectedEmployee, checkAvailability]);
 
     // Scroll to top when step changes
     useEffect(() => {
@@ -420,7 +437,7 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                 }
             }
         } catch (error) {
-            console.error('Debug fetch failed:', error);
+            // Debug fetch failed
         }
     }, [selectedEmployee, selectedDate, debugState.showDebug]);
     

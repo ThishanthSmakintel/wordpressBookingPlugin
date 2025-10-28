@@ -1,9 +1,87 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
 import { useAppointmentStore } from '../../hooks/useAppointmentStore';
 import { useBookingState } from '../../hooks/useBookingState';
 import { SettingsService } from '../../app/shared/services/settings.service';
 import { format, parseISO } from 'date-fns';
 import { useRealtimeService } from '../../hooks/useRealtimeService';
+
+// Memoized TimeSlot component for performance
+const TimeSlot = memo(({ 
+    time, 
+    isSelected, 
+    isCurrentAppointment, 
+    isBeingBooked, 
+    isUnavailable, 
+    isProcessing, 
+    isDisabled, 
+    serviceDuration, 
+    onSelect 
+}: {
+    time: string;
+    isSelected: boolean;
+    isCurrentAppointment: boolean;
+    isBeingBooked: boolean;
+    isUnavailable: boolean;
+    isProcessing: boolean;
+    isDisabled: boolean;
+    serviceDuration: number;
+    onSelect: (time: string) => void;
+}) => {
+    const slotStyles = getTimeSlotStyles(isCurrentAppointment, isUnavailable || isProcessing, isSelected, isBeingBooked);
+    
+    return (
+        <div 
+            onClick={() => !isDisabled && onSelect(time)}
+            style={{
+                padding: '20px 16px',
+                ...slotStyles,
+                borderRadius: '12px',
+                textAlign: 'center',
+                cursor: isDisabled ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s ease',
+                opacity: isDisabled ? 0.6 : 1,
+                boxShadow: isSelected ? '0 4px 12px rgba(16, 185, 129, 0.15)' : '0 2px 4px rgba(0, 0, 0, 0.05)'
+            }}
+            onMouseEnter={(e) => {
+                if (!isDisabled && !isSelected) {
+                    e.currentTarget.style.borderColor = '#d1d5db';
+                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.1)';
+                }
+            }}
+            onMouseLeave={(e) => {
+                if (!isDisabled && !isSelected) {
+                    e.currentTarget.style.borderColor = '#e5e7eb';
+                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
+                }
+            }}
+        >
+            <div style={{
+                fontSize: '1.25rem',
+                fontWeight: '700',
+                color: slotStyles.color,
+                marginBottom: '8px'
+            }}>
+                {time}
+            </div>
+            <div style={{
+                fontSize: '0.75rem',
+                color: isUnavailable ? '#ef4444' : '#6b7280',
+                marginBottom: '4px'
+            }}>
+                {serviceDuration} minutes
+            </div>
+            <div style={{
+                fontSize: '0.625rem',
+                fontWeight: '500',
+                color: slotStyles.color,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em'
+            }}>
+                {isSelected ? 'Your Selection' : isCurrentAppointment ? 'Your Current Time' : isProcessing ? '⏳ Processing' : isBeingBooked ? '⏳ Currently Booking' : isUnavailable ? 'Booked' : 'Available'}
+            </div>
+        </div>
+    );
+});
 
 // Helper function to get time slot styles
 const getTimeSlotStyles = (isCurrentAppointment: boolean, isUnavailable: boolean, isSelected: boolean, isBeingBooked: boolean) => {
@@ -63,6 +141,8 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
     const [activeSelections, setActiveSelections] = useState<string[]>([]);
     const { send, on, off } = useRealtimeService();
     
+
+    
     // Memoize current appointment time calculation using date-fns
     const currentAppointmentTime = useMemo(() => {
         if (isRescheduling && currentAppointment?.appointment_date) {
@@ -78,30 +158,60 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
     
 
     
-    const handleTimeSelect = (time: string) => {
+    const handleTimeSelect = useCallback(async (time: string) => {
         if (unavailableSlots !== 'all' && (!Array.isArray(unavailableSlots) || !unavailableSlots.includes(time))) {
             setTempSelected(time);
-            // Notify other users this slot is being selected
+            
+            // Send WebSocket notification for real-time updates
             send('selecting_slot', {
                 date: selectedDate,
                 time: time,
                 employeeId: selectedEmployee?.id
             });
+            
+            // Auto-clear selection after 30 seconds (sync with server)
+            setTimeout(() => {
+                setTempSelected(prev => prev === time ? '' : prev);
+            }, 30000);
+            
+            // Try to lock slot (informational only - don't block on failure)
+            try {
+                const response = await fetch(`${window.bookingAPI.root}appointease/v1/lock-slot`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        date: selectedDate,
+                        time: time,
+                        employee_id: selectedEmployee?.id
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data.success && data.client_id) {
+                        (window as any).currentSlotLock = data.client_id;
+                    }
+                }
+            } catch (error) {
+                // Silently fail - slot locking is informational only
+            }
         }
-    };
+    }, [selectedDate, selectedEmployee, send]);
     
-    const handleNext = () => {
+    const handleNext = useCallback(() => {
         if (tempSelected && setSelectedTime && setStep) {
             setSelectedTime(tempSelected);
             setStep(5);
         }
-    };
+    }, [tempSelected, setSelectedTime, setStep]);
     
-    const handleBack = () => {
+    const handleBack = useCallback(() => {
         if (setStep) {
             setStep(3);
         }
-    };
+    }, [setStep]);
     
     const [timeSlots, setTimeSlots] = useState<string[]>([]);
     const [isLoadingSlots, setIsLoadingSlots] = useState(true);
@@ -138,14 +248,26 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
     // Listen for active selections and availability updates
     useEffect(() => {
         const handleActiveSelections = (data: any) => {
-            console.log('[TimeSelector] Received active_selections:', data);
             if (data.date === selectedDate && data.employeeId === selectedEmployee?.id) {
-                console.log('[TimeSelector] Setting active selections:', data.slots);
                 setActiveSelections(data.slots || []);
             }
         };
         
+        const handleSelectionConfirmed = (data: any) => {
+            if (data.date === selectedDate && data.time && data.employeeId === selectedEmployee?.id) {
+                setTempSelected(data.time);
+            }
+        };
+        
+        const handleDeselectionConfirmed = (data: any) => {
+            if (data.date === selectedDate && data.time && data.employeeId === selectedEmployee?.id) {
+                setTempSelected('');
+            }
+        };
+        
         const unsubscribe1 = on('active_selections', handleActiveSelections);
+        const unsubscribe2 = on('selection_confirmed', handleSelectionConfirmed);
+        const unsubscribe3 = on('deselection_confirmed', handleDeselectionConfirmed);
         
         // Request real-time availability check from WebSocket
         if (selectedDate && selectedEmployee?.id) {
@@ -153,20 +275,58 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                 date: selectedDate,
                 employeeId: selectedEmployee.id
             });
+            
+            // Watch this slot for conflicts
+            send('watch_slot', {
+                date: selectedDate,
+                time: tempSelected,
+                employeeId: selectedEmployee.id
+            });
+        }
+        
+        // Force refresh availability data when component mounts
+        if (selectedDate && selectedEmployee?.id && (unavailableSlots.length === 0 && Object.keys(bookingDetails).length === 0)) {
+            // Trigger parent to refresh availability
+            const event = new CustomEvent('refreshAvailability', {
+                detail: { date: selectedDate, employeeId: selectedEmployee.id }
+            });
+            window.dispatchEvent(event);
         }
         
         return () => {
             unsubscribe1();
-            // Deselect on unmount
-            if (tempSelected) {
-                send('deselect_slot', {
-                    date: selectedDate,
-                    time: tempSelected,
-                    employeeId: selectedEmployee?.id
+            unsubscribe2();
+            unsubscribe3();
+            // Unlock slot on unmount
+            if ((window as any).currentSlotLock) {
+                fetch(`${window.bookingAPI.root}appointease/v1/unlock-slot`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        client_id: (window as any).currentSlotLock
+                    })
                 });
+                (window as any).currentSlotLock = null;
             }
         };
     }, [selectedDate, selectedEmployee, tempSelected, on, send]);
+    
+    // Global cleanup on page unload
+    useEffect(() => {
+        const handleBeforeUnload = () => {
+            if ((window as any).currentSlotLock) {
+                navigator.sendBeacon(
+                    `${window.bookingAPI.root}appointease/v1/unlock-slot`,
+                    JSON.stringify({ client_id: (window as any).currentSlotLock })
+                );
+            }
+        };
+        
+        window.addEventListener('beforeunload', handleBeforeUnload);
+        return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+    }, []);
 
     return (
         <div className="appointease-step-content">
@@ -258,63 +418,22 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                         const isCurrentAppointment = currentAppointmentTime === time;
                         const isBeingBooked = activeSelections.includes(time) && !isSelected;
                         const slotDetails = bookingDetails?.[time];
-                        const isProcessing = (slotDetails?.status === 'processing' || slotDetails?.is_locked === true) && !isSelected;
+                        const isProcessing = slotDetails?.is_locked === true || slotDetails?.status === 'processing';
                         const isDisabled = (isUnavailable || isCurrentAppointment || isBeingBooked || isProcessing) && !isSelected;
                         
-                        const slotStyles = getTimeSlotStyles(isCurrentAppointment, isUnavailable || isProcessing, isSelected, isBeingBooked);
-                        
                         return (
-                            <div 
+                            <TimeSlot
                                 key={time}
-                                onClick={() => !isDisabled && handleTimeSelect(time)}
-                                style={{
-                                    padding: '20px 16px',
-                                    ...slotStyles,
-                                    borderRadius: '12px',
-                                    textAlign: 'center',
-                                    cursor: isDisabled ? 'not-allowed' : 'pointer',
-                                    transition: 'all 0.2s ease',
-                                    opacity: isDisabled ? 0.6 : 1,
-                                    boxShadow: isSelected ? '0 4px 12px rgba(16, 185, 129, 0.15)' : '0 2px 4px rgba(0, 0, 0, 0.05)'
-                                }}
-                                onMouseEnter={(e) => {
-                                    if (!isDisabled && !isSelected) {
-                                        e.currentTarget.style.borderColor = '#d1d5db';
-                                        e.currentTarget.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.1)';
-                                    }
-                                }}
-                                onMouseLeave={(e) => {
-                                    if (!isDisabled && !isSelected) {
-                                        e.currentTarget.style.borderColor = '#e5e7eb';
-                                        e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.05)';
-                                    }
-                                }}
-                            >
-                                <div style={{
-                                    fontSize: '1.25rem',
-                                    fontWeight: '700',
-                                    color: slotStyles.color,
-                                    marginBottom: '8px'
-                                }}>
-                                    {time}
-                                </div>
-                                <div style={{
-                                    fontSize: '0.75rem',
-                                    color: isUnavailable ? '#ef4444' : '#6b7280',
-                                    marginBottom: '4px'
-                                }}>
-                                    {serviceDuration} minutes
-                                </div>
-                                <div style={{
-                                    fontSize: '0.625rem',
-                                    fontWeight: '500',
-                                    color: slotStyles.color,
-                                    textTransform: 'uppercase',
-                                    letterSpacing: '0.05em'
-                                }}>
-                                    {isSelected ? 'Your Selection' : isCurrentAppointment ? 'Your Current Time' : isBeingBooked ? '⏳ Currently Booking' : isProcessing ? '⏳ Processing' : isUnavailable ? 'Booked' : 'Available'}
-                                </div>
-                            </div>
+                                time={time}
+                                isSelected={isSelected}
+                                isCurrentAppointment={isCurrentAppointment}
+                                isBeingBooked={isBeingBooked}
+                                isUnavailable={isUnavailable}
+                                isProcessing={isProcessing}
+                                isDisabled={isDisabled}
+                                serviceDuration={serviceDuration}
+                                onSelect={handleTimeSelect}
+                            />
                         );
                     })}
                     </div>
@@ -360,4 +479,4 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
     );
 };
 
-export default TimeSelector;
+export default memo(TimeSelector);

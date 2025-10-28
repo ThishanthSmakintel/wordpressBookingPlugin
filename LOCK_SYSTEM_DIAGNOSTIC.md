@@ -209,7 +209,7 @@ Open: `http://localhost/wordpress/blog.promoplus.com/wp-content/plugins/wordpres
 ```bash
 type build\frontend.js | findstr "LOCKING slot"
 ```
-Should show the console.log message if compiled.
+Should show the //console.log message if compiled.
 
 ## ✅ VERIFICATION CHECKLIST
 

@@ -61,7 +61,7 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
   // Lock slot when reaching confirmation page (Step 6)
   useEffect(() => {
     if (step === 6 && selectedDate && selectedTime && selectedEmployee) {
-      console.log('[BookingFlow] Locking slot:', { date: selectedDate, time: selectedTime, employeeId: selectedEmployee.id });
+
       send('lock_slot', {
         date: selectedDate,
         time: selectedTime,
@@ -92,7 +92,7 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
           }
         })
         .catch(error => {
-          console.error('[BookingFlow] Error fetching customer data:', error);
+
           const emailPrefix = bookingState.loginEmail.split('@')[0];
           const cleanName = emailPrefix.replace(/[^a-zA-Z]/g, '') || 'User';
           setFormData({
@@ -174,7 +174,7 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
                     bookingState.setExistingUser({ exists: false });
                   }
                 } catch (error) {
-                  console.error('Error checking customer:', error);
+
                   bookingState.setExistingUser({ exists: false });
                 } finally {
                   bookingState.setIsCheckingEmail(false);

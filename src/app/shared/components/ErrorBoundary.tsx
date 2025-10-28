@@ -20,7 +20,7 @@ export class ErrorBoundary extends Component<Props, State> {
     }
 
     componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-        console.error('AppointEase Error:', error, errorInfo);
+        // Error logged to boundary
     }
 
     render() {

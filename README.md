@@ -1266,7 +1266,7 @@ await service.connect();
 
 // Subscribe to events
 service.on('update', (data) => {
-  console.log('New appointment data:', data);
+  //console.log('New appointment data:', data);
 });
 
 // Send message (WebSocket only)
@@ -1288,7 +1288,7 @@ const { connectionMode, isConnected, send, subscribe } = useRealtime({
     setAppointments(data.appointments);
   },
   onConnectionChange: (mode) => {
-    console.log('Connection mode:', mode);
+    //console.log('Connection mode:', mode);
   }
 });
 ```
@@ -1451,11 +1451,11 @@ public function handle_heartbeat($response, $data) {
 ```typescript
 // Check connection status
 const mode = service.getMode();
-console.log('Connection mode:', mode); // 'websocket' | 'polling' | 'disconnected'
+//console.log('Connection mode:', mode); // 'websocket' | 'polling' | 'disconnected'
 
 // Monitor connection changes
 service.on('connection', (data) => {
-  console.log('Connection status:', data);
+  //console.log('Connection status:', data);
   // { mode: 'websocket', status: 'connected' }
 });
 

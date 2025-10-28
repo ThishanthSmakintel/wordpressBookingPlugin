@@ -61,7 +61,7 @@ export const useOptimisticBooking = (selectedDate: string, selectedEmployee: any
     if (watchingSlotRef.current?.time !== time) {
       watchingSlotRef.current = slotData;
       send('watch_slot', slotData);
-      console.log('[OptimisticBooking] Watching slot:', slotData);
+      //console.log('[OptimisticBooking] Watching slot:', slotData);
     }
   }, [selectedDate, selectedEmployee]);
   

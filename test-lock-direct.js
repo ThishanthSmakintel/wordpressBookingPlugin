@@ -14,8 +14,8 @@ async function testDirectLock() {
     const employeeId = 2;
     const clientId = 'direct_test';
     
-    console.log('[Direct Test] Inserting lock...');
-    console.log(`  date=${date}, time=${time}, employee=${employeeId}, client=${clientId}`);
+    //console.log('[Direct Test] Inserting lock...');
+    //console.log(`  date=${date}, time=${time}, employee=${employeeId}, client=${clientId}`);
     
     try {
         const [result] = await pool.execute(
@@ -23,9 +23,9 @@ async function testDirectLock() {
             [date, time, employeeId, clientId, clientId]
         );
         
-        console.log('✅ INSERT successful!');
-        console.log(`  Affected rows: ${result.affectedRows}`);
-        console.log(`  Insert ID: ${result.insertId}`);
+        //console.log('✅ INSERT successful!');
+        //console.log(`  Affected rows: ${result.affectedRows}`);
+        //console.log(`  Insert ID: ${result.insertId}`);
         
         // Verify
         const [rows] = await pool.execute(
@@ -34,14 +34,14 @@ async function testDirectLock() {
         );
         
         if (rows.length > 0) {
-            console.log('\n✅ Verified in database:');
-            console.log(`  ID: ${rows[0].id}`);
-            console.log(`  Remaining: ${rows[0].remaining}s`);
+            //console.log('\n✅ Verified in database:');
+            //console.log(`  ID: ${rows[0].id}`);
+            //console.log(`  Remaining: ${rows[0].remaining}s`);
         }
         
         // Cleanup
         await pool.execute('DELETE FROM wp_appointease_slot_locks WHERE client_id = ?', [clientId]);
-        console.log('\n✅ Cleaned up');
+        //console.log('\n✅ Cleaned up');
         
     } catch (error) {
         console.error('❌ Error:', error.message);

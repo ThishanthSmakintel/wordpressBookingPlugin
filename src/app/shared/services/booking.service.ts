@@ -15,7 +15,7 @@ class BookingService {
       if (!response.ok) throw new Error('Failed to fetch services');
       return await response.json();
     } catch (error) {
-      console.error('Error fetching services:', error);
+
       return [];
     }
   }
@@ -26,7 +26,7 @@ class BookingService {
       if (!response.ok) throw new Error('Failed to fetch staff');
       return await response.json();
     } catch (error) {
-      console.error('Error fetching staff:', error);
+
       return [];
     }
   }
@@ -48,7 +48,7 @@ class BookingService {
       if (!response.ok) throw new Error('Failed to check availability');
       return await response.json();
     } catch (error) {
-      console.error('Error checking availability:', error);
+
       return { unavailable: [] };
     }
   }
@@ -67,7 +67,7 @@ class BookingService {
       if (!response.ok) throw new Error('Failed to create appointment');
       return await response.json();
     } catch (error) {
-      console.error('Error creating appointment:', error);
+
       throw error;
     }
   }
@@ -96,7 +96,7 @@ class BookingService {
         email: apt.email
       }));
     } catch (error) {
-      console.error('Error fetching user appointments:', error);
+
       return [];
     }
   }

@@ -40,8 +40,7 @@ class StateLogger {
         // Store in sessionStorage for debug panel
         sessionStorage.setItem('appointease_state_logs', JSON.stringify(this.logs.slice(-100)));
         
-        // Console log for development
-        console.log(`🔄 [${action}]`, data);
+        // Silent logging - no console output
         
         // Send to server if enabled
         this.sendToServer(entry);

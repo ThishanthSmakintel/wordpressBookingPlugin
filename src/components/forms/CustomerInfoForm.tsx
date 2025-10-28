@@ -38,12 +38,7 @@ const CustomerInfoForm: React.FC<CustomerInfoFormProps> = ({
         clearError
     } = useBookingStore();
     
-    console.log('[CustomerInfoForm] Render with props:', {
-        isLoggedIn,
-        loginEmail: bookingState.loginEmail,
-        formData,
-        isRescheduling: bookingState.isRescheduling
-    });
+
     
     const validateForm = () => {
         const validation = validateBookingForm(formData);

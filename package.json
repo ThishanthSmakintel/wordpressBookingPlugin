@@ -1,27 +1,14 @@
 {
   "name": "appointease-websocket",
   "version": "1.0.0",
-  "description": "WebSocket server for AppointEase real-time updates",
-  "main": "websocket-server.js",
   "scripts": {
-    "build": "wp-scripts build",
-    "start": "wp-scripts start",
-    "dev": "npm run kill:ws && concurrently \"wp-scripts start\" \"node websocket-server.js\"",
-    "ws:start": "npm run kill:ws && node websocket-server.js",
-    "ws:dev": "npm run kill:ws && nodemon websocket-server.js",
-    "kill:ws": "taskkill /F /IM node.exe /FI \"WINDOWTITLE eq WebSocket*\" 2>nul || echo No WebSocket server running"
+    "ws:start": "node websocket-server.js",
+    "ws:dev": "nodemon websocket-server.js"
   },
   "dependencies": {
-    "@wordpress/scripts": "^26.0.0",
-    "bootstrap": "^5.3.8",
-    "date-fns": "^4.1.0",
-    "html2canvas": "^1.4.1",
-    "mysql2": "^3.6.5",
-    "react-bootstrap": "^2.10.10",
     "ws": "^8.14.2"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2",
     "nodemon": "^3.0.2"
   }
 }

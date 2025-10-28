@@ -5,29 +5,10 @@ class Booking_DB_Seeder {
     public static function seed_data() {
         global $wpdb;
         
-        // Create services table if not exists
-        $services_table = $wpdb->prefix . 'booking_services';
-        $wpdb->query("CREATE TABLE IF NOT EXISTS $services_table (
-            id int(11) NOT NULL AUTO_INCREMENT,
-            name varchar(255) NOT NULL,
-            description text,
-            duration int(11) DEFAULT 30,
-            price decimal(10,2) DEFAULT 0.00,
-            created_at timestamp DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (id)
-        )");
-        
-        // Create staff table if not exists
-        $staff_table = $wpdb->prefix . 'booking_staff';
-        $wpdb->query("CREATE TABLE IF NOT EXISTS $staff_table (
-            id int(11) NOT NULL AUTO_INCREMENT,
-            name varchar(255) NOT NULL,
-            email varchar(255),
-            phone varchar(50),
-            specialization varchar(255),
-            created_at timestamp DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (id)
-        )");
+        // Use correct table names
+        $services_table = $wpdb->prefix . 'appointease_services';
+        $staff_table = $wpdb->prefix . 'appointease_staff';
+        $appointments_table = $wpdb->prefix . 'appointments';
         
         // Create availability table if not exists
         $availability_table = $wpdb->prefix . 'booking_availability';
@@ -45,9 +26,10 @@ class Booking_DB_Seeder {
         
         // Seed services
         $services = [
-            ['name' => 'Consultation', 'description' => 'Initial consultation session', 'duration' => 30, 'price' => 75.00],
-            ['name' => 'Premium Service', 'description' => 'Extended premium service', 'duration' => 60, 'price' => 150.00],
-            ['name' => 'Follow-up', 'description' => 'Follow-up appointment', 'duration' => 20, 'price' => 50.00]
+            ['name' => 'General Consultation', 'description' => 'Initial consultation session', 'duration' => 30, 'price' => 75.00],
+            ['name' => 'Specialist Consultation', 'description' => 'Extended specialist consultation', 'duration' => 60, 'price' => 150.00],
+            ['name' => 'Follow-up Visit', 'description' => 'Follow-up appointment', 'duration' => 30, 'price' => 50.00],
+            ['name' => 'Health Screening', 'description' => 'Comprehensive health screening', 'duration' => 45, 'price' => 120.00]
         ];
         
         foreach ($services as $service) {
@@ -63,9 +45,10 @@ class Booking_DB_Seeder {
         
         // Seed staff
         $staff = [
-            ['name' => 'Sarah Johnson', 'email' => 'sarah@appointease.com', 'phone' => '+1-555-0101', 'specialization' => 'General Practice'],
-            ['name' => 'Mike Wilson', 'email' => 'mike@appointease.com', 'phone' => '+1-555-0102', 'specialization' => 'Cardiology'],
-            ['name' => 'Emma Davis', 'email' => 'emma@appointease.com', 'phone' => '+1-555-0103', 'specialization' => 'Dermatology']
+            ['name' => 'Dr. Sarah Johnson', 'email' => 'sarah@clinic.com', 'phone' => '+1-555-0101', 'specialization' => 'General Practice'],
+            ['name' => 'Dr. Michael Chen', 'email' => 'michael@clinic.com', 'phone' => '+1-555-0102', 'specialization' => 'Cardiology'],
+            ['name' => 'Dr. Emma Rodriguez', 'email' => 'emma@clinic.com', 'phone' => '+1-555-0103', 'specialization' => 'Dermatology'],
+            ['name' => 'Dr. James Wilson', 'email' => 'james@clinic.com', 'phone' => '+1-555-0104', 'specialization' => 'Orthopedics']
         ];
         
         foreach ($staff as $member) {
@@ -79,36 +62,41 @@ class Booking_DB_Seeder {
             }
         }
         
-        // Seed availability (next 30 days)
+        // Seed sample appointments
         $staff_ids = $wpdb->get_col("SELECT id FROM $staff_table");
-        $time_slots = ['09:00', '09:30', '10:00', '10:30', '11:00', '11:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30'];
+        $service_ids = $wpdb->get_col("SELECT id FROM $services_table");
         
-        for ($i = 0; $i < 30; $i++) {
-            $date = date('Y-m-d', strtotime("+$i days"));
-            $day_of_week = date('w', strtotime($date));
+        $sample_appointments = [
+            ['name' => 'John Smith', 'email' => 'john.smith@email.com', 'phone' => '+1-555-1001', 'date' => '2025-01-15 10:00:00'],
+            ['name' => 'Maria Garcia', 'email' => 'maria.garcia@email.com', 'phone' => '+1-555-1002', 'date' => '2025-01-15 14:30:00'],
+            ['name' => 'David Johnson', 'email' => 'david.johnson@email.com', 'phone' => '+1-555-1003', 'date' => '2025-01-16 09:30:00'],
+            ['name' => 'Lisa Chen', 'email' => 'lisa.chen@email.com', 'phone' => '+1-555-1004', 'date' => '2025-01-16 11:00:00'],
+            ['name' => 'Robert Brown', 'email' => 'robert.brown@email.com', 'phone' => '+1-555-1005', 'date' => '2025-01-17 15:00:00'],
+            ['name' => 'Jennifer Wilson', 'email' => 'jennifer.wilson@email.com', 'phone' => '+1-555-1006', 'date' => '2025-01-18 10:30:00'],
+            ['name' => 'Michael Davis', 'email' => 'michael.davis@email.com', 'phone' => '+1-555-1007', 'date' => '2025-01-20 14:00:00'],
+            ['name' => 'Sarah Miller', 'email' => 'sarah.miller@email.com', 'phone' => '+1-555-1008', 'date' => '2025-01-21 09:00:00']
+        ];
+        
+        foreach ($sample_appointments as $index => $appointment) {
+            $existing = $wpdb->get_var($wpdb->prepare(
+                "SELECT id FROM $appointments_table WHERE email = %s AND appointment_date = %s",
+                $appointment['email'], $appointment['date']
+            ));
             
-            // Skip weekends
-            if ($day_of_week == 0 || $day_of_week == 6) continue;
-            
-            foreach ($staff_ids as $staff_id) {
-                foreach ($time_slots as $time_slot) {
-                    $existing = $wpdb->get_var($wpdb->prepare(
-                        "SELECT id FROM $availability_table WHERE staff_id = %d AND date = %s AND time_slot = %s",
-                        $staff_id, $date, $time_slot
-                    ));
-                    
-                    if (!$existing) {
-                        // Randomly make some slots unavailable
-                        $is_available = (rand(1, 10) > 2) ? 1 : 0;
-                        
-                        $wpdb->insert($availability_table, [
-                            'staff_id' => $staff_id,
-                            'date' => $date,
-                            'time_slot' => $time_slot,
-                            'is_available' => $is_available
-                        ]);
-                    }
-                }
+            if (!$existing && !empty($staff_ids) && !empty($service_ids)) {
+                $strong_id = 'APT-' . date('Y') . '-' . str_pad($index + 1000, 6, '0', STR_PAD_LEFT);
+                
+                $wpdb->insert($appointments_table, [
+                    'name' => $appointment['name'],
+                    'email' => $appointment['email'],
+                    'phone' => $appointment['phone'],
+                    'appointment_date' => $appointment['date'],
+                    'service_id' => $service_ids[array_rand($service_ids)],
+                    'employee_id' => $staff_ids[array_rand($staff_ids)],
+                    'status' => 'confirmed',
+                    'strong_id' => $strong_id,
+                    'created_at' => current_time('mysql')
+                ]);
             }
         }
     }
@@ -116,12 +104,12 @@ class Booking_DB_Seeder {
     public static function clear_data() {
         global $wpdb;
         
-        $services_table = $wpdb->prefix . 'booking_services';
-        $staff_table = $wpdb->prefix . 'booking_staff';
-        $availability_table = $wpdb->prefix . 'booking_availability';
+        $services_table = $wpdb->prefix . 'appointease_services';
+        $staff_table = $wpdb->prefix . 'appointease_staff';
+        $appointments_table = $wpdb->prefix . 'appointments';
         
-        $wpdb->query("TRUNCATE TABLE $availability_table");
-        $wpdb->query("TRUNCATE TABLE $staff_table");
-        $wpdb->query("TRUNCATE TABLE $services_table");
+        $wpdb->query("DELETE FROM $appointments_table WHERE strong_id LIKE 'APT-%'");
+        $wpdb->query("DELETE FROM $staff_table WHERE email LIKE '%@clinic.com'");
+        $wpdb->query("DELETE FROM $services_table WHERE name IN ('General Consultation', 'Specialist Consultation', 'Follow-up Visit', 'Health Screening')");
     }
 }

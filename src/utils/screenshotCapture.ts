@@ -29,6 +29,6 @@ export const captureScreenshot = async (elementRef: HTMLElement | null, filename
             URL.revokeObjectURL(url);
         });
     } catch (error) {
-        console.error('Screenshot capture failed:', error);
+
     }
 };

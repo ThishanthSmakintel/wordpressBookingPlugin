@@ -1324,7 +1324,7 @@ class AppointEase_Admin {
         </div>
         <script>
         jQuery(document).ready(function($) {
-            console.log('Calendar page loaded');
+            //console.log('Calendar page loaded');
             
             // Show loading state
             $('#appointease-calendar-root').show().html('<div style="padding: 40px; text-align: center; color: #7f8c8d;"><i class="dashicons dashicons-update" style="font-size: 24px; animation: spin 1s linear infinite;"></i><br><br>Loading calendar data...</div>');
@@ -1334,16 +1334,16 @@ class AppointEase_Admin {
                 action: 'get_calendar_data',
                 _wpnonce: appointeaseAdmin.nonce
             }, function(response) {
-                console.log('Calendar data response:', response);
+                //console.log('Calendar data response:', response);
                 if (response.success) {
                     window.appointeaseCalendarData = response.data;
-                    console.log('Calendar data loaded:', response.data.length, 'appointments');
+                    //console.log('Calendar data loaded:', response.data.length, 'appointments');
                     
                     // Initialize calendar
                     if (typeof window.initSimpleCalendar === 'function') {
                         window.initSimpleCalendar();
                     } else {
-                        console.log('initSimpleCalendar not available, trying fallback');
+                        //console.log('initSimpleCalendar not available, trying fallback');
                         setTimeout(function() {
                             if (typeof window.initSimpleCalendar === 'function') {
                                 window.initSimpleCalendar();

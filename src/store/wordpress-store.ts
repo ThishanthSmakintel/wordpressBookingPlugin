@@ -214,7 +214,7 @@ const reducer = (state = DEFAULT_STATE, action: any): AppointmentState => {
         case 'SET_SELECTED_DATE': return { ...state, selectedDate: action.date };
         case 'SET_SELECTED_TIME': return { ...state, selectedTime: action.time };
         case 'SET_FORM_DATA': 
-            console.log('[WordPress Store] SET_FORM_DATA:', { current: state.formData, new: action.data, merged: { ...state.formData, ...action.data } });
+
             return { ...state, formData: { ...state.formData, ...action.data } };
         case 'SET_SERVICES': return { ...state, services: action.services };
         case 'SET_EMPLOYEES': return { ...state, employees: action.employees };
@@ -311,9 +311,9 @@ export const store = createReduxStore('appointease/booking', {
 // Register store with error handling
 try {
     register(store);
-    console.log('AppointEase store registered successfully');
+
 } catch (error) {
-    console.error('Failed to register AppointEase store:', error);
+
 }
 
 export default store;

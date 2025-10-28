@@ -1,0 +1,19 @@
+{
+  "name": "appointease-stress-tests",
+  "version": "1.0.0",
+  "description": "Stress testing suite for AppointEase booking system",
+  "main": "booking-stress-test.js",
+  "scripts": {
+    "test": "node booking-stress-test.js",
+    "test:full": "node booking-stress-test.js --full",
+    "test:race": "node -e \"const Test = require('./booking-stress-test.js'); new Test().testRaceCondition().then(console.log);\"",
+    "test:load": "node -e \"const Test = require('./booking-stress-test.js'); new Test().testLoadHandling().then(console.log);\"",
+    "test:realtime": "node -e \"const Test = require('./booking-stress-test.js'); new Test().testRealtimeUpdates().then(console.log);\""
+  },
+  "dependencies": {
+    "node-fetch": "^2.6.7"
+  },
+  "keywords": ["booking", "stress-test", "race-condition", "wordpress"],
+  "author": "AppointEase Team",
+  "license": "MIT"
+}

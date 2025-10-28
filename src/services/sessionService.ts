@@ -16,7 +16,7 @@ export const sessionService = {
                 sessionStorage.setItem('booking_session_token', sanitizedToken);
                 sessionStorage.setItem('booking_user_email', sanitizedEmail);
             } catch (e) {
-                console.warn('Session storage unavailable');
+
             }
         }
     },
@@ -82,7 +82,7 @@ export const sessionService = {
             }
             return { valid: false };
         } catch (error) {
-            console.error('Session validation failed:', error);
+
             return { valid: false };
         }
     },
@@ -109,7 +109,7 @@ export const sessionService = {
             }
             return { success: false };
         } catch (error) {
-            console.error('Session creation failed:', error);
+
             return { success: false };
         }
     },
@@ -129,7 +129,7 @@ export const sessionService = {
             this.clearSession();
             return true;
         } catch (error) {
-            console.error('Session destruction failed:', error);
+
             this.clearSession(); // Clear local data anyway
             return false;
         }

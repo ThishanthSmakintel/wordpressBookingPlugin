@@ -105,7 +105,7 @@ php test_api.php
 // Lock slot when user reaches step 6 (review)
 useEffect(() => {
     if (step === 6 && selectedDate && selectedTime && selectedEmployee && connectionMode === 'websocket') {
-        console.log('[BookingApp] 🔒 Locking slot in database:', { date: selectedDate, time: selectedTime, employeeId: selectedEmployee.id });
+        //console.log('[BookingApp] 🔒 Locking slot in database:', { date: selectedDate, time: selectedTime, employeeId: selectedEmployee.id });
         sendRealtimeMessage('lock_slot', {
             date: selectedDate,
             time: selectedTime,
@@ -116,7 +116,7 @@ useEffect(() => {
     // Unlock slot when leaving step 6 or unmounting
     return () => {
         if (step === 6 && selectedDate && selectedTime && selectedEmployee && connectionMode === 'websocket') {
-            console.log('[BookingApp] 🔓 Unlocking slot from database:', { date: selectedDate, time: selectedTime, employeeId: selectedEmployee.id });
+            //console.log('[BookingApp] 🔓 Unlocking slot from database:', { date: selectedDate, time: selectedTime, employeeId: selectedEmployee.id });
             sendRealtimeMessage('unlock_slot', {
                 date: selectedDate,
                 time: selectedTime,
@@ -142,7 +142,7 @@ useEffect(() => {
 if (data.type === 'lock_slot') {
     const expiresAt = new Date(Date.now() + 600000);
     await lockSlotInDB(data.date, data.time, data.employeeId, clientId, expiresAt);
-    console.log(`[WebSocket] Slot locked in DB: ${data.date} ${data.time} for 10 minutes`);
+    //console.log(`[WebSocket] Slot locked in DB: ${data.date} ${data.time} for 10 minutes`);
     broadcastAvailabilityUpdate(data.date, data.employeeId);
 }
 ```

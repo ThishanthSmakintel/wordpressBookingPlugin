@@ -25,21 +25,19 @@ export class SettingsService {
     }
 
     try {
-      // Debug logging
-      console.log('=== BOOKING DEBUG - SETTINGS SERVICE ===');
-      console.log('[SettingsService] window.bookingAPI:', window.bookingAPI);
+
       
       // Wait for bookingAPI to be available (with timeout)
       let attempts = 0;
       while (!window.bookingAPI && attempts < 10) {
-        console.log('[SettingsService] Waiting for bookingAPI...', attempts);
+
         await new Promise(resolve => setTimeout(resolve, 100));
         attempts++;
       }
       
       if (!window.bookingAPI) {
         // Try multiple fallback URLs
-        console.warn('[SettingsService] bookingAPI not available, trying fallbacks');
+
         const fallbackUrls = [
           '/wp-json/appointease/v1/settings',
           '/wp-json/booking/v1/time-slots', 
@@ -47,8 +45,7 @@ export class SettingsService {
         ];
         
         for (const fallbackUrl of fallbackUrls) {
-          console.log('=== BOOKING DEBUG - TRYING FALLBACK ===');
-          console.log('[SettingsService] Trying fallback URL:', fallbackUrl);
+
           try {
             const response = await fetch(fallbackUrl, {
               headers: { 'Content-Type': 'application/json' }
@@ -56,7 +53,7 @@ export class SettingsService {
             
             if (response.ok) {
               const data = await response.json();
-              console.log('[SettingsService] Success with fallback:', fallbackUrl, data);
+
               
               // Convert time-slots response to settings format
               if (data.time_slots) {
@@ -70,10 +67,10 @@ export class SettingsService {
               }
             } else {
               const errorText = await response.text();
-              console.error('[SettingsService] Fallback API failed:', fallbackUrl, response.status, errorText);
+
             }
           } catch (e) {
-            console.error('[SettingsService] Fallback error:', fallbackUrl, e.message, e.stack);
+
           }
         }
         
@@ -98,13 +95,12 @@ export class SettingsService {
         apiUrls.push(`${baseUrl}booking/v1/time-slots`);
       }
       
-      console.log('[SettingsService] Base URL:', baseUrl);
-      console.log('[SettingsService] Trying API URLs:', apiUrls);
+
       
       // Try each API URL until one works
       for (const apiUrl of apiUrls) {
         try {
-          console.log('[SettingsService] Trying API URL:', apiUrl);
+
           
           const response = await fetch(apiUrl, {
             headers: {
@@ -113,12 +109,11 @@ export class SettingsService {
             }
           });
 
-          console.log('[SettingsService] Response status:', response.status);
-          console.log('[SettingsService] Response ok:', response.ok);
+
 
           if (response.ok) {
             const data = await response.json();
-            console.log('[SettingsService] Response data:', data);
+
             
             // Convert time-slots response to settings format if needed
             if (data.time_slots && !data.business_hours) {
@@ -135,32 +130,17 @@ export class SettingsService {
             return this.settings;
           } else {
             const errorText = await response.text();
-            console.error('[SettingsService] API failed:', {
-              url: apiUrl,
-              status: response.status,
-              statusText: response.statusText,
-              headers: Object.fromEntries(response.headers.entries()),
-              errorText: errorText
-            });
+
           }
         } catch (error) {
-          console.error('[SettingsService] API error:', {
-            url: apiUrl,
-            error: error.message,
-            stack: error.stack,
-            type: error.constructor.name
-          });
+
         }
       }
       
       // If all API calls failed, throw detailed error
       throw new Error('All settings API endpoints failed. No valid response received.');
     } catch (error) {
-      console.error('[SettingsService] Detailed Error Information:');
-      console.error('Error type:', typeof error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      console.error('Full error object:', error);
+
       
       // Create detailed error with all information
       const detailedError = new Error(`Settings API failed: ${error.message || 'Unknown error'}`);
@@ -193,23 +173,21 @@ export class SettingsService {
 
   // Debug method to check API availability
   async checkAPIAvailability(): Promise<boolean> {
-    console.log('[SettingsService] Checking API availability...');
-    console.log('[SettingsService] window.bookingAPI exists:', !!window.bookingAPI);
+
     
     // Wait a bit for bookingAPI to load
     let attempts = 0;
     while (!window.bookingAPI && attempts < 5) {
-      console.log('[SettingsService] Waiting for bookingAPI...', attempts);
+
       await new Promise(resolve => setTimeout(resolve, 100));
       attempts++;
     }
     
     if (window.bookingAPI) {
-      console.log('[SettingsService] API root:', window.bookingAPI.root);
-      console.log('[SettingsService] API nonce:', window.bookingAPI.nonce);
+
       return true;
     } else {
-      console.log('[SettingsService] bookingAPI not available, will use fallback');
+
       return false;
     }
   }

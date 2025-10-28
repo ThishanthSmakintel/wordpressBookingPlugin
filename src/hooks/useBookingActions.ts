@@ -10,10 +10,10 @@ export const useBookingActions = (bookingState: any) => {
     } = useBookingStore();
 
     const checkAvailability = useCallback(async (date: string, employeeId: number) => {
-        console.log('[checkAvailability] Called with:', { date, employeeId, isRescheduling: bookingState.isRescheduling, currentAppointmentId: bookingState.currentAppointment?.id });
+
         
         if (!window.bookingAPI || !date || !employeeId) {
-            console.log('[checkAvailability] Missing required data, setting empty unavailable slots');
+
             setUnavailableSlots([]);
             return;
         }
@@ -43,24 +43,21 @@ export const useBookingActions = (bookingState: any) => {
             
             if (response.ok) {
                 const data = await response.json();
-                console.log('[checkAvailability] API Response:', data);
-                console.log('[checkAvailability] Endpoint used:', endpoint);
-                console.log('[checkAvailability] Request body:', requestBody);
+
                 
                 if (data.unavailable === 'all') {
                     setUnavailableSlots('all');
                     setBookingDetails({});
                 } else if (Array.isArray(data.unavailable)) {
-                    console.log('[checkAvailability] Setting unavailable slots:', data.unavailable);
                     setUnavailableSlots(data.unavailable);
                     setBookingDetails(data.booking_details || {});
+
                 } else {
-                    console.log('[checkAvailability] No unavailable slots found, setting empty array');
                     setUnavailableSlots([]);
                     setBookingDetails({});
                 }
             } else {
-                console.error('[checkAvailability] API request failed:', response.status, response.statusText);
+
             }
         } catch (error) {
             setUnavailableSlots([]);

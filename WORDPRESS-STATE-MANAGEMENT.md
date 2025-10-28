@@ -33,7 +33,7 @@ const MyComponent = () => {
     const handleCancel = async (appointmentId: string, email: string) => {
         const result = await cancelAppointment(appointmentId, email);
         if (result.success) {
-            console.log('Cancelled successfully');
+            //console.log('Cancelled successfully');
         }
     };
 
@@ -57,7 +57,7 @@ const CancelButton = ({ appointmentId, userEmail }) => {
         
         if (result.success) {
             // State is already updated - no manual refresh needed!
-            console.log('Appointment cancelled and list refreshed');
+            //console.log('Appointment cancelled and list refreshed');
         }
     };
 
@@ -354,7 +354,7 @@ window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__?.({ trace: true });
 
 // Log all actions
 store.subscribe(() => {
-    console.log('State updated:', store.getState());
+    //console.log('State updated:', store.getState());
 });
 ```
 

@@ -57,7 +57,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState
         if (!showDebug) return;
         
         const handleDebugInfo = (data: any) => {
-            console.log('[DebugPanel] Received debug info:', data);
+            //console.log('[DebugPanel] Received debug info:', data);
             setWsDebugInfo(data);
         };
         
