@@ -286,24 +286,6 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                 </div>
             </div>
             
-            <div style={{
-                textAlign: 'center',
-                marginBottom: '1.5rem',
-                padding: '12px',
-                backgroundColor: storageMode === 'redis' ? '#eff6ff' : '#fef3c7',
-                borderRadius: '8px',
-                border: `1px solid ${storageMode === 'redis' ? '#bfdbfe' : '#fde68a'}`
-            }}>
-                <div style={{fontSize: '0.875rem', color: '#374151', marginBottom: '6px'}}>
-                    <strong>Real-time:</strong> {storageMode === 'redis' ? '🟢 Redis' : '🟡 MySQL'}
-                </div>
-                <div style={{fontSize: '0.75rem', color: '#6b7280', display: 'flex', justifyContent: 'center', gap: '16px'}}>
-                    <span>🔒 Locks: {redisOps.locks}</span>
-                    <span>👁️ Others: {redisOps.selections}</span>
-                    <span>✅ You: {redisOps.user_selection}</span>
-                </div>
-            </div>
-            
             <div style={{maxWidth: '100%', margin: '0 auto', padding: '0 20px'}}>
                 {isLoadingSlots ? (
                     <div style={{textAlign: 'center', padding: '40px'}}>

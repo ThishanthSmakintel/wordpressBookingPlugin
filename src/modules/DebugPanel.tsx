@@ -108,6 +108,17 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState
             <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px'}}>
                 <strong>🔍 BOOKING DEBUG</strong>
                 <div style={{display: 'flex', gap: '8px'}}>
+                    <button onClick={async () => {
+                        if (confirm('Clear all active slot locks?')) {
+                            const response = await fetch(`${window.bookingAPI?.root || '/wp-json/'}appointease/v1/clear-locks`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' }
+                            });
+                            const result = await response.json();
+                            alert(`Cleared ${result.deleted_locks} locks, ${result.deleted_transients} transients, ${result.redis_cleared} Redis keys`);
+                            window.location.reload();
+                        }
+                    }} style={{background: '#ef4444', border: 'none', color: '#fff', cursor: 'pointer', padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold'}} title="Clear All Locks">🗑️</button>
                     <button onClick={() => {
                         const logs = JSON.parse(sessionStorage.getItem('appointease_state_logs') || '[]');
                         const blob = new Blob([JSON.stringify(logs, null, 2)], { type: 'application/json' });
@@ -181,20 +192,10 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState
                 <div>Date: {selectedDate || 'None'} | Time: {selectedTime || 'None'}</div>
                 <div>Server: {serverDate || 'Not synced'} | Online: {isOnline ? '✅' : '❌'}</div>
                 <div>Logged In: {bookingState.isLoggedIn ? '✅' : '❌'} {bookingState.isLoggedIn && `(${bookingState.loginEmail})`}</div>
-                {connectionMode === 'websocket' && wsLatency > 0 && (
-                    <div style={{marginTop: '8px', padding: '8px', background: 'rgba(0,255,0,0.1)', borderRadius: '4px', border: '1px solid rgba(0,255,0,0.3)'}}>
-                        <div style={{color: '#0f0', fontSize: '10px', marginBottom: '4px'}}>⚡ REAL-TIME LATENCY</div>
-                        <div style={{fontSize: '20px', fontWeight: 'bold', color: '#0f0'}}>{wsLatency}ms</div>
-                        <div style={{fontSize: '9px', color: '#8f8', marginTop: '2px'}}>Round-trip time</div>
-                    </div>
-                )}
+
                 <div style={{marginTop: '4px'}}>
                     <span style={{color: '#ff0'}}>🔌 Connection: </span>
-                    {connectionMode === 'websocket' && (
-                        <span style={{color: '#0f0'}}>⚡ WebSocket</span>
-                    )}
-                    {connectionMode === 'polling' && <span style={{color: '#0f0'}}>✅ WP Heartbeat (5s)</span>}
-                    {connectionMode === 'disconnected' && <span style={{color: '#0f0'}}>✅ WP Heartbeat (5s)</span>}
+                    <span style={{color: '#0f0'}}>✅ WP Heartbeat (1s)</span>
                 </div>
                 <div style={{marginTop: '4px'}}>
                     <span style={{color: '#ff0'}}>💾 Storage: </span>
@@ -233,22 +234,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState
                         <div style={{fontSize: '9px'}}>👁️ Other Users: {redisOps?.selections || 0}</div>
                         <div style={{fontSize: '9px'}}>✅ Your Selection: {redisOps?.user_selection || 0}{tempSelected ? ' (' + tempSelected + ')' : ''}</div>
                         <div style={{fontSize: '8px', color: '#888', marginTop: '2px'}}>Debug: {JSON.stringify(redisOps)}</div>
-                        <button onClick={async () => {
-                            const logs = localStorage.getItem('heartbeat_logs') || 'No logs';
-                            const response = await fetch(`${window.bookingAPI?.root}appointease/v1/collect-logs`, {
-                                method: 'POST',
-                                headers: {'Content-Type': 'application/json'},
-                                body: JSON.stringify({
-                                    browser_logs: logs,
-                                    redis_ops: JSON.stringify(redisOps, null, 2)
-                                })
-                            });
-                            const result = await response.json();
-                            if (result.success) {
-                                alert('Logs saved to: ' + result.path);
-                                window.open(result.path, '_blank');
-                            }
-                        }} style={{background: '#3b82f6', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '8px', marginTop: '4px', width: '100%'}}>💾 Save Logs to File</button>
+
                         {debugState.activeSelections && debugState.activeSelections.length > 0 && (
                             <div style={{marginTop: '4px', fontSize: '8px', color: '#d97706'}}>
                                 <div>🔴 Others Selecting: {debugState.activeSelections.join(', ')}</div>
@@ -317,20 +303,7 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState
             </div>
             
 
-            <div style={{marginBottom: '8px'}}>
-                <button onClick={async () => {
-                    if (confirm('Clear all active slot locks?')) {
-                        const response = await fetch(`${window.bookingAPI?.root || '/wp-json/'}appointease/v1/clear-locks`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' }
-                        });
-                        const result = await response.json();
-                        alert(`Cleared ${result.deleted_locks} locks and ${result.deleted_transients} transients`);
-                        window.location.reload();
-                    }
-                }} style={{background: '#ef4444', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', width: '100%', fontWeight: 'bold'}}>🗑️ Clear All Active Locks</button>
-            </div>
-            
+
             <div style={{borderTop: '1px solid #333', paddingTop: '8px'}}>
                 <div style={{color: '#0ff'}}>📋 All Bookings ({debugState.allBookings.length}):</div>
                 {debugState.allBookings.length === 0 ? (
