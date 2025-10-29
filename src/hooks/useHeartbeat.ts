@@ -80,19 +80,18 @@ export const useHeartbeat = (options: HeartbeatOptions = {}) => {
 
     // Heartbeat tick event - process received data
     const handleTick = (event: any, data: any) => {
+      const timestamp = new Date().toISOString();
+      const logEntry = `\n[${timestamp}] TICK EVENT\nData: ${JSON.stringify(data, null, 2)}\n`;
+      
+      // Save to localStorage
+      try {
+        const logs = localStorage.getItem('heartbeat_logs') || '';
+        localStorage.setItem('heartbeat_logs', logs + logEntry);
+      } catch (e) {}
+      
+      console.log('[Heartbeat] ===== TICK EVENT FIRED =====');
+      console.log('[Heartbeat] Data:', data);
       const tickLatency = Date.now() - sendTimeRef.current;
-      
-      // Memoize: Only update if data changed
-      const dataHash = JSON.stringify({
-        selections: data.appointease_active_selections,
-        booked: data.appointease_booked_slots,
-        locked: data.appointease_locked_slots,
-        redis: data.redis_status
-      });
-      
-      if (dataHash === lastDataRef.current) return;
-      lastDataRef.current = dataHash;
-      
       setLatency(tickLatency);
       
       // Update storage mode only if changed
@@ -113,8 +112,14 @@ export const useHeartbeat = (options: HeartbeatOptions = {}) => {
       }
       
       // Handle poll response
+      console.log('[Heartbeat] ===== TICK RECEIVED =====');
+      console.log('[Heartbeat] onPoll exists?', !!onPoll);
+      console.log('[Heartbeat] Data received:', data);
       if (onPoll) {
+        console.log('[Heartbeat] Calling onPoll with data');
         onPoll(data);
+      } else {
+        console.log('[Heartbeat] ✗ No onPoll callback registered');
       }
 
       // Handle other responses

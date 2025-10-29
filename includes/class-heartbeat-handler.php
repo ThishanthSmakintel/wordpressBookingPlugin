@@ -27,33 +27,27 @@ class Appointease_Heartbeat_Handler {
     }
 
     public function handle_heartbeat($response, $data) {
-        error_log('[Heartbeat] ===== FILTER CALLED ===== Keys: ' . print_r(array_keys($data), true));
-        error_log('[Heartbeat] Full data: ' . print_r($data, true));
-        
-        // Always add a test response to verify filter is working
-        $response['appointease_test'] = 'heartbeat_working';
-        
-        // Fast health check using dedicated health key (avoids connection overhead)
-        $redis_available = $this->redis->health_check();
-        
-        // Add Redis status to every response
-        $response['redis_status'] = $redis_available ? 'available' : 'unavailable';
-        $response['storage_mode'] = $redis_available ? 'redis' : 'mysql';
-        
-        // Graceful failback: Sync transients to Redis after recovery
-        static $last_redis_status = null;
-        if ($last_redis_status === false && $redis_available === true) {
-            error_log('[Heartbeat] Redis recovered - syncing transients to Redis');
-            if (isset($data['appointease_poll']['date'], $data['appointease_poll']['employee_id'])) {
-                $this->redis->sync_transients_to_redis(
-                    $data['appointease_poll']['date'],
-                    $data['appointease_poll']['employee_id']
-                );
-            }
-        }
-        $last_redis_status = $redis_available;
-        
         try {
+            $response['appointease_test'] = 'heartbeat_working';
+            $redis_available = $this->redis->health_check();
+            
+            // Add Redis status to every response
+            $response['redis_status'] = $redis_available ? 'available' : 'unavailable';
+            $response['storage_mode'] = $redis_available ? 'redis' : 'mysql';
+            
+            // Graceful failback: Sync transients to Redis after recovery
+            static $last_redis_status = null;
+            if ($last_redis_status === false && $redis_available === true) {
+                error_log('[Heartbeat] Redis recovered - syncing transients to Redis');
+                if (isset($data['appointease_poll']['date'], $data['appointease_poll']['employee_id'])) {
+                    $this->redis->sync_transients_to_redis(
+                        $data['appointease_poll']['date'],
+                        $data['appointease_poll']['employee_id']
+                    );
+                }
+            }
+            $last_redis_status = $redis_available;
+            
             // Handle slot selection
             if (isset($data['appointease_select'])) {
                 error_log('[Heartbeat] Processing slot selection: ' . print_r($data['appointease_select'], true));
@@ -73,6 +67,11 @@ class Appointease_Heartbeat_Handler {
                 $employee_id = intval($poll_data['employee_id']);
                 $client_id = isset($poll_data['client_id']) ? sanitize_text_field($poll_data['client_id']) : null;
                 $selected_time = isset($poll_data['selected_time']) ? sanitize_text_field($poll_data['selected_time']) : null;
+                
+                // Skip if no date/employee (invalid request)
+                if (empty($date) || $employee_id <= 0) {
+                    return $response;
+                }
                 
                 error_log('[Heartbeat] Polling for date: ' . $date . ', employee: ' . $employee_id . ', client: ' . $client_id . ', time: ' . $selected_time);
                 
@@ -172,29 +171,15 @@ class Appointease_Heartbeat_Handler {
                     'locks' => count($locked_slots),
                     'selections' => count($active_times)
                 );
-                
-                // Add Redis stats if available
-                if ($redis_available) {
-                    $stats = $this->redis->get_stats();
-                    if ($stats) {
-                        $response['redis_stats'] = $stats;
-                    }
-                }
             }
-        } catch (Exception $e) {
-            error_log('[Heartbeat] Error in poll handler: ' . $e->getMessage());
-            $response['redis_status'] = 'error';
-            $response['storage_mode'] = 'mysql';
-        }
-        
-        if (!isset($data['appointease_booking'])) {
-            return $response;
-        }
-
-        try {
+            
+            if (!isset($data['appointease_booking'])) {
+                return $response;
+            }
+            
             $booking_data = $data['appointease_booking'];
-        
-        switch ($booking_data['action']) {
+            
+            switch ($booking_data['action']) {
             case 'get_user_data':
                 $response['appointease_booking'] = $this->get_user_booking_data($booking_data);
                 break;
@@ -223,18 +208,13 @@ class Appointease_Heartbeat_Handler {
                 $response['appointease_booking'] = $this->send_otp($booking_data);
                 break;
                 
-            case 'verify_otp':
-                $response['appointease_booking'] = $this->verify_otp($booking_data);
-                break;
+                case 'verify_otp':
+                    $response['appointease_booking'] = $this->verify_otp($booking_data);
+                    break;
             }
-        } catch (Exception $e) {
-            error_log('[Heartbeat] Error in booking handler: ' . $e->getMessage());
-            $response['appointease_booking'] = array('error' => 'Server error: ' . $e->getMessage());
-        }
-        
-        // Handle debug requests
-        if (isset($data['appointease_debug'])) {
-            try {
+            
+            // Handle debug requests
+            if (isset($data['appointease_debug'])) {
                 $debug_data = $data['appointease_debug'];
                 switch ($debug_data['action']) {
                     case 'get_selections':
@@ -244,14 +224,18 @@ class Appointease_Heartbeat_Handler {
                         $response['appointease_debug'] = $this->clear_all_locks();
                         break;
                 }
-            } catch (Exception $e) {
-                error_log('[Heartbeat] Error in debug handler: ' . $e->getMessage());
-                $response['appointease_debug'] = array('error' => $e->getMessage());
             }
+            
+            return $response;
+        } catch (Exception $e) {
+            error_log('[Heartbeat] FATAL ERROR: ' . $e->getMessage());
+            error_log('[Heartbeat] Stack trace: ' . $e->getTraceAsString());
+            return array(
+                'appointease_test' => 'error',
+                'error' => $e->getMessage(),
+                'redis_status' => 'error'
+            );
         }
-
-        error_log('[Heartbeat] ===== RETURNING RESPONSE ===== ' . print_r(array_keys($response), true));
-        return $response;
     }
 
     private function get_user_booking_data($data) {

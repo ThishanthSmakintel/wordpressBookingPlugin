@@ -193,6 +193,13 @@ class Booking_API_Endpoints {
             'permission_callback' => '__return_true'
         ));
         
+        // Log endpoint
+        register_rest_route('appointease/v1', '/log', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'write_log'),
+            'permission_callback' => '__return_true'
+        ));
+        
         // Redis slot selection endpoints (guest-friendly)
         register_rest_route('appointease/v1', '/slots/select', array(
             'methods' => 'POST',
@@ -1753,5 +1760,17 @@ class Booking_API_Endpoints {
         } catch (Exception $e) {
             return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
+    }
+    
+    public function write_log($request) {
+        $params = $request->get_json_params();
+        if (!isset($params['logs'])) {
+            return new WP_Error('missing_logs', 'Logs data required', array('status' => 400));
+        }
+        
+        $log_file = plugin_dir_path(dirname(__FILE__)) . 'appointease-debug.log';
+        file_put_contents($log_file, $params['logs'], FILE_APPEND | LOCK_EX);
+        
+        return rest_ensure_response(array('success' => true));
     }
 }

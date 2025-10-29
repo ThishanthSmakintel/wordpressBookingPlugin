@@ -3,7 +3,7 @@ import { useAppointmentStore as useBookingStore } from '../../../../hooks/useApp
 import { useBookingState } from '../../../../hooks/useBookingState';
 import { StepWrapper } from '../../../shared/components/StepWrapper';
 import { AppointmentSummary } from '../../../shared/components/AppointmentSummary';
-import { BookingTimer } from '../../../../components/BookingTimer';
+
 
 // Legacy imports
 import ServiceSelector from '../../../../components/forms/ServiceSelector';
@@ -226,13 +226,7 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
               <div style={{marginTop: '4px', color: '#10b981'}}>✅ Lock message sent on mount</div>
             </div>
             
-            <BookingTimer 
-              duration={600000}
-              onExpire={() => {
-                setStep(4);
-                setErrors({ time: 'Your slot reservation expired. Please select a new time.' });
-              }}
-            />
+
             
             <div className="booking-summary">
               <h3>Appointment Summary</h3>

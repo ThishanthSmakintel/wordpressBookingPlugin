@@ -2,6 +2,7 @@ import { registerBlockType } from '@wordpress/blocks';
 import { InspectorControls, useBlockProps } from '@wordpress/block-editor';
 import { PanelBody, ColorPalette } from '@wordpress/components';
 import { __ } from '@wordpress/i18n';
+import { initLogger } from '../src/utils/logger';
 
 registerBlockType('appointease/booking-form', {
     title: __('AppointEase Booking', 'booking-plugin'),

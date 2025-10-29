@@ -32,11 +32,21 @@ export const useHeartbeatSlotPolling = ({ date, employeeId, enabled = true, clie
       selected_time: selectedTime
     } : null,
     onPoll: (data: any) => {
+      const timestamp = new Date().toISOString();
+      const logData = `\n[${timestamp}] POLL RECEIVED\nFull data: ${JSON.stringify(data, null, 2)}\nActive: ${JSON.stringify(data?.appointease_active_selections)}\nBooked: ${JSON.stringify(data?.appointease_booked_slots)}\nLocked: ${JSON.stringify(data?.appointease_locked_slots)}\n`;
+      
+      // Log to console
       console.log('[HeartbeatPolling] ===== POLL RECEIVED =====');
       console.log('[HeartbeatPolling] Full data:', data);
       console.log('[HeartbeatPolling] Active selections:', data?.appointease_active_selections);
       console.log('[HeartbeatPolling] Booked slots:', data?.appointease_booked_slots);
       console.log('[HeartbeatPolling] Locked slots:', data?.appointease_locked_slots);
+      
+      // Save to localStorage for debugging
+      try {
+        const existingLogs = localStorage.getItem('heartbeat_logs') || '';
+        localStorage.setItem('heartbeat_logs', existingLogs + logData);
+      } catch (e) {}
       
       const active = data?.appointease_active_selections || [];
       const booked = data?.appointease_booked_slots || [];

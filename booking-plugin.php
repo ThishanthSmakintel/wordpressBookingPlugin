@@ -19,6 +19,11 @@ if (!defined('ABSPATH')) {
     wp_die('Direct access not allowed.');
 }
 
+// Debug AJAX errors
+if (defined('DOING_AJAX') && DOING_AJAX) {
+    require_once __DIR__ . '/debug-ajax.php';
+}
+
 define('BOOKING_PLUGIN_VERSION', '1.0.0');
 define('BOOKING_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -41,12 +46,30 @@ booking_plugin_require_file('includes/class-settings.php');
 booking_plugin_require_file('includes/class-db-seeder.php');
 booking_plugin_require_file('includes/class-db-reset.php');
 booking_plugin_require_file('includes/class-db-reset-filters.php');
+booking_plugin_require_file('includes/class-redis-helper.php');
 booking_plugin_require_file('includes/class-api-endpoints.php');
 booking_plugin_require_file('includes/class-heartbeat-handler.php');
 booking_plugin_require_file('includes/session-manager.php');
 
 register_activation_hook(__FILE__, array('Booking_Activator', 'activate'));
 register_deactivation_hook(__FILE__, array('Booking_Deactivator', 'deactivate'));
+
+// Cron job to clean expired locks every 5 minutes
+if (!wp_next_scheduled('appointease_clean_locks')) {
+    wp_schedule_event(time(), 'appointease_5min', 'appointease_clean_locks');
+}
+add_filter('cron_schedules', function($schedules) {
+    $schedules['appointease_5min'] = array('interval' => 300, 'display' => 'Every 5 Minutes');
+    return $schedules;
+});
+add_action('appointease_clean_locks', function() {
+    global $wpdb;
+    $locks_table = $wpdb->prefix . 'appointease_slot_locks';
+    $deleted = $wpdb->query("DELETE FROM {$locks_table} WHERE expires_at < UTC_TIMESTAMP()");
+    if ($deleted > 0) {
+        error_log('[Cron] Cleaned ' . $deleted . ' expired locks');
+    }
+});
 
 // Initialize heartbeat handler at plugins_loaded (before init)
 add_action('plugins_loaded', function() {
@@ -91,12 +114,14 @@ add_action('init', function() {
     }
 });
 
+// Clear cron on deactivation
+register_deactivation_hook(__FILE__, function() {
+    wp_clear_scheduled_hook('appointease_clean_locks');
+});
+
 if (is_admin()) {
     require_once BOOKING_PLUGIN_PATH . 'admin/appointease-admin.php';
     require_once BOOKING_PLUGIN_PATH . 'admin/db-reset-admin.php';
-    require_once BOOKING_PLUGIN_PATH . 'admin/websocket-admin.php';
-    require_once BOOKING_PLUGIN_PATH . 'admin/websocket-status.php';
-    require_once BOOKING_PLUGIN_PATH . 'admin/websocket-setup-page.php';
     
     // Add seeder menu item
     add_action('admin_menu', function() {
