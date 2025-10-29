@@ -1,8 +1,0 @@
-@echo off
-echo ========================================
-echo   AppointEase WebSocket Server
-echo ========================================
-echo.
-echo Starting WebSocket server on port 8080...
-echo.
-node websocket-server.js
