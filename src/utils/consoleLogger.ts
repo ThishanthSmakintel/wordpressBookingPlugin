@@ -85,19 +85,8 @@ class ConsoleLogger {
   }
 
   private async saveLogs() {
-    try {
-      const response = await fetch(`${(window as any).bookingAPI?.root}appointease/v1/save-browser-logs`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({ logs: this.logs })
-      });
-      
-      if (response.ok) {
-        this.logs = []; // Clear after successful save
-      }
-    } catch (e) {
-      // Silent fail
-    }
+    // Disabled - endpoint not needed
+    this.logs = [];
   }
 }
 

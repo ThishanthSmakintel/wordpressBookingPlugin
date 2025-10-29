@@ -1370,66 +1370,43 @@ class Booking_API_Endpoints {
      * Track active slot selections (Redis ONLY - no database)
      */
     public function realtime_select($request) {
+        $start = microtime(true);
         try {
             $params = $request->get_json_params();
             
-            if (!isset($params['date'], $params['time'], $params['employee_id'])) {
-                return new WP_Error('missing_params', 'Date, time and employee_id required', array('status' => 400));
+            if (!isset($params['date'], $params['time'], $params['employee_id'], $params['client_id'])) {
+                return new WP_Error('missing_params', 'Date, time, employee_id and client_id required', array('status' => 400));
             }
             
             $date = sanitize_text_field($params['date']);
             $time = sanitize_text_field($params['time']);
             $employee_id = intval($params['employee_id']);
+            $client_id = sanitize_text_field($params['client_id']);
             
-            $user_ip = $_SERVER['REMOTE_ADDR'];
-            $user_agent = $_SERVER['HTTP_USER_AGENT'];
-            $user_id = md5($user_ip . $user_agent);
+            $redis_check = microtime(true);
+            $redis_enabled = $this->redis->is_enabled();
+            error_log('[SELECT] Redis check: ' . (($redis_check - $start) * 1000) . 'ms, enabled: ' . ($redis_enabled ? 'YES' : 'NO'));
             
-            $client_id = 'CLIENT_' . uniqid() . '_' . wp_generate_password(8, false);
-            $lock_key = "appointease_lock_{$date}_{$employee_id}_{$time}";
-            
-            // Redis ONLY - 10 minute lock
-            if ($this->redis->is_enabled()) {
-                // Remove user's old lock (one slot per user)
-                $old_locks = $this->redis->get_locks_by_pattern("appointease_lock_{$date}_{$employee_id}_*");
-                foreach ($old_locks as $lock) {
-                    if (isset($lock['user_id']) && $lock['user_id'] === $user_id) {
-                        $old_time = $lock['time'] ?? '';
-                        if ($old_time) {
-                            $old_key = "appointease_lock_{$date}_{$employee_id}_" . substr($old_time, 0, 5);
-                            $this->redis->delete_lock($old_key, $lock['client_id'] ?? null);
-                        }
-                    }
+            if ($redis_enabled) {
+                $set_start = microtime(true);
+                $success = $this->redis->set_active_selection($date, $employee_id, $time, $client_id);
+                $set_duration = (microtime(true) - $set_start) * 1000;
+                
+                error_log('[SELECT] set_active_selection: ' . $set_duration . 'ms, success: ' . ($success ? 'YES' : 'NO'));
+                
+                if (!$success) {
+                    return new WP_Error('selection_failed', 'Failed to set selection', array('status' => 500));
                 }
                 
-                // Atomic lock with conflict check
-                $locked = $this->redis->atomic_lock($lock_key, array(
-                    'date' => $date,
-                    'time' => $time,
-                    'employee_id' => $employee_id,
-                    'client_id' => $client_id,
-                    'user_id' => $user_id
-                ), 600);
-                
-                if (!$locked) {
-                    return new WP_Error('already_locked', 'Slot is already locked by another user', array('status' => 409));
-                }
-                
-                // Publish to scoped Pub/Sub channel
-                $pubsub = Appointease_Redis_PubSub::get_instance();
-                if ($pubsub->is_enabled()) {
-                    $pubsub->publish_slot_event('lock', $date, $employee_id, $time, [
-                        'user_id' => $user_id,
-                        'client_id' => $client_id
-                    ]);
-                }
+                $total = (microtime(true) - $start) * 1000;
+                error_log('[SELECT] Total: ' . $total . 'ms');
                 
                 return rest_ensure_response(array(
                     'success' => true,
                     'client_id' => $client_id,
-                    'locked' => true,
                     'storage' => 'redis',
-                    'ttl' => 600
+                    'ttl' => 10,
+                    'debug_ms' => round($total, 2)
                 ));
             }
             
@@ -1483,18 +1460,10 @@ class Booking_API_Endpoints {
             $time = sanitize_text_field($params['time']);
             $employee_id = intval($params['employee_id']);
             
-            $lock_key = "appointease_lock_{$date}_{$employee_id}_{$time}";
-            
             if ($this->redis->is_enabled()) {
-                $this->redis->delete_lock($lock_key);
-                
-                // Publish unlock event to scoped channel
-                $pubsub = Appointease_Redis_PubSub::get_instance();
-                if ($pubsub->is_enabled()) {
-                    $pubsub->publish_slot_event('unlock', $date, $employee_id, $time);
-                }
+                $slot_key = "appointease_active_{$date}_{$employee_id}_{$time}";
+                $this->redis->delete_lock($slot_key);
             } else {
-                // Fallback to transients
                 $key = "appointease_active_{$date}_{$employee_id}";
                 $selections = get_transient($key) ?: array();
                 unset($selections[$time]);
