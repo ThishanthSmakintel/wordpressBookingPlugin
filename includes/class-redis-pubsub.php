@@ -81,27 +81,57 @@ class Appointease_Redis_PubSub {
         return $this->enabled && $this->redis !== null;
     }
 
+    /**
+     * Publish with structured channel naming
+     * Channel format: appointease:slots:{date}:{employee_id}
+     */
     public function publish($channel, $message) {
         if (!$this->is_enabled()) {
             return false;
         }
         
         try {
-            // Validate and encode message
-            $json_message = json_encode($message, JSON_THROW_ON_ERROR);
+            // Add timestamp and event metadata
+            $enriched_message = array_merge($message, [
+                'timestamp' => time(),
+                'server_time' => current_time('mysql')
+            ]);
+            
+            $json_message = json_encode($enriched_message, JSON_THROW_ON_ERROR);
             
             if ($json_message === false) {
                 throw new Exception('JSON encoding failed');
             }
             
-            $result = $this->redis->publish($channel, $json_message);
-            return $result !== false;
+            $subscribers = $this->redis->publish($channel, $json_message);
+            
+            // Log if no subscribers (debugging)
+            if ($subscribers === 0) {
+                error_log("[Redis PubSub] No subscribers for channel: {$channel}");
+            }
+            
+            return $subscribers !== false;
             
         } catch (Exception $e) {
             error_log('[Redis PubSub] Publish failed: ' . $e->getMessage());
             $this->handle_connection_error();
             return false;
         }
+    }
+    
+    /**
+     * Publish to scoped channel (date-specific)
+     */
+    public function publish_slot_event($action, $date, $employee_id, $time, $data = []) {
+        $channel = "appointease:slots:{$date}:{$employee_id}";
+        $message = array_merge([
+            'action' => $action,
+            'date' => $date,
+            'employee_id' => $employee_id,
+            'time' => $time
+        ], $data);
+        
+        return $this->publish($channel, $message);
     }
 
     public function get_messages($channel, $timeout = 1) {
@@ -147,6 +177,25 @@ class Appointease_Redis_PubSub {
         return $this->is_enabled();
     }
 
+    /**
+     * Get channel stats
+     */
+    public function get_channel_stats() {
+        if (!$this->is_enabled()) {
+            return null;
+        }
+        
+        try {
+            $info = $this->redis->info('stats');
+            return [
+                'pubsub_channels' => $this->redis->pubsub('CHANNELS', 'appointease:*'),
+                'pubsub_patterns' => $this->redis->pubsub('NUMPAT')
+            ];
+        } catch (Exception $e) {
+            return null;
+        }
+    }
+    
     public function __destruct() {
         if ($this->redis) {
             try {

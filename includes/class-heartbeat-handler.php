@@ -108,23 +108,27 @@ class Appointease_Heartbeat_Handler {
                     $date, $employee_id
                 ));
                 
-                // Get locked slots from database (exclude user's own locks)
-                $locks_table = $wpdb->prefix . 'appointease_slot_locks';
-                
-                // Clean expired locks first
-                $wpdb->query("DELETE FROM {$locks_table} WHERE expires_at < UTC_TIMESTAMP()");
-                
-                // Get user identifier to exclude their locks
+                // Get locked slots from Redis (exclude user's own locks)
+                $locked_slots = array();
                 $user_ip = $_SERVER['REMOTE_ADDR'] ?? '127.0.0.1';
                 $user_agent = $_SERVER['HTTP_USER_AGENT'] ?? 'Unknown';
                 $user_id = md5($user_ip . $user_agent);
                 
-                // Simple SQL query: exclude locks with current user_id
-                $locked_slots = $wpdb->get_col($wpdb->prepare(
-                    "SELECT TIME_FORMAT(time, '%%H:%%i') FROM {$locks_table} 
-                     WHERE date = %s AND employee_id = %d AND expires_at > UTC_TIMESTAMP() AND user_id != %s",
-                    $date, $employee_id, $user_id
-                ));
+                if ($redis_available) {
+                    $pattern = "appointease_lock_{$date}_{$employee_id}_*";
+                    $redis_locks = $this->redis->get_locks_by_pattern($pattern);
+                    
+                    foreach ($redis_locks as $lock) {
+                        // Exclude current user's locks
+                        if (isset($lock['user_id']) && $lock['user_id'] !== $user_id) {
+                            $time_slot = isset($lock['time']) ? substr($lock['time'], 0, 5) : '';
+                            if ($time_slot) {
+                                $locked_slots[] = $time_slot;
+                            }
+                        }
+                    }
+                    error_log('[Heartbeat] Found ' . count($redis_locks) . ' Redis locks, ' . count($locked_slots) . ' from other users');
+                }
                 
                 // Get active selections from Redis with transient fallback
                 $selections = array();

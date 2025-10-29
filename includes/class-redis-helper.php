@@ -135,21 +135,34 @@ class Appointease_Redis_Helper {
         }
     }
 
-    // Get all locks for a date/employee
+    /**
+     * Get all locks using SCAN (non-blocking)
+     * Safer than KEYS for production
+     */
     public function get_locks_by_pattern($pattern) {
         if (!$this->enabled || !$this->redis) return [];
         
         try {
-            $keys = $this->redis->keys($pattern);
             $locks = [];
-            foreach ($keys as $key) {
-                $data = $this->redis->get($key);
-                if ($data) {
-                    $locks[] = json_decode($data, true);
+            $iterator = null;
+            
+            // Use SCAN instead of KEYS (non-blocking)
+            while ($keys = $this->redis->scan($iterator, $pattern, 100)) {
+                foreach ($keys as $key) {
+                    $data = $this->redis->get($key);
+                    if ($data) {
+                        $lock = json_decode($data, true);
+                        if ($lock) {
+                            $lock['_ttl'] = $this->redis->ttl($key);
+                            $locks[] = $lock;
+                        }
+                    }
                 }
+                if ($iterator === 0) break;
             }
             return $locks;
         } catch (Exception $e) {
+            error_log('[Redis] SCAN failed: ' . $e->getMessage());
             return [];
         }
     }
@@ -193,17 +206,28 @@ class Appointease_Redis_Helper {
         }
     }
 
+    /**
+     * Clear all locks using SCAN (production-safe)
+     */
     public function clear_all_locks() {
         if (!$this->enabled || !$this->redis) return 0;
         
         try {
-            $keys = $this->redis->keys('appointease_lock_*');
-            $active_keys = $this->redis->keys('appointease_active_*');
-            $all_keys = array_merge($keys, $active_keys);
+            $deleted = 0;
+            $patterns = ['appointease_lock_*', 'appointease_active_*'];
             
-            if (empty($all_keys)) return 0;
-            return $this->redis->del($all_keys);
+            foreach ($patterns as $pattern) {
+                $iterator = null;
+                while ($keys = $this->redis->scan($iterator, $pattern, 100)) {
+                    if (!empty($keys)) {
+                        $deleted += $this->redis->del($keys);
+                    }
+                    if ($iterator === 0) break;
+                }
+            }
+            return $deleted;
         } catch (Exception $e) {
+            error_log('[Redis] Clear locks failed: ' . $e->getMessage());
             return 0;
         }
     }
@@ -274,7 +298,7 @@ class Appointease_Redis_Helper {
      * Atomic SETNX - Set if not exists (atomic lock)
      * Returns true if key was set, false if already exists
      */
-    public function atomic_lock($key, $value, $ttl = 10) {
+    public function atomic_lock($key, $value, $ttl = 600) {
         if (!$this->enabled || !$this->redis) return false;
         
         try {
@@ -426,6 +450,91 @@ LUA;
             return $this->redis->exists($key) > 0;
         } catch (Exception $e) {
             return false;
+        }
+    }
+    
+    /**
+     * Redis Hash operations for grouped slot data
+     * Store all slots for a date in one hash
+     */
+    public function lock_slot_hash($date, $employee_id, $time, $data, $ttl = 600) {
+        if (!$this->enabled || !$this->redis) return false;
+        
+        try {
+            $hash_key = "appointease:locks:{$date}:{$employee_id}";
+            $field = $time;
+            
+            // Check if slot already locked
+            if ($this->redis->hExists($hash_key, $field)) {
+                return false;
+            }
+            
+            // Set field and update hash TTL
+            $this->redis->hSet($hash_key, $field, json_encode($data));
+            $this->redis->expire($hash_key, $ttl);
+            return true;
+        } catch (Exception $e) {
+            error_log('[Redis] Hash lock failed: ' . $e->getMessage());
+            return false;
+        }
+    }
+    
+    public function unlock_slot_hash($date, $employee_id, $time) {
+        if (!$this->enabled || !$this->redis) return false;
+        
+        try {
+            $hash_key = "appointease:locks:{$date}:{$employee_id}";
+            return $this->redis->hDel($hash_key, $time) > 0;
+        } catch (Exception $e) {
+            return false;
+        }
+    }
+    
+    public function get_all_locks_hash($date, $employee_id) {
+        if (!$this->enabled || !$this->redis) return [];
+        
+        try {
+            $hash_key = "appointease:locks:{$date}:{$employee_id}";
+            $locks = $this->redis->hGetAll($hash_key);
+            
+            $result = [];
+            foreach ($locks as $time => $data) {
+                $result[$time] = json_decode($data, true);
+            }
+            return $result;
+        } catch (Exception $e) {
+            return [];
+        }
+    }
+    
+    /**
+     * Enable keyspace notifications for expiration events
+     */
+    public function enable_expiration_events() {
+        if (!$this->enabled || !$this->redis) return false;
+        
+        try {
+            return $this->redis->config('SET', 'notify-keyspace-events', 'Ex');
+        } catch (Exception $e) {
+            error_log('[Redis] Failed to enable keyspace events: ' . $e->getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Get Redis persistence config
+     */
+    public function get_persistence_config() {
+        if (!$this->enabled || !$this->redis) return null;
+        
+        try {
+            $config = $this->redis->config('GET', 'appendonly');
+            return [
+                'aof_enabled' => $config['appendonly'] === 'yes',
+                'save_config' => $this->redis->config('GET', 'save')
+            ];
+        } catch (Exception $e) {
+            return null;
         }
     }
     

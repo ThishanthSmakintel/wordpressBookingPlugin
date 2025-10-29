@@ -6,7 +6,13 @@
 class BookingSessionManager {
     
     private static $instance = null;
-    private $token_expiry = 3600; // 1 hour
+    private $redis = null;
+    private $token_expiry = 86400; // 24 hours
+    
+    private function __construct() {
+        require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-redis-helper.php';
+        $this->redis = Appointease_Redis_Helper::get_instance();
+    }
     
     public static function getInstance() {
         if (self::$instance === null) {
@@ -33,10 +39,22 @@ class BookingSessionManager {
         $token = bin2hex(random_bytes(32));
         $expiry = time() + $this->token_expiry;
         
-        // Store hashed token with expiry
-        update_user_meta($user->ID, '_booking_session_token', hash('sha256', $token));
-        update_user_meta($user->ID, '_booking_session_expiry', $expiry);
-        update_user_meta($user->ID, '_booking_last_activity', time());
+        // Store in Redis first (fast), fallback to user meta
+        $session_key = "appointease:session:{$token}";
+        $session_data = [
+            'user_id' => $user->ID,
+            'email' => $email,
+            'created' => time(),
+            'expires' => $expiry
+        ];
+        
+        if ($this->redis->is_enabled()) {
+            $this->redis->atomic_lock($session_key, $session_data, $this->token_expiry);
+        } else {
+            update_user_meta($user->ID, '_booking_session_token', hash('sha256', $token));
+            update_user_meta($user->ID, '_booking_session_expiry', $expiry);
+            update_user_meta($user->ID, '_booking_last_activity', time());
+        }
         
         // Set secure HTTP-only cookie
         $this->setSecureCookie($token, $expiry);
@@ -60,16 +78,13 @@ class BookingSessionManager {
             return false;
         }
         
-        // Cache check
-        $cache_key = 'booking_session_' . md5($token);
-        $cached_user_id = wp_cache_get($cache_key, 'booking_sessions');
-        
-        if ($cached_user_id !== false) {
-            $user = get_user_by('id', $cached_user_id);
-            if ($user) {
-                $expiry = get_user_meta($user->ID, '_booking_session_expiry', true);
-                if (time() <= $expiry) {
-                    update_user_meta($user->ID, '_booking_last_activity', time());
+        // Check Redis first (fast)
+        $session_key = "appointease:session:{$token}";
+        if ($this->redis->is_enabled()) {
+            $session_data = $this->redis->get_lock($session_key);
+            if ($session_data && isset($session_data['user_id'])) {
+                $user = get_user_by('id', $session_data['user_id']);
+                if ($user) {
                     return $user;
                 }
             }
@@ -108,16 +123,11 @@ class BookingSessionManager {
      * Clear session
      */
     public function clearSession($user_id = null) {
-        if (!$user_id) {
-            $token = $this->getTokenFromRequest();
-            if ($token) {
-                $cache_key = 'booking_session_' . md5($token);
-                wp_cache_delete($cache_key, 'booking_sessions');
-                
-                $user = $this->validateSession($token);
-                if ($user) {
-                    $user_id = $user->ID;
-                }
+        $token = $this->getTokenFromRequest();
+        if ($token) {
+            $session_key = "appointease:session:{$token}";
+            if ($this->redis->is_enabled()) {
+                $this->redis->delete_lock($session_key);
             }
         }
         

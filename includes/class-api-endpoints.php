@@ -173,6 +173,13 @@ class Booking_API_Endpoints {
             'permission_callback' => '__return_true'
         ));
         
+        // Redis monitoring endpoint (public access)
+        register_rest_route('appointease/v1', '/redis/stats', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'get_redis_stats'),
+            'permission_callback' => array($this, 'public_permission')
+        ));
+        
         // Admin calendar endpoints
         register_rest_route('appointease/v1', '/admin/appointments', array(
             'methods' => 'GET',
@@ -390,40 +397,29 @@ class Booking_API_Endpoints {
         $active_selections = get_transient($key) ?: array();
         error_log('[AVAILABILITY] Active selections from transient: ' . json_encode($active_selections));
         
-        // Check active slot locks FIRST (processing bookings take priority)
-        $locks_table = $wpdb->prefix . 'appointease_slot_locks';
-        
-        // Clean expired locks first
-        $deleted = $wpdb->query("DELETE FROM {$locks_table} WHERE expires_at < UTC_TIMESTAMP()");
-        if ($deleted > 0) {
-            error_log("[AVAILABILITY] Cleaned {$deleted} expired locks");
-        }
-        
-        $locked_slots = $wpdb->get_results($wpdb->prepare(
-            "SELECT TIME_FORMAT(time, '%%H:%%i') as time_slot, client_id, TIMESTAMPDIFF(SECOND, UTC_TIMESTAMP(), expires_at) as remaining FROM {$locks_table} WHERE date = %s AND employee_id = %s AND expires_at > UTC_TIMESTAMP()",
-            $date, $employee_id
-        ));
-        
-        error_log('[AVAILABILITY] Date: ' . $date . ', Employee: ' . $employee_id);
-        error_log('[AVAILABILITY] Locks table: ' . $locks_table);
-        error_log('[AVAILABILITY] Locks query error: ' . $wpdb->last_error);
-        error_log('[AVAILABILITY] Found ' . count($locked_slots) . ' locked slots');
-        if (count($locked_slots) > 0) {
-            error_log('[AVAILABILITY] Lock details: ' . json_encode($locked_slots));
-        }
-        
-        foreach ($locked_slots as $lock) {
-            $time_slot = $lock->time_slot;
-            $booked_times[] = $time_slot;
-            $booking_details[$time_slot] = array(
-                'customer_name' => 'Viewing by other user',
-                'customer_email' => '',
-                'status' => 'processing',
-                'booking_id' => 'LOCK-' . substr($lock->client_id, 0, 8),
-                'booked_at' => $time_slot,
-                'is_locked' => true,
-                'lock_remaining' => intval($lock->remaining)
-            );
+        // Check Redis locks FIRST (processing bookings take priority)
+        if ($this->redis->is_enabled()) {
+            $pattern = "appointease_lock_{$date}_{$employee_id}_*";
+            $locked_slots = $this->redis->get_locks_by_pattern($pattern);
+            
+            error_log('[AVAILABILITY] Found ' . count($locked_slots) . ' Redis locks');
+            
+            foreach ($locked_slots as $lock) {
+                $time_slot = isset($lock['time']) ? substr($lock['time'], 0, 5) : '';
+                if ($time_slot && !in_array($time_slot, $booked_times)) {
+                    $booked_times[] = $time_slot;
+                    $ttl = $this->redis->get_ttl("appointease_lock_{$date}_{$employee_id}_{$time_slot}");
+                    $booking_details[$time_slot] = array(
+                        'customer_name' => 'Viewing by other user',
+                        'customer_email' => '',
+                        'status' => 'processing',
+                        'booking_id' => 'LOCK-' . substr($lock['client_id'] ?? '', 0, 8),
+                        'booked_at' => $time_slot,
+                        'is_locked' => true,
+                        'lock_remaining' => max(0, $ttl)
+                    );
+                }
+            }
         }
         
         // Clean old format entries and add active selections
@@ -1275,28 +1271,26 @@ class Booking_API_Endpoints {
         $booked_times = array();
         $booking_details = array();
         
-        // Check active slot locks FIRST (processing bookings take priority)
-        $locks_table = $wpdb->prefix . 'appointease_slot_locks';
-        
-        // Clean expired locks first
-        $wpdb->query("DELETE FROM {$locks_table} WHERE expires_at < UTC_TIMESTAMP()");
-        
-        $locked_slots = $wpdb->get_results($wpdb->prepare(
-            "SELECT TIME_FORMAT(time, '%%H:%%i') as time_slot, client_id, TIMESTAMPDIFF(SECOND, UTC_TIMESTAMP(), expires_at) as remaining FROM {$locks_table} WHERE date = %s AND employee_id = %s AND expires_at > UTC_TIMESTAMP()",
-            $date, $employee_id
-        ));
-        
-        foreach ($locked_slots as $lock) {
-            $time_slot = $lock->time_slot;
-            $booked_times[] = $time_slot;
-            $booking_details[$time_slot] = array(
-                'customer_name' => 'Processing',
-                'customer_email' => '',
-                'status' => 'processing',
-                'booking_id' => 'LOCK-' . substr($lock->client_id, 0, 8),
-                'is_locked' => true,
-                'lock_remaining' => intval($lock->remaining)
-            );
+        // Check Redis locks FIRST (processing bookings take priority)
+        if ($this->redis->is_enabled()) {
+            $pattern = "appointease_lock_{$date}_{$employee_id}_*";
+            $locked_slots = $this->redis->get_locks_by_pattern($pattern);
+            
+            foreach ($locked_slots as $lock) {
+                $time_slot = isset($lock['time']) ? substr($lock['time'], 0, 5) : '';
+                if ($time_slot && !in_array($time_slot, $booked_times)) {
+                    $booked_times[] = $time_slot;
+                    $ttl = $this->redis->get_ttl("appointease_lock_{$date}_{$employee_id}_{$time_slot}");
+                    $booking_details[$time_slot] = array(
+                        'customer_name' => 'Processing',
+                        'customer_email' => '',
+                        'status' => 'processing',
+                        'booking_id' => 'LOCK-' . substr($lock['client_id'] ?? '', 0, 8),
+                        'is_locked' => true,
+                        'lock_remaining' => max(0, $ttl)
+                    );
+                }
+            }
         }
         
         // Then add confirmed appointments (locks override confirmed appointments)
@@ -1373,7 +1367,7 @@ class Booking_API_Endpoints {
     }
     
     /**
-     * Track active slot selections (real-time) + Database lock
+     * Track active slot selections (Redis ONLY - no database)
      */
     public function realtime_select($request) {
         try {
@@ -1383,152 +1377,91 @@ class Booking_API_Endpoints {
                 return new WP_Error('missing_params', 'Date, time and employee_id required', array('status' => 400));
             }
             
-            global $wpdb;
             $date = sanitize_text_field($params['date']);
             $time = sanitize_text_field($params['time']);
             $employee_id = intval($params['employee_id']);
             
-            // Get user identifier (IP + User Agent)
             $user_ip = $_SERVER['REMOTE_ADDR'];
             $user_agent = $_SERVER['HTTP_USER_AGENT'];
             $user_id = md5($user_ip . $user_agent);
             
-            error_log('[USER_ID] IP: ' . $user_ip . ', Agent: ' . substr($user_agent, 0, 50) . '..., Hash: ' . $user_id);
+            $client_id = 'CLIENT_' . uniqid() . '_' . wp_generate_password(8, false);
+            $lock_key = "appointease_lock_{$date}_{$employee_id}_{$time}";
             
-            // Try Redis first, fallback to transient
-            $key = "appointease_active_{$date}_{$employee_id}";
-            $selections = $this->redis->is_enabled() 
-                ? $this->redis->get_active_selections($date, $employee_id)
-                : (get_transient($key) ?: array());
-            
-            // Create database lock
-            $locks_table = $wpdb->prefix . 'appointease_slot_locks';
-            
-            // Check if table exists
-            $table_exists = $wpdb->get_var("SHOW TABLES LIKE '{$locks_table}'");
-            if (!$table_exists) {
-                return new WP_Error('table_missing', 'Slot locks table does not exist', array('status' => 500));
-            }
-            
-            // Add user_id column if it doesn't exist (migration)
-            $column_exists = $wpdb->get_results("SHOW COLUMNS FROM {$locks_table} LIKE 'user_id'");
-            if (empty($column_exists)) {
-                $wpdb->query("ALTER TABLE {$locks_table} ADD COLUMN user_id VARCHAR(32) NULL AFTER client_id");
-                error_log('[LOCK] Added user_id column to locks table');
-            }
-            
-            // Clean ALL expired locks immediately
-            $deleted_expired = $wpdb->query("DELETE FROM {$locks_table} WHERE expires_at < UTC_TIMESTAMP()");
-            error_log('[LOCK] Cleaned ' . $deleted_expired . ' expired locks');
-            
-            // PRODUCTION MODE: One user = one slot - DELETE OLD LOCK BY user_id
-            $deleted = $wpdb->delete($locks_table, array('user_id' => $user_id), array('%s'));
-            error_log('[LOCK] Deleted ' . $deleted . ' old locks for user_id: ' . $user_id);
-            
-            // Also clean transients/Redis
-            foreach ($selections as $slot_time => $data) {
-                if (is_array($data) && isset($data['user_id']) && $data['user_id'] === $user_id) {
-                    if ($this->redis->is_enabled()) {
-                        $this->redis->delete_lock("appointease_active_{$date}_{$employee_id}_{$slot_time}");
-                    } else {
-                        unset($selections[$slot_time]);
+            // Redis ONLY - 10 minute lock
+            if ($this->redis->is_enabled()) {
+                // Remove user's old lock (one slot per user)
+                $old_locks = $this->redis->get_locks_by_pattern("appointease_lock_{$date}_{$employee_id}_*");
+                foreach ($old_locks as $lock) {
+                    if (isset($lock['user_id']) && $lock['user_id'] === $user_id) {
+                        $old_time = $lock['time'] ?? '';
+                        if ($old_time) {
+                            $old_key = "appointease_lock_{$date}_{$employee_id}_" . substr($old_time, 0, 5);
+                            $this->redis->delete_lock($old_key, $lock['client_id'] ?? null);
+                        }
                     }
                 }
-            }
-            
-            $time_formatted = $time . ':00';
-            
-            // Check if slot is already locked by SOMEONE ELSE
-            $existing = $wpdb->get_var($wpdb->prepare(
-                "SELECT client_id FROM {$locks_table} WHERE date = %s AND time = %s AND employee_id = %s AND expires_at > UTC_TIMESTAMP()",
-                $date, $time_formatted, $employee_id
-            ));
-            
-            if ($existing) {
-                return new WP_Error('already_locked', 'Slot is already locked by another user', array('status' => 409));
-            }
-            
-            $client_id = 'CLIENT_' . uniqid() . '_' . wp_generate_password(8, false);
-            
-            // Store in Redis (10 sec TTL) or transient fallback
-            if ($this->redis->is_enabled()) {
-                $this->redis->set_active_selection($date, $employee_id, $time, $client_id);
-            } else {
-                $selections[$time] = array('timestamp' => time(), 'user_id' => $user_id, 'client_id' => $client_id);
-                set_transient($key, $selections, 300);
-            }
-            
-            error_log('[LOCK] Attempting insert: date=' . $date . ', time=' . $time_formatted . ', employee_id=' . $employee_id . ', client_id=' . $client_id);
-            
-            // Industry standard: 10 minutes lock duration (Acuity/Bookly pattern)
-            $expires_at = date('Y-m-d H:i:s', time() + 600);
-            
-            // Store in Redis with 10 min TTL
-            if ($this->redis->is_enabled()) {
-                $lock_key = "appointease_lock_{$date}_{$employee_id}_{$time}";
-                $this->redis->lock_slot($lock_key, array(
-                    'date' => $date, 'time' => $time_formatted, 'employee_id' => $employee_id,
-                    'client_id' => $client_id, 'user_id' => $user_id
-                ), 600);
-            }
-            
-            // Always store in MySQL for persistence
-            $result = $wpdb->insert(
-                $locks_table,
-                array(
-                    'date' => $date,
-                    'time' => $time_formatted,
-                    'employee_id' => $employee_id,
-                    'client_id' => $client_id,
-                    'user_id' => $user_id,
-                    'expires_at' => $expires_at,
-                    'created_at' => current_time('mysql')
-                ),
-                array('%s', '%s', '%d', '%s', '%s', '%s', '%s')
-            );
-            
-            error_log('[LOCK] Insert result: ' . ($result === false ? 'FALSE' : $result) . ', last_error: ' . $wpdb->last_error . ', insert_id: ' . $wpdb->insert_id);
-            
-            if ($result === false) {
-                return new WP_Error('db_error', 'Failed to lock slot: ' . $wpdb->last_error, array('status' => 500));
-            }
-            
-            // Verify lock was created
-            $verify = $wpdb->get_var($wpdb->prepare(
-                "SELECT COUNT(*) FROM {$locks_table} WHERE client_id = %s",
-                $client_id
-            ));
-            
-            error_log('[LOCK] Verification count: ' . $verify);
-            
-            if ($verify == 0) {
-                return new WP_Error('lock_not_found', 'Lock was not created in database. Insert result: ' . $result . ', Insert ID: ' . $wpdb->insert_id, array('status' => 500));
-            }
-            
-            // Publish event to Redis Pub/Sub
-            $pubsub = Appointease_Redis_PubSub::get_instance();
-            if ($pubsub->is_enabled()) {
-                $pubsub->publish('appointease:slots', array(
-                    'action' => 'lock',
+                
+                // Atomic lock with conflict check
+                $locked = $this->redis->atomic_lock($lock_key, array(
                     'date' => $date,
                     'time' => $time,
                     'employee_id' => $employee_id,
+                    'client_id' => $client_id,
                     'user_id' => $user_id
+                ), 600);
+                
+                if (!$locked) {
+                    return new WP_Error('already_locked', 'Slot is already locked by another user', array('status' => 409));
+                }
+                
+                // Publish to scoped Pub/Sub channel
+                $pubsub = Appointease_Redis_PubSub::get_instance();
+                if ($pubsub->is_enabled()) {
+                    $pubsub->publish_slot_event('lock', $date, $employee_id, $time, [
+                        'user_id' => $user_id,
+                        'client_id' => $client_id
+                    ]);
+                }
+                
+                return rest_ensure_response(array(
+                    'success' => true,
+                    'client_id' => $client_id,
+                    'locked' => true,
+                    'storage' => 'redis',
+                    'ttl' => 600
                 ));
             }
             
-            // Return immediately for optimistic UI update
+            // Fallback to transients
+            $key = "appointease_active_{$date}_{$employee_id}";
+            $selections = get_transient($key) ?: array();
+            
+            // Remove old selection by same user
+            foreach ($selections as $slot_time => $data) {
+                if (is_array($data) && isset($data['user_id']) && $data['user_id'] === $user_id) {
+                    unset($selections[$slot_time]);
+                }
+            }
+            
+            // Check if slot already taken
+            if (isset($selections[$time])) {
+                return new WP_Error('already_locked', 'Slot is already locked', array('status' => 409));
+            }
+            
+            $selections[$time] = array(
+                'timestamp' => time(),
+                'user_id' => $user_id,
+                'client_id' => $client_id
+            );
+            set_transient($key, $selections, 600);
+            
             return rest_ensure_response(array(
                 'success' => true,
                 'client_id' => $client_id,
                 'locked' => true,
-                'verified' => true,
-                'updated' => $deleted > 0,
-                'old_time' => null,
-                'new_time' => $time,
-                'optimistic' => true,
-                'realtime' => $pubsub->is_enabled(),
-                'message' => 'Slot locked successfully'
+                'storage' => 'transient',
+                'ttl' => 600
             ));
         } catch (Exception $e) {
             return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
@@ -1536,7 +1469,7 @@ class Booking_API_Endpoints {
     }
     
     /**
-     * Remove active slot selection
+     * Remove active slot selection (Redis ONLY)
      */
     public function realtime_deselect($request) {
         try {
@@ -1548,12 +1481,18 @@ class Booking_API_Endpoints {
             
             $date = sanitize_text_field($params['date']);
             $time = sanitize_text_field($params['time']);
-            $employee_id = $params['employee_id'];
+            $employee_id = intval($params['employee_id']);
             
-            // Remove from Redis or fallback to transients
+            $lock_key = "appointease_lock_{$date}_{$employee_id}_{$time}";
+            
             if ($this->redis->is_enabled()) {
-                $key = "appointease_active_{$date}_{$employee_id}_{$time}";
-                $this->redis->delete_lock($key);
+                $this->redis->delete_lock($lock_key);
+                
+                // Publish unlock event to scoped channel
+                $pubsub = Appointease_Redis_PubSub::get_instance();
+                if ($pubsub->is_enabled()) {
+                    $pubsub->publish_slot_event('unlock', $date, $employee_id, $time);
+                }
             } else {
                 // Fallback to transients
                 $key = "appointease_active_{$date}_{$employee_id}";
@@ -1562,7 +1501,7 @@ class Booking_API_Endpoints {
                 if (empty($selections)) {
                     delete_transient($key);
                 } else {
-                    set_transient($key, $selections, 300);
+                    set_transient($key, $selections, 600);
                 }
             }
             
@@ -1571,40 +1510,7 @@ class Booking_API_Endpoints {
             return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
     }
-    
 
-    
-    /**
-     * Release slot lock
-     */
-    public function unlock_slot($request) {
-        try {
-            global $wpdb;
-            $params = $request->get_json_params();
-            
-            if (!isset($params['client_id'])) {
-                return new WP_Error('missing_client_id', 'Client ID required', array('status' => 400));
-            }
-            
-            $client_id = sanitize_text_field($params['client_id']);
-            $locks_table = $wpdb->prefix . 'appointease_slot_locks';
-            
-            $deleted = $wpdb->delete($locks_table, array('client_id' => $client_id), array('%s'));
-            
-            if ($deleted === false) {
-                return new WP_Error('db_error', 'Failed to unlock slot: ' . $wpdb->last_error, array('status' => 500));
-            }
-            
-            $pubsub = Appointease_Redis_PubSub::get_instance();
-            if ($pubsub->is_enabled() && $deleted > 0) {
-                $pubsub->publish('appointease:slots', array('action' => 'unlock', 'client_id' => $client_id));
-            }
-            
-            return rest_ensure_response(array('success' => true, 'deleted' => $deleted));
-        } catch (Exception $e) {
-            return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
-        }
-    }
     
     public function debug_selections($request) {
         try {
@@ -1655,9 +1561,23 @@ class Booking_API_Endpoints {
     
     public function debug_locks($request) {
         try {
-            global $wpdb;
-            $locks_table = $wpdb->prefix . 'appointease_slot_locks';
-            $locks = $wpdb->get_results("SELECT * FROM {$locks_table} WHERE expires_at > UTC_TIMESTAMP()");
+            $locks = array();
+            
+            if ($this->redis->is_enabled()) {
+                $locks = $this->redis->get_locks_by_pattern('appointease_lock_*');
+            } else {
+                global $wpdb;
+                $transients = $wpdb->get_results(
+                    "SELECT option_name, option_value FROM {$wpdb->options} WHERE option_name LIKE '_transient_appointease_active_%'"
+                );
+                foreach ($transients as $t) {
+                    $data = maybe_unserialize($t->option_value);
+                    if (is_array($data)) {
+                        $locks = array_merge($locks, array_values($data));
+                    }
+                }
+            }
+            
             return rest_ensure_response(array('locked_slots' => $locks, 'count' => count($locks)));
         } catch (Exception $e) {
             return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
@@ -1673,25 +1593,26 @@ class Booking_API_Endpoints {
             $employee_id = isset($params['employee_id']) ? intval($params['employee_id']) : 1;
             
             $appointments_table = $wpdb->prefix . 'appointments';
-            $locks_table = $wpdb->prefix . 'appointease_slot_locks';
             
             $appointments = $wpdb->get_results($wpdb->prepare(
                 "SELECT * FROM {$appointments_table} WHERE employee_id = %d AND DATE(appointment_date) = %s",
                 $employee_id, $date
             ));
             
-            $locks = $wpdb->get_results($wpdb->prepare(
-                "SELECT * FROM {$locks_table} WHERE date = %s AND employee_id = %s",
-                $date, $employee_id
-            ));
+            // Get Redis locks (current architecture)
+            $redis_locks = [];
+            if ($this->redis->is_enabled()) {
+                $pattern = "appointease_lock_{$date}_{$employee_id}_*";
+                $redis_locks = $this->redis->get_locks_by_pattern($pattern);
+            }
             
             return rest_ensure_response(array(
                 'date' => $date,
                 'employee_id' => $employee_id,
                 'appointments' => $appointments,
                 'appointments_count' => count($appointments),
-                'locks' => $locks,
-                'locks_count' => count($locks),
+                'redis_locks' => $redis_locks,
+                'redis_locks_count' => count($redis_locks),
                 'last_error' => $wpdb->last_error
             ));
         } catch (Exception $e) {
@@ -1722,16 +1643,12 @@ class Booking_API_Endpoints {
     public function clear_all_locks($request) {
         try {
             global $wpdb;
-            $locks_table = $wpdb->prefix . 'appointease_slot_locks';
             
             // Clear Redis locks
             $redis_cleared = 0;
             if ($this->redis->is_enabled()) {
                 $redis_cleared = $this->redis->clear_all_locks();
             }
-            
-            // Clear database locks
-            $deleted_locks = $wpdb->query("DELETE FROM {$locks_table}");
             
             // Clear transients
             $transients = $wpdb->get_results(
@@ -1748,11 +1665,10 @@ class Booking_API_Endpoints {
             
             wp_cache_flush();
             
-            error_log('[CLEAR_LOCKS] Redis: ' . $redis_cleared . ', MySQL: ' . $deleted_locks . ', Transients: ' . $deleted_transients);
+            error_log('[CLEAR_LOCKS] Redis: ' . $redis_cleared . ', Transients: ' . $deleted_transients);
             
             return rest_ensure_response(array(
                 'success' => true,
-                'deleted_locks' => $deleted_locks,
                 'deleted_transients' => $deleted_transients,
                 'redis_cleared' => $redis_cleared,
                 'message' => 'All locked data cleared successfully'
@@ -1772,5 +1688,40 @@ class Booking_API_Endpoints {
         file_put_contents($log_file, $params['logs'], FILE_APPEND | LOCK_EX);
         
         return rest_ensure_response(array('success' => true));
+    }
+    
+    /**
+     * Redis monitoring and stats
+     */
+    public function get_redis_stats($request) {
+        if (!$this->redis->is_enabled()) {
+            return rest_ensure_response(array(
+                'enabled' => false,
+                'message' => 'Redis not available'
+            ));
+        }
+        
+        $stats = $this->redis->get_stats();
+        $persistence = $this->redis->get_persistence_config();
+        
+        // Count active locks
+        $lock_count = 0;
+        $iterator = null;
+        try {
+            while ($keys = $this->redis->get_locks_by_pattern('appointease_lock_*')) {
+                $lock_count = count($keys);
+                break;
+            }
+        } catch (Exception $e) {
+            $lock_count = 0;
+        }
+        
+        return rest_ensure_response(array(
+            'enabled' => true,
+            'stats' => $stats,
+            'persistence' => $persistence,
+            'active_locks' => $lock_count,
+            'health' => $this->redis->health_check()
+        ));
     }
 }
