@@ -6,9 +6,11 @@ interface DebugPanelProps {
   connectionMode?: 'websocket' | 'polling' | 'disconnected';
   activeSelections?: string[];
   pollingInterval?: number;
+  storageMode?: 'redis' | 'mysql';
+  redisHealth?: boolean;
 }
 
-export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState, connectionMode = 'disconnected' }) => {
+export const DebugPanel: React.FC<DebugPanelProps> = React.memo(({ debugState, bookingState, connectionMode = 'disconnected', storageMode = 'mysql', redisHealth = false }) => {
   if (!debugState.showDebug) {
     return (
       <button onClick={() => debugState.setShowDebug(true)} style={{
@@ -53,7 +55,23 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState
         <div>Online: {debugState.isOnline ? '✅' : '❌'}</div>
         <div style={{marginTop: '4px'}}>
           <span style={{color: '#ff0'}}>🔌 Real-time: </span>
-          <span style={{color: '#0f0'}}>💓 WP Heartbeat (3s)</span>
+          <span style={{color: '#0f0'}}>⚡ WP Heartbeat (1s)</span>
+        </div>
+        <div style={{marginTop: '4px'}}>
+          <span style={{color: '#ff0'}}>💾 Storage: </span>
+          {storageMode === 'redis' ? (
+            <span style={{color: '#0f0'}}>⚡ Redis (Primary)</span>
+          ) : (
+            <span style={{color: '#fa0'}}>🗄️ MySQL (Fallback)</span>
+          )}
+        </div>
+        <div style={{marginTop: '4px'}}>
+          <span style={{color: '#ff0'}}>🏥 Redis Health: </span>
+          {redisHealth ? (
+            <span style={{color: '#0f0'}}>✅ Connected</span>
+          ) : (
+            <span style={{color: '#f00'}}>❌ Disconnected</span>
+          )}
         </div>
       </div>
       
@@ -102,4 +120,13 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState
       </div>
     </div>
   );
-};
+}, (prevProps, nextProps) => {
+  // Only re-render if critical data changed
+  return (
+    prevProps.debugState.showDebug === nextProps.debugState.showDebug &&
+    prevProps.storageMode === nextProps.storageMode &&
+    prevProps.redisHealth === nextProps.redisHealth &&
+    prevProps.activeSelections?.length === nextProps.activeSelections?.length &&
+    prevProps.debugState.allBookings?.length === nextProps.debugState.allBookings?.length
+  );
+});

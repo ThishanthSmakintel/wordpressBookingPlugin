@@ -52,9 +52,15 @@ interface DebugPanelProps {
     bookingState: any;
     connectionMode?: 'websocket' | 'polling' | 'disconnected';
     wsLatency?: number;
+    storageMode?: 'redis' | 'mysql';
+    redisHealth?: boolean;
+    heartbeatLatency?: number;
+    redisOps?: { locks: number; selections: number };
+    redisStats?: any;
+    tempSelected?: string;
 }
 
-export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState, connectionMode = 'disconnected', wsLatency = 0 }) => {
+export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState, connectionMode = 'disconnected', wsLatency = 0, storageMode = 'mysql', redisHealth = false, heartbeatLatency = 0, redisOps = { locks: 0, selections: 0 }, redisStats = null, tempSelected = '' }) => {
     const { step, selectedService, selectedEmployee, selectedDate, selectedTime, formData, serverDate, isOnline } = useBookingStore();
     const { showDebug, setShowDebug } = useDebugStore();
     useAutoLoadDebugData(debugState);
@@ -190,6 +196,58 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState
                     {connectionMode === 'polling' && <span style={{color: '#0f0'}}>✅ WP Heartbeat (5s)</span>}
                     {connectionMode === 'disconnected' && <span style={{color: '#0f0'}}>✅ WP Heartbeat (5s)</span>}
                 </div>
+                <div style={{marginTop: '4px'}}>
+                    <span style={{color: '#ff0'}}>💾 Storage: </span>
+                    {storageMode === 'redis' ? (
+                        <span style={{color: '#0f0'}}>⚡ Redis (Primary)</span>
+                    ) : (
+                        <span style={{color: '#fa0'}}>🗄️ MySQL (Fallback)</span>
+                    )}
+                </div>
+                <div style={{marginTop: '4px'}}>
+                    <span style={{color: '#ff0'}}>🏥 Redis Health: </span>
+                    {redisHealth ? (
+                        <span style={{color: '#0f0'}}>✅ Connected</span>
+                    ) : (
+                        <span style={{color: '#f00'}}>❌ Disconnected</span>
+                    )}
+                </div>
+                {heartbeatLatency > 0 && (
+                    <div style={{marginTop: '8px', padding: '8px', background: 'rgba(0,255,0,0.1)', borderRadius: '4px', border: '1px solid rgba(0,255,0,0.3)'}}>
+                        <div style={{color: '#0f0', fontSize: '10px', marginBottom: '4px'}}>⚡ HEARTBEAT LATENCY</div>
+                        <div style={{fontSize: '20px', fontWeight: 'bold', color: '#0f0'}}>{heartbeatLatency}ms</div>
+                        <div style={{fontSize: '9px', color: '#8f8', marginTop: '2px'}}>Round-trip time</div>
+                    </div>
+                )}
+                {storageMode === 'redis' && (
+                    <div style={{marginTop: '8px', padding: '8px', background: 'rgba(255,165,0,0.1)', borderRadius: '4px', border: '1px solid rgba(255,165,0,0.3)'}}>
+                        <div style={{color: '#fa0', fontSize: '10px', marginBottom: '4px'}}>⚡ REDIS LATENCY</div>
+                        <div style={{fontSize: '20px', fontWeight: 'bold', color: '#fa0'}}>&lt;1ms</div>
+                        <div style={{fontSize: '9px', color: '#fb8', marginTop: '2px'}}>Sub-millisecond ops</div>
+                    </div>
+                )}
+                {storageMode === 'redis' && (
+                    <div style={{marginTop: '8px', padding: '6px', background: 'rgba(255,165,0,0.1)', borderRadius: '4px'}}>
+                        <div style={{color: '#fa0', fontSize: '10px', marginBottom: '4px'}}>📊 REDIS OPERATIONS</div>
+                        <div style={{fontSize: '9px'}}>🔒 DB Locks: {redisOps.locks}</div>
+                        <div style={{fontSize: '9px'}}>👁️ Other Users: {redisOps.selections}</div>
+                        <div style={{fontSize: '9px'}}>✅ Your Selection: {tempSelected ? '1 (' + tempSelected + ')' : '0'}</div>
+                        {debugState.activeSelections && debugState.activeSelections.length > 0 && (
+                            <div style={{marginTop: '4px', fontSize: '8px', color: '#d97706'}}>
+                                <div>🔴 Others Selecting: {debugState.activeSelections.join(', ')}</div>
+                            </div>
+                        )}
+                    </div>
+                )}
+                {storageMode === 'redis' && redisStats && (
+                    <div style={{marginTop: '8px', padding: '6px', background: 'rgba(0,255,255,0.1)', borderRadius: '4px'}}>
+                        <div style={{color: '#0ff', fontSize: '10px', marginBottom: '4px'}}>📊 REDIS STATS</div>
+                        <div style={{fontSize: '9px'}}>💾 Memory: {redisStats.used_memory}</div>
+                        <div style={{fontSize: '9px'}}>🎯 Hit Rate: {redisStats.hit_rate}%</div>
+                        <div style={{fontSize: '9px'}}>🔗 Clients: {redisStats.connected_clients}</div>
+                        <div style={{fontSize: '9px'}}>⏱️ Uptime: {Math.floor(redisStats.uptime_seconds / 60)}m</div>
+                    </div>
+                )}
             </div>
             
             <div style={{marginBottom: '8px'}}>
@@ -216,6 +274,23 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState
                 <div>Time Slots: {debugState.debugTimeSlots.length} slots</div>
                 <div>API Mode: {bookingState.isRescheduling ? 'RESCHEDULE' : 'NORMAL'}</div>
             </div>
+            
+            {storageMode === 'redis' && (
+                <div style={{marginBottom: '8px', padding: '6px', background: 'rgba(16, 185, 129, 0.1)', borderRadius: '4px'}}>
+                    <div style={{color: '#10b981', fontSize: '10px', marginBottom: '4px'}}>⚡ REDIS REAL-TIME TRACKING</div>
+                    <div style={{fontSize: '9px'}}>✅ Your Selection: {tempSelected || 'None'}</div>
+                    <div style={{fontSize: '9px', marginTop: '2px'}}>👁️ Other Users Selecting: {debugState.activeSelections?.length || 0}</div>
+                    {debugState.activeSelections && debugState.activeSelections.length > 0 && (
+                        <div style={{fontSize: '8px', color: '#059669', marginTop: '2px'}}>
+                            {debugState.activeSelections.map((slot: string) => (
+                                <span key={slot} style={{marginRight: '4px', padding: '2px 4px', background: 'rgba(16, 185, 129, 0.2)', borderRadius: '2px'}}>{slot}</span>
+                            ))}
+                        </div>
+                    )}
+                    <div style={{fontSize: '9px', marginTop: '2px'}}>🔒 DB Locked Slots: {debugState.lockedSlots?.length || 0}</div>
+                    <div style={{fontSize: '9px'}}>📊 Confirmed Bookings: {debugState.unavailableSlots?.length || 0}</div>
+                </div>
+            )}
             
 
             

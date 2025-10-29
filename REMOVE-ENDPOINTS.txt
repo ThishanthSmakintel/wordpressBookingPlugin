@@ -1,0 +1,56 @@
+# Endpoints to Remove from class-api-endpoints.php
+
+## Remove these duplicate registrations (lines to delete):
+
+1. Line 79-83: register_rest_route('appointease/v1', '/availability') - DUPLICATE
+2. Line 92-96: register_rest_route('appointease/v1', '/check-customer') - DUPLICATE  
+3. Line 99-103: register_rest_route('booking/v1', '/user-appointments') - DUPLICATE
+4. Line 231-235: register_rest_route('booking/v1', '/settings') - DUPLICATE
+
+## Remove these unused endpoints (WebSocket handles these):
+
+5. Line 169-173: register_rest_route('appointease/v1', '/time-slots') - REDUNDANT
+6. Line 183-188: register_rest_route('appointease/v1', '/check-slot') - REDUNDANT
+7. Line 197-202: register_rest_route('appointease/v1', '/realtime/select') - UNUSED
+8. Line 203-208: register_rest_route('appointease/v1', '/realtime/deselect') - UNUSED
+9. Line 210-215: register_rest_route('appointease/v1', '/unlock-slot') - UNUSED
+10. Line 258-263: register_rest_route('appointease/v1', '/realtime/stream') - UNUSED
+11. Line 265-270: register_rest_route('appointease/v1', '/test-heartbeat') - UNUSED
+
+## Keep these essential endpoints (21 total):
+
+✅ Core Booking (8):
+- POST /appointease/v1/appointments
+- GET /appointease/v1/appointments/{id}
+- PUT /appointease/v1/appointments/{id}
+- DELETE /appointease/v1/appointments/{id}
+- GET /booking/v1/services
+- GET /booking/v1/staff
+- POST /booking/v1/availability
+- POST /appointease/v1/reschedule-availability
+
+✅ User Management (2):
+- POST /appointease/v1/user-appointments
+- GET /booking/v1/check-customer/{email}
+
+✅ Authentication (5):
+- POST /appointease/v1/generate-otp
+- POST /appointease/v1/verify-otp
+- POST /appointease/v1/session
+- GET /appointease/v1/session
+- DELETE /appointease/v1/session
+
+✅ System (3):
+- GET /appointease/v1/server-date
+- GET /appointease/v1/settings
+- GET /appointease/v1/business-hours
+
+✅ Debug (3):
+- GET /appointease/v1/debug/appointments
+- GET /appointease/v1/debug/selections
+- GET /appointease/v1/debug/locks
+
+## Result:
+- Before: 33 endpoints
+- After: 21 endpoints
+- Removed: 12 endpoints (36% reduction)

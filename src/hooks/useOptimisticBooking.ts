@@ -66,44 +66,14 @@ export const useOptimisticBooking = (selectedDate: string, selectedEmployee: any
   }, [selectedDate, selectedEmployee]);
   
   /**
-   * Optimistic time selection with server validation
+   * Optimistic time selection - validation handled by availability endpoint
    */
   const selectTimeOptimistically = useCallback(async (time: string, onTimeSelect: Function) => {
-    // 1. Optimistically select time (immediate UI update)
+    // Optimistically select time (immediate UI update)
     onTimeSelect(time);
-    
-    // 2. Validate with server
-    try {
-      const response = await fetch(`${window.bookingAPI?.root}appointease/v1/check-slot`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          date: selectedDate,
-          time: time,
-          employee_id: selectedEmployee?.id
-        })
-      });
-      
-      const result = await response.json();
-      
-      // 3. Handle conflicts
-      if (result.is_booked) {
-        // Revert optimistic selection
-        onTimeSelect('');
-        setState(prev => ({
-          ...prev,
-          conflicts: [...prev.conflicts, time],
-          lastConflictTime: Date.now()
-        }));
-        
-        throw new Error(`Time slot ${time} is no longer available`);
-      }
-      
-    } catch (error) {
-      console.error('[OptimisticBooking] Validation failed:', error);
-      throw error;
-    }
-  }, [selectedDate, selectedEmployee]);
+    // Validation happens via availability endpoint which already checks locks
+    console.log('[OptimisticBooking] Time selected:', time);
+  }, []);
   
   /**
    * Atomic booking submission with conflict prevention

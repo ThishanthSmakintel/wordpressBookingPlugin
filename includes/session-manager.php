@@ -219,7 +219,7 @@ add_filter('rest_pre_dispatch', function($response, $server, $request) {
     }
     
     // Skip session endpoints and public endpoints
-    $public_endpoints = ['/session', '/verify-otp', '/services', '/staff', '/appointments', '/user-appointments', '/availability', '/debug', '/fix-working-days', '/server-date', '/settings', '/business-hours', '/time-slots', '/check-slot', '/health', '/realtime/poll', '/realtime/select', '/realtime/deselect', '/test-heartbeat', '/generate-otp', '/unlock-slot', '/clear-locks'];
+    $public_endpoints = ['/session', '/verify-otp', '/services', '/staff', '/appointments', '/user-appointments', '/availability', '/debug', '/fix-working-days', '/server-date', '/settings', '/business-hours', '/time-slots', '/check-slot', '/health', '/realtime/poll', '/realtime/select', '/realtime/deselect', '/slots/select', '/slots/deselect', '/test-heartbeat', '/generate-otp', '/unlock-slot', '/clear-locks'];
     
     foreach ($public_endpoints as $endpoint) {
         if (strpos($route, $endpoint) !== false) {
@@ -281,6 +281,34 @@ add_filter('heartbeat_received', function($response, $data) {
 }, 10, 2);
 
 add_filter('heartbeat_settings', function($settings) {
-    $settings['interval'] = 3;
+    $settings['interval'] = 1; // Match frontend 1-second interval
     return $settings;
 });
+
+// Cache heartbeat responses to reduce DB queries
+add_filter('heartbeat_received', function($response, $data, $screen_id) {
+    if (!isset($data['appointease_poll'])) {
+        return $response;
+    }
+    
+    $poll_data = $data['appointease_poll'];
+    $date = sanitize_text_field($poll_data['date'] ?? '');
+    $employee_id = intval($poll_data['employee_id'] ?? 0);
+    
+    if (!$date || !$employee_id) {
+        return $response;
+    }
+    
+    // Cache key for this specific query
+    $cache_key = "heartbeat_{$date}_{$employee_id}";
+    $cached = wp_cache_get($cache_key, 'appointease_heartbeat');
+    
+    if ($cached !== false) {
+        return array_merge($response, $cached);
+    }
+    
+    // Cache response for 500ms to reduce DB load
+    wp_cache_set($cache_key, $response, 'appointease_heartbeat', 0.5);
+    
+    return $response;
+}, 11, 3);

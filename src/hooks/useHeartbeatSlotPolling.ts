@@ -32,15 +32,33 @@ export const useHeartbeatSlotPolling = ({ date, employeeId, enabled = true, clie
       selected_time: selectedTime
     } : null,
     onPoll: (data: any) => {
-      console.log('[HeartbeatPolling] Received data:', data);
+      console.log('[HeartbeatPolling] ===== POLL RECEIVED =====');
+      console.log('[HeartbeatPolling] Full data:', data);
       console.log('[HeartbeatPolling] Active selections:', data?.appointease_active_selections);
       console.log('[HeartbeatPolling] Booked slots:', data?.appointease_booked_slots);
       console.log('[HeartbeatPolling] Locked slots:', data?.appointease_locked_slots);
-      setActiveSelections(data?.appointease_active_selections || []);
-      setBookedSlots(data?.appointease_booked_slots || []);
-      setLockedSlots(data?.appointease_locked_slots || []);
+      
+      const active = data?.appointease_active_selections || [];
+      const booked = data?.appointease_booked_slots || [];
+      const locked = data?.appointease_locked_slots || [];
+      
+      console.log('[HeartbeatPolling] Setting state:');
+      console.log('  - Active:', active);
+      console.log('  - Booked:', booked);
+      console.log('  - Locked:', locked);
+      
+      setActiveSelections(active);
+      setBookedSlots(booked);
+      setLockedSlots(locked);
       setLastUpdate(Date.now());
     }
+  });
+
+  console.log('[HeartbeatPolling] Current state:', {
+    activeSelections,
+    bookedSlots,
+    lockedSlots,
+    lastUpdate
   });
 
   return {

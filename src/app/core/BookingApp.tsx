@@ -32,7 +32,7 @@ import { BookingHeader } from '../../modules/BookingHeader';
 import { useBookingState } from '../../hooks/useBookingState';
 import { useDebugState } from '../../hooks/useDebugState';
 import { useBookingActions } from '../../hooks/useBookingActions';
-import { useRealtime } from '../../hooks/useRealtime';
+import { useHeartbeat } from '../../hooks/useHeartbeat';
 
 // Store and utilities
 import '../../store/wordpress-store'; // Initialize WordPress store
@@ -40,6 +40,7 @@ import { useAppointmentStore as useBookingStore } from '../../hooks/useAppointme
 import { sanitizeInput, generateStrongId } from '../../utils';
 import { checkCustomer } from '../../services/api';
 import { sessionService } from '../../services/sessionService';
+import { createRedisDataService } from '../../services/redisDataService';
 
 declare global {
     interface Window {
@@ -76,68 +77,58 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
     // ✅ Actions hook
     const { checkAvailability, handleManageAppointment, handleSubmit, loadUserAppointmentsRealtime } = useBookingActions(bookingState);
     
-    // ✅ Smart WebSocket - Only for critical real-time scenarios (following Calendly/Acuity patterns)
-    const realtimeConfig = React.useMemo(() => {
+    // ✅ WordPress Heartbeat - Real-time updates via WordPress native API
+    const heartbeatPollData = React.useMemo(() => {
         const email = bookingState.loginEmail;
-        const root = window.bookingAPI?.root || '/wp-json/';
-        const wsUrl = window.bookingAPI?.wsUrl || `ws://blog.promoplus.com:8080`;
-        
-        // Enable WebSocket from Step 1 - Track entire booking journey (Calendly pattern)
         const needsRealtime = (
-            step >= 1 ||  // Booking flow: Track from start
-            bookingState.showDashboard ||  // Dashboard: Live appointment updates
-            bookingState.isRescheduling ||  // Rescheduling: Live availability
-            debugState.showDebug  // Debug: Connection monitoring
+            step >= 1 ||
+            bookingState.showDashboard ||
+            bookingState.isRescheduling ||
+            debugState.showDebug
         );
         
-
+        if (!needsRealtime) return null;
         
         return {
-            wsUrl: email ? `${wsUrl}?email=${encodeURIComponent(email)}` : wsUrl,
-            pollingUrl: email ? `${root}appointease/v1/realtime/poll?email=${encodeURIComponent(email)}&last_update=${Date.now()}` : `${root}appointease/v1/realtime/poll`,
-            pollingInterval: 5000,  // Faster polling for booking conflicts
-            enabled: needsRealtime,
-            onUpdate: (data: any) => {
-                // Real-time availability updates
-                if (data.data?.availability) {
-                    // Update time slot availability in real-time
-                    debugState.setAvailabilityData?.(data.data.availability);
-                }
-                // Live appointment updates for dashboard
-                if (data.data?.appointments) {
-                    setAppointments(data.data.appointments);
-                } else if (data.appointments) {
-                    setAppointments(data.appointments);
-                }
-                // Booking conflict notifications (Calendly-style)
-                if (data.type === 'slot_taken' && step === 4) {
-                    // Immediately disable conflicted slot
-                    const conflictTime = data.time;
-                    debugState.setUnavailableSlots?.(prev => [...(prev || []), conflictTime]);
-                    // Show user-friendly conflict notification
-                    if (selectedTime === conflictTime) {
-                        setSelectedTime('');
-                        setErrors({ time: 'This time slot was just booked by another user. Please select a different time.' });
-                    }
-                }
-            },
-            onConnectionChange: (mode: string) => {
-                debugState.setConnectionMode?.(mode);
-            }
+            email: email || null,
+            step,
+            date: selectedDate || null,
+            time: selectedTime || null,
+            employee_id: selectedEmployee?.id || null
         };
-    }, [bookingState.showDashboard, step, selectedDate, selectedEmployee, bookingState.isRescheduling, debugState.showDebug, bookingState.loginEmail]);
+    }, [bookingState.loginEmail, step, selectedDate, selectedTime, selectedEmployee, bookingState.showDashboard, bookingState.isRescheduling, debugState.showDebug]);
     
-    const { connectionMode, isConnected: isRealtimeConnected, subscribe, send: sendRealtimeMessage } = useRealtime(realtimeConfig);
+    const { isConnected: isHeartbeatConnected, storageMode, latency: heartbeatLatency, redisOps, redisStats, send: sendHeartbeat } = useHeartbeat({
+        enabled: true,
+        pollData: heartbeatPollData,
+        onPoll: (data: any) => {
+            if (data.appointease_active_selections) {
+                debugState.setActiveSelections?.(data.appointease_active_selections);
+            }
+            if (data.appointease_booked_slots) {
+                debugState.setUnavailableSlots?.(data.appointease_booked_slots);
+            }
+            if (data.appointease_locked_slots) {
+                debugState.setLockedSlots?.(data.appointease_locked_slots);
+            }
+            if (data.appointments) {
+                setAppointments(data.appointments);
+            }
+        }
+    });
     
-
-    const [wsLatency, setWsLatency] = React.useState<number>(0);
-    
+    // Initialize Redis-primary service
     React.useEffect(() => {
-        const unsubscribe = subscribe('latency', (data: any) => {
-            setWsLatency(data.latency);
+        createRedisDataService({
+            heartbeatEnabled: true,
+            onDataUpdate: (data) => {
+                console.log('[Redis] Storage mode:', storageMode);
+            }
         });
-        return unsubscribe;
-    }, [subscribe]);
+    }, [storageMode]);
+    
+    const connectionMode = isHeartbeatConnected ? 'polling' : 'disconnected';
+    const [wsLatency, setWsLatency] = React.useState<number>(0);
     
 
 
@@ -269,16 +260,6 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
         };
     }, []);
 
-    // Note: Real-time updates now handled by useRealtime hook above
-    // Keeping this as fallback for non-dashboard views
-    useEffect(() => {
-        if (!bookingState.isLoggedIn || bookingState.showDashboard) return;
-        const interval = setInterval(() => loadUserAppointmentsRealtime(), 10000);
-        return () => clearInterval(interval);
-    }, [bookingState.isLoggedIn, bookingState.showDashboard, loadUserAppointmentsRealtime]);
-
-    // Removed: Heartbeat now provides real-time booked slots
-    
     // Listen for availability refresh requests from TimeSelector
     useEffect(() => {
         const handleRefreshAvailability = (event: CustomEvent) => {
@@ -292,71 +273,9 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
         return () => window.removeEventListener('refreshAvailability', handleRefreshAvailability as EventListener);
     }, [checkAvailability]);
 
-    // Start booking session from Step 1 - Track entire user journey (Calendly/Acuity pattern)
-    useEffect(() => {
-        if (step >= 1 && connectionMode === 'websocket') {
-            sendRealtimeMessage('booking_session', {
-                step,
-                service: selectedService?.name,
-                employee: selectedEmployee?.name,
-                date: selectedDate,
-                time: selectedTime
-            });
-        }
-    }, [step, selectedService, selectedEmployee, selectedDate, selectedTime, connectionMode, sendRealtimeMessage]);
-    
-    // Removed: Heartbeat provides real-time booked slots
-
-    // Lock slot at Steps 4, 5, 6 - Update DB immediately when time selected
-    const previousSlotRef = useRef<{date: string, time: string, employeeId: number} | null>(null);
-    
-    useEffect(() => {
-        if ((step === 4 || step === 5 || step === 6) && selectedDate && selectedTime && selectedEmployee && connectionMode === 'websocket') {
-            const currentSlot = { date: selectedDate, time: selectedTime, employeeId: selectedEmployee.id };
-            const previousSlot = previousSlotRef.current;
-            
-            // If user changed time selection, unlock old slot first
-            if (previousSlot && (previousSlot.time !== currentSlot.time || previousSlot.date !== currentSlot.date)) {
-                sendRealtimeMessage('unlock_slot', {
-                    date: previousSlot.date,
-                    time: previousSlot.time,
-                    employeeId: previousSlot.employeeId,
-                    completed: false
-                });
-            }
-            
-            // Lock slot immediately in database
-            sendRealtimeMessage('lock_slot', {
-                date: selectedDate,
-                time: selectedTime,
-                employeeId: selectedEmployee.id,
-                service: selectedService?.name
-            });
-            
-            previousSlotRef.current = currentSlot;
-            
-            // Removed: Heartbeat provides real-time updates
-        }
-        
-        // Unlock when leaving steps 4-6 or unmounting
-        return () => {
-            if ((step === 4 || step === 5 || step === 6) && selectedDate && selectedTime && selectedEmployee && connectionMode === 'websocket') {
-                sendRealtimeMessage('unlock_slot', {
-                    date: selectedDate,
-                    time: selectedTime,
-                    employeeId: selectedEmployee.id,
-                    completed: step === 7
-                });
-                previousSlotRef.current = null;
-            }
-        };
-    }, [step, selectedDate, selectedTime, selectedEmployee, selectedService, connectionMode, sendRealtimeMessage, checkAvailability]);
-
     useEffect(() => {
         loadInitialData();
     }, [loadInitialData]);
-    
-    // Removed: Heartbeat provides real-time booked slots every 15 seconds
 
     // Scroll to top when step changes
     useEffect(() => {
@@ -469,7 +388,7 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
     if (bookingState.showLogin) {
         return (
             <>
-                <DebugPanel debugState={debugState} bookingState={bookingState} connectionMode={connectionMode} wsLatency={wsLatency} />
+                <DebugPanel debugState={debugState} bookingState={bookingState} connectionMode={connectionMode} wsLatency={wsLatency} storageMode={storageMode} redisHealth={storageMode === 'redis'} heartbeatLatency={heartbeatLatency} redisOps={redisOps} redisStats={redisStats} tempSelected={selectedTime} />
                 <LoginForm
                 loginEmail={bookingState.loginEmail}
                 otpCode={bookingState.otpCode}
@@ -515,7 +434,7 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
     if (bookingState.showDashboard) {
         return (
             <>
-                <DebugPanel debugState={debugState} bookingState={bookingState} connectionMode={connectionMode} wsLatency={wsLatency} />
+                <DebugPanel debugState={debugState} bookingState={bookingState} connectionMode={connectionMode} wsLatency={wsLatency} storageMode={storageMode} redisHealth={storageMode === 'redis'} heartbeatLatency={heartbeatLatency} redisOps={redisOps} redisStats={redisStats} tempSelected={selectedTime} />
                 <Dashboard
                 loginEmail={bookingState.loginEmail}
                 dashboardRef={dashboardRef}
@@ -587,7 +506,7 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
     if (bookingState.manageMode && bookingState.currentAppointment) {
         return (
             <>
-                <DebugPanel debugState={debugState} bookingState={bookingState} connectionMode={connectionMode} wsLatency={wsLatency} />
+                <DebugPanel debugState={debugState} bookingState={bookingState} connectionMode={connectionMode} wsLatency={wsLatency} storageMode={storageMode} redisHealth={storageMode === 'redis'} heartbeatLatency={heartbeatLatency} redisOps={redisOps} redisStats={redisStats} tempSelected={selectedTime} />
                 <AppointmentManager
                 bookingState={bookingState}
                 onReschedule={() => {
@@ -630,7 +549,7 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
 
     return (
         <>
-            <DebugPanel debugState={debugState} bookingState={bookingState} connectionMode={connectionMode} wsLatency={wsLatency} />
+            <DebugPanel debugState={debugState} bookingState={bookingState} connectionMode={connectionMode} wsLatency={wsLatency} storageMode={storageMode} redisHealth={storageMode === 'redis'} heartbeatLatency={heartbeatLatency} redisOps={redisOps} redisStats={redisStats} tempSelected={selectedTime} />
             
             <div ref={appContainerRef} className="appointease-booking wp-block-group booking-app-container" role="main" aria-label="Appointment booking system">
                 <div ref={liveRegionRef} className="live-region" aria-live="polite" aria-atomic="true"></div>

@@ -36,12 +36,9 @@ export class SettingsService {
       }
       
       if (!window.bookingAPI) {
-        // Try multiple fallback URLs
-
+        // Try settings endpoint
         const fallbackUrls = [
-          '/wp-json/appointease/v1/settings',
-          '/wp-json/booking/v1/time-slots', 
-          '/wp-json/appointease/v1/time-slots'
+          '/wp-json/appointease/v1/settings'
         ];
         
         for (const fallbackUrl of fallbackUrls) {
@@ -78,21 +75,14 @@ export class SettingsService {
         throw new Error('All settings API endpoints failed. Check console for detailed errors.');
       }
       
-      // Handle different API root configurations
+      // Use settings endpoint only
       const baseUrl = window.bookingAPI.root;
       const apiUrls = [];
       
-      // If root already includes appointease/v1/, use it directly
       if (baseUrl.includes('appointease/v1/')) {
         apiUrls.push(`${baseUrl}settings`);
-        apiUrls.push(`${baseUrl}time-slots`);
-        apiUrls.push(`${baseUrl}business-hours`);
       } else {
-        // If root is just wp-json/, add the namespaces
         apiUrls.push(`${baseUrl}appointease/v1/settings`);
-        apiUrls.push(`${baseUrl}booking/v1/settings`);
-        apiUrls.push(`${baseUrl}appointease/v1/time-slots`);
-        apiUrls.push(`${baseUrl}booking/v1/time-slots`);
       }
       
 

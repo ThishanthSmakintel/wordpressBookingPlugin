@@ -4,7 +4,6 @@ import { useBookingState } from '../../../../hooks/useBookingState';
 import { StepWrapper } from '../../../shared/components/StepWrapper';
 import { AppointmentSummary } from '../../../shared/components/AppointmentSummary';
 import { BookingTimer } from '../../../../components/BookingTimer';
-import { useRealtimeService } from '../../../../hooks/useRealtimeService';
 
 // Legacy imports
 import ServiceSelector from '../../../../components/forms/ServiceSelector';
@@ -54,21 +53,6 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
     unavailableSlots,
     bookingDetails
   } = useBookingStore();
-  const { send } = useRealtimeService();
-  
-
-
-  // Lock slot when reaching confirmation page (Step 6)
-  useEffect(() => {
-    if (step === 6 && selectedDate && selectedTime && selectedEmployee) {
-
-      send('lock_slot', {
-        date: selectedDate,
-        time: selectedTime,
-        employeeId: selectedEmployee.id
-      });
-    }
-  }, [step, selectedDate, selectedTime, selectedEmployee, send]);
 
   // Auto-fill form data for logged in users
   useEffect(() => {

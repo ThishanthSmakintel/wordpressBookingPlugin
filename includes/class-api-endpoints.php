@@ -75,28 +75,8 @@ class Booking_API_Endpoints {
             'permission_callback' => array($this, 'public_permission')
         ));
         
-        // Add appointease/v1 availability route
-        register_rest_route('appointease/v1', '/availability', array(
-            'methods' => 'POST',
-            'callback' => array($this, 'check_availability'),
-            'permission_callback' => array($this, 'public_permission')
-        ));
-        
-        // User appointments endpoint (keeping both namespaces for backward compatibility)
+        // User appointments endpoint
         register_rest_route('appointease/v1', '/user-appointments', array(
-            'methods' => 'POST',
-            'callback' => array($this, 'get_user_appointments'),
-            'permission_callback' => array($this, 'public_permission')
-        ));
-        
-        register_rest_route('appointease/v1', '/check-customer/(?P<email>[^/]+)', array(
-            'methods' => 'GET',
-            'callback' => array($this, 'check_customer_by_email'),
-            'permission_callback' => '__return_true'
-        ));
-        
-        // Backward compatibility route
-        register_rest_route('booking/v1', '/user-appointments', array(
             'methods' => 'POST',
             'callback' => array($this, 'get_user_appointments'),
             'permission_callback' => array($this, 'public_permission')
@@ -165,13 +145,6 @@ class Booking_API_Endpoints {
             'permission_callback' => array($this, 'public_permission')
         ));
         
-        // Time slots endpoint
-        register_rest_route('appointease/v1', '/time-slots', array(
-            'methods' => 'GET',
-            'callback' => array($this, 'get_time_slots'),
-            'permission_callback' => array($this, 'public_permission')
-        ));
-        
         // Business hours endpoint
         register_rest_route('appointease/v1', '/business-hours', array(
             'methods' => 'GET',
@@ -179,37 +152,10 @@ class Booking_API_Endpoints {
             'permission_callback' => array($this, 'public_permission')
         ));
         
-        // Check specific slot booking status with conflict detection
-        register_rest_route('appointease/v1', '/check-slot', array(
-            'methods' => 'POST',
-            'callback' => array($this, 'check_slot_booking'),
-            'permission_callback' => array($this, 'public_permission')
-        ));
-        
         // Generate OTP for authentication
         register_rest_route('appointease/v1', '/generate-otp', array(
             'methods' => 'POST',
             'callback' => array($this, 'generate_otp'),
-            'permission_callback' => '__return_true'
-        ));
-        
-        // Real-time slot selection tracking
-        register_rest_route('appointease/v1', '/realtime/select', array(
-            'methods' => 'POST',
-            'callback' => array($this, 'realtime_select'),
-            'permission_callback' => '__return_true'
-        ));
-        
-        register_rest_route('appointease/v1', '/realtime/deselect', array(
-            'methods' => 'POST',
-            'callback' => array($this, 'realtime_deselect'),
-            'permission_callback' => '__return_true'
-        ));
-        
-        // Release slot lock
-        register_rest_route('appointease/v1', '/unlock-slot', array(
-            'methods' => 'POST',
-            'callback' => array($this, 'unlock_slot'),
             'permission_callback' => '__return_true'
         ));
         
@@ -227,14 +173,7 @@ class Booking_API_Endpoints {
             'permission_callback' => '__return_true'
         ));
         
-        // Backup settings endpoint with different namespace for compatibility
-        register_rest_route('booking/v1', '/settings', array(
-            'methods' => 'GET',
-            'callback' => array($this, 'get_settings'),
-            'permission_callback' => '__return_true'
-        ));
-        
-        // Admin calendar endpoints (needed for admin panel)
+        // Admin calendar endpoints
         register_rest_route('appointease/v1', '/admin/appointments', array(
             'methods' => 'GET',
             'callback' => array($this, 'get_admin_appointments'),
@@ -254,17 +193,23 @@ class Booking_API_Endpoints {
             'permission_callback' => '__return_true'
         ));
         
-        // Server-Sent Events stream
-        register_rest_route('appointease/v1', '/realtime/stream', array(
-            'methods' => 'GET',
-            'callback' => array($this, 'realtime_stream'),
-            'permission_callback' => '__return_true'
+        // Redis slot selection endpoints (guest-friendly)
+        register_rest_route('appointease/v1', '/slots/select', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'realtime_select'),
+            'permission_callback' => '__return_true' // Allow guest selection
         ));
         
-        // Test heartbeat endpoint
-        register_rest_route('appointease/v1', '/test-heartbeat', array(
+        register_rest_route('appointease/v1', '/slots/deselect', array(
+            'methods' => 'POST',
+            'callback' => array($this, 'realtime_deselect'),
+            'permission_callback' => '__return_true' // Allow guest deselection
+        ));
+        
+        // Time slots endpoint for settings service
+        register_rest_route('appointease/v1', '/time-slots', array(
             'methods' => 'GET',
-            'callback' => array($this, 'test_heartbeat'),
+            'callback' => array($this, 'get_time_slots'),
             'permission_callback' => '__return_true'
         ));
     }

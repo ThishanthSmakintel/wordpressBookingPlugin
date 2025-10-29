@@ -21,7 +21,7 @@ class Appointease_Heartbeat_Handler {
         wp_enqueue_script('heartbeat');
         wp_add_inline_script('heartbeat', '
             jQuery(document).ready(function($) {
-                wp.heartbeat.interval(1);
+                wp.heartbeat.interval(5);
             });
         ');
     }
@@ -32,6 +32,26 @@ class Appointease_Heartbeat_Handler {
         
         // Always add a test response to verify filter is working
         $response['appointease_test'] = 'heartbeat_working';
+        
+        // Fast health check using dedicated health key (avoids connection overhead)
+        $redis_available = $this->redis->health_check();
+        
+        // Add Redis status to every response
+        $response['redis_status'] = $redis_available ? 'available' : 'unavailable';
+        $response['storage_mode'] = $redis_available ? 'redis' : 'mysql';
+        
+        // Graceful failback: Sync transients to Redis after recovery
+        static $last_redis_status = null;
+        if ($last_redis_status === false && $redis_available === true) {
+            error_log('[Heartbeat] Redis recovered - syncing transients to Redis');
+            if (isset($data['appointease_poll']['date'], $data['appointease_poll']['employee_id'])) {
+                $this->redis->sync_transients_to_redis(
+                    $data['appointease_poll']['date'],
+                    $data['appointease_poll']['employee_id']
+                );
+            }
+        }
+        $last_redis_status = $redis_available;
         
         try {
             // Handle slot selection
@@ -86,7 +106,7 @@ class Appointease_Heartbeat_Handler {
                 $selections = array();
                 $now = time();
                 
-                if ($this->redis->is_enabled()) {
+                if ($redis_available) {
                     $selections = $this->redis->get_active_selections($date, $employee_id);
                     error_log('[Heartbeat] Using Redis for selections');
                 } else {
@@ -96,13 +116,35 @@ class Appointease_Heartbeat_Handler {
                     error_log('[Heartbeat] Using transients fallback');
                 }
                 
+                // Extract active times and filter out current user's selection
+                $active_times = array();
+                if ($redis_available) {
+                    foreach ($selections as $time => $sel_data) {
+                        // Exclude current user's own selection from active_selections
+                        if (isset($sel_data['client_id']) && $sel_data['client_id'] !== $client_id) {
+                            $active_times[] = $time;
+                        }
+                    }
+                } else {
+                    // Clean expired selections for transients (older than 10 seconds)
+                    foreach ($selections as $time => $sel_data) {
+                        $timestamp = is_array($sel_data) ? ($sel_data['timestamp'] ?? 0) : $sel_data;
+                        $sel_client_id = is_array($sel_data) ? ($sel_data['client_id'] ?? null) : null;
+                        // Exclude current user and expired selections
+                        if ($now - $timestamp < 10 && $sel_client_id !== $client_id) {
+                            $active_times[] = $time;
+                        }
+                    }
+                }
+                
                 error_log('[Heartbeat] Found selections: ' . print_r($selections, true));
+                error_log('[Heartbeat] Active times (excluding current user): ' . print_r($active_times, true));
                 error_log('[Heartbeat] Booked slots: ' . print_r($booked_slots, true));
                 error_log('[Heartbeat] Locked slots: ' . print_r($locked_slots, true));
                 
                 // Refresh timestamp for current user's selection
                 if ($client_id && $selected_time) {
-                    if ($this->redis->is_enabled()) {
+                    if ($redis_available) {
                         $this->redis->set_active_selection($date, $employee_id, $selected_time, $client_id);
                     } else {
                         // Fallback to transients
@@ -111,30 +153,38 @@ class Appointease_Heartbeat_Handler {
                         $selections_data[$selected_time] = array('timestamp' => $now, 'client_id' => $client_id);
                         set_transient($key, $selections_data, 300);
                     }
-                    error_log('[Heartbeat] Refreshed timestamp for ' . $selected_time);
+                    error_log('[Heartbeat] Refreshed timestamp for ' . $selected_time . ' (client: ' . $client_id . ')');
                 }
-                
-                // Extract active times
-                $active_times = array();
-                if ($this->redis->is_enabled()) {
-                    $active_times = array_keys($selections);
-                } else {
-                    // Clean expired selections for transients (older than 10 seconds)
-                    foreach ($selections as $time => $sel_data) {
-                        $timestamp = is_array($sel_data) ? ($sel_data['timestamp'] ?? 0) : $sel_data;
-                        if ($now - $timestamp < 10) {
-                            $active_times[] = $time;
-                        }
-                    }
-                }
-                
-                error_log('[Heartbeat] Active times: ' . print_r($active_times, true));
                 $response['appointease_active_selections'] = $active_times;
                 $response['appointease_booked_slots'] = $booked_slots;
                 $response['appointease_locked_slots'] = $locked_slots;
+                
+                // Add cache info and Redis operations count
+                $response['cache_info'] = array(
+                    'redis_enabled' => $redis_available,
+                    'storage_mode' => $redis_available ? 'redis' : 'mysql',
+                    'timestamp' => time(),
+                    'health_check_used' => true
+                );
+                
+                // Count Redis operations
+                $response['redis_ops'] = array(
+                    'locks' => count($locked_slots),
+                    'selections' => count($active_times)
+                );
+                
+                // Add Redis stats if available
+                if ($redis_available) {
+                    $stats = $this->redis->get_stats();
+                    if ($stats) {
+                        $response['redis_stats'] = $stats;
+                    }
+                }
             }
         } catch (Exception $e) {
             error_log('[Heartbeat] Error in poll handler: ' . $e->getMessage());
+            $response['redis_status'] = 'error';
+            $response['storage_mode'] = 'mysql';
         }
         
         if (!isset($data['appointease_booking'])) {

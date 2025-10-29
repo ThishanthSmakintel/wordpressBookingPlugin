@@ -200,14 +200,17 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                 
                 // Select new slot
                 setTempSelected(time);
-                await selectSlot(selectedDate, time, selectedEmployee?.id || 0, clientId);
-                console.log('[Heartbeat] Slot selected:', time);
-            } catch (error: any) {
-                console.error('[Heartbeat] Slot selection failed:', error.message);
-                // Revert to previous selection on error
-                if (tempSelected) {
-                    setTempSelected(tempSelected);
+                const result = await selectSlot(selectedDate, time, selectedEmployee?.id || 0, clientId);
+                
+                if (result?.success) {
+                    console.log('[Heartbeat] Slot selected:', time);
+                } else {
+                    console.warn('[Heartbeat] Slot selection returned error:', result?.error);
+                    // Continue anyway for optimistic UI
                 }
+            } catch (error: any) {
+                console.error('[Heartbeat] Slot selection failed:', error);
+                // Continue anyway for optimistic UI - don't revert
             } finally {
                 setIsSelecting(false);
             }
@@ -363,8 +366,10 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                         const isSelected = tempSelected === time || selectedTime === time;
                         
                         // Check if slot is locked by another user (from heartbeatLockedSlots)
-                        // Exclude your own selection from being marked as locked
                         const isLockedByOther = heartbeatLockedSlots.includes(time) && !isSelected && time !== tempSelected;
+                        
+                        // Check if slot is being actively selected by another user (from heartbeatSelections)
+                        const isActivelySelected = heartbeatSelections.includes(time) && !isSelected && time !== tempSelected;
                         
                         // Check if slot is permanently booked (from heartbeatBookedSlots)
                         const isPermanentlyBooked = heartbeatBookedSlots.includes(time);
@@ -375,8 +380,8 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                         const serviceDuration = selectedService?.duration || 30;
                         const isCurrentAppointment = currentAppointmentTime === time;
                         
-                        // Processing = locked by another user
-                        const isProcessing = isLockedByOther;
+                        // Processing = locked by another user OR actively being selected
+                        const isProcessing = isLockedByOther || isActivelySelected;
                         
                         // Unavailable = permanently booked
                         const isUnavailable = isPermanentlyBooked || isInitiallyUnavailable;
