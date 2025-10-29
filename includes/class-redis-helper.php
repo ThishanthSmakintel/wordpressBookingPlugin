@@ -28,7 +28,8 @@ class Appointease_Redis_Helper {
         if (class_exists('Redis')) {
             try {
                 $this->redis = new Redis();
-                $this->redis->connect('127.0.0.1', 6379);
+                // Use pconnect for connection pooling (massive CPU/memory savings)
+                $this->redis->pconnect('127.0.0.1', 6379, 2.5);
                 
                 if (!$this->redis->ping()) {
                     return false;
@@ -49,12 +50,16 @@ class Appointease_Redis_Helper {
     
     /**
      * Fast health check using dedicated health key (avoids connection overhead)
+     * Also writes to detect full write failures
      */
     public function health_check() {
         if (!$this->enabled || !$this->redis) return false;
         
         try {
-            // Check health key instead of direct ping
+            // Write health key to detect write failures
+            $this->redis->setex('appointease:health:ping', 5, time());
+            
+            // Read health key to verify
             $health = $this->redis->get('appointease:health:ping');
             return $health !== false;
         } catch (Exception $e) {
@@ -189,16 +194,20 @@ class Appointease_Redis_Helper {
         
         try {
             $pattern = "appointease_active_{$date}_{$employee_id}_*";
-            $keys = $this->redis->keys($pattern);
             $selections = [];
+            $iterator = null;
             
-            foreach ($keys as $key) {
-                if (preg_match('/_(\d{2}:\d{2})$/', $key, $matches)) {
-                    $data = $this->redis->get($key);
-                    if ($data) {
-                        $selections[$matches[1]] = json_decode($data, true);
+            // Use SCAN instead of KEYS (non-blocking, production-safe)
+            while ($keys = $this->redis->scan($iterator, $pattern, 100)) {
+                foreach ($keys as $key) {
+                    if (preg_match('/_(\d{2}:\d{2})$/', $key, $matches)) {
+                        $data = $this->redis->get($key);
+                        if ($data) {
+                            $selections[$matches[1]] = json_decode($data, true);
+                        }
                     }
                 }
+                if ($iterator === 0) break;
             }
             return $selections;
         } catch (Exception $e) {
