@@ -15,112 +15,96 @@
    - Add "AppointEase Booking Form" block
    - Publish
 
-✅ **Done!** The plugin works immediately with HTTP polling for real-time updates.
+✅ **Done!** The plugin works immediately with WordPress Heartbeat (1-second polling) for real-time updates.
 
 ---
 
-## Optional: WebSocket Setup (Better Performance)
+## Optional: Redis Setup (Better Performance)
 
-WebSocket provides faster real-time updates but requires server setup. **Skip this if you're happy with HTTP polling.**
+Redis provides <1ms operations for slot locking with automatic MySQL fallback. **Skip this if you're happy with MySQL-only storage.**
 
 ### Requirements
-- SSH access to server
-- Composer installed
-- Port 8080 open (or any port you choose)
+- Redis 6.0+ installed
+- PHP Redis extension
 
-### Quick Setup (One Command)
+### Installation Steps
 
-**Linux/Mac:**
+**Linux/Ubuntu:**
 ```bash
-cd /path/to/wordpress/wp-content/plugins/wordpressBookingPlugin
-chmod +x setup-websocket.sh
-./setup-websocket.sh
+# Install Redis
+sudo apt update
+sudo apt install redis-server
+
+# Install PHP Redis extension
+sudo apt install php-redis
+
+# Start Redis
+sudo systemctl start redis-server
+sudo systemctl enable redis-server
+
+# Verify Redis is running
+redis-cli ping
+# Should return: PONG
 ```
 
 **Windows:**
-```cmd
-cd C:\path\to\wordpress\wp-content\plugins\wordpressBookingPlugin
-setup-websocket.bat
-```
-
-The script will:
-- ✅ Install dependencies
-- ✅ Start WebSocket server
-- ✅ Configure firewall
-- ✅ Set up auto-restart
-
-### Manual Steps
-
-1. **Install Dependencies**
 ```bash
-cd /path/to/wordpress/wp-content/plugins/wordpressBookingPlugin
-composer install
+# Option 1: Use Memurai (Redis for Windows)
+# Download from: https://www.memurai.com/
+
+# Option 2: Use WSL2
+wsl --install
+wsl
+sudo apt update
+sudo apt install redis-server
+redis-server
 ```
 
-2. **Start WebSocket Server**
+**macOS:**
 ```bash
-php websocket-server.php
+# Install via Homebrew
+brew install redis
+
+# Start Redis
+brew services start redis
+
+# Verify
+redis-cli ping
 ```
 
-You should see: `WebSocket server running on 0.0.0.0:8080`
+### Configure in WordPress
 
-3. **Keep Server Running (Production)**
+1. Go to **WordPress Admin → AppointEase → Settings**
+2. Navigate to **Redis** tab
+3. Enter connection details:
+   - Host: `127.0.0.1`
+   - Port: `6379`
+   - Password: (leave empty if no password)
+4. Click **Test Connection**
+5. Should show: ✅ **Redis Connected**
 
-**Option A: Using screen (Simple)**
-```bash
-screen -S appointease-ws
-php websocket-server.php
-# Press Ctrl+A then D to detach
-```
+### Verify Redis is Working
 
-**Option B: Using supervisor (Recommended)**
-
-Create `/etc/supervisor/conf.d/appointease-websocket.conf`:
-```ini
-[program:appointease-websocket]
-command=php /path/to/wordpress/wp-content/plugins/wordpressBookingPlugin/websocket-server.php
-autostart=true
-autorestart=true
-user=www-data
-stdout_logfile=/var/log/appointease-websocket.log
-stderr_logfile=/var/log/appointease-websocket-error.log
-```
-
-Then:
-```bash
-sudo supervisorctl reread
-sudo supervisorctl update
-sudo supervisorctl start appointease-websocket
-```
-
-4. **Open Firewall Port**
-```bash
-# Ubuntu/Debian
-sudo ufw allow 8080
-
-# CentOS/RHEL
-sudo firewall-cmd --permanent --add-port=8080/tcp
-sudo firewall-cmd --reload
-```
-
-5. **Verify WebSocket**
-   - Visit: `http://yoursite.com/wp-content/plugins/wordpressBookingPlugin/test-websocket.html`
-   - Click "Connect"
-   - Should show "✅ Connected"
+1. Open booking form
+2. Open browser DevTools (F12)
+3. Look for debug panel (development mode)
+4. Should show: `Storage: Redis` and `Redis Ops: {get: X, set: Y}`
 
 ---
 
 ## What Users See
 
-### Without WebSocket (Default)
+### Without Redis (Default)
 - ✅ Full functionality works
-- 🔄 Updates every 10 seconds via HTTP polling
-- 📊 Debug panel shows: "🔄 HTTP Polling"
+- 🔄 Real-time updates via WordPress Heartbeat (1s)
+- 💾 Storage: MySQL
+- 📊 Debug panel shows: "Storage: MySQL"
 
-### With WebSocket (Optional)
+### With Redis (Optional)
 - ✅ Full functionality works
-- ⚡ Instant real-time updates
-- 📊 Debug panel shows: "⚡ WebSocket"
+- ⚡ Real-time updates via WordPress Heartbeat (1s)
+- 💾 Storage: Redis (<1ms operations)
+- 📊 Debug panel shows: "Storage: Redis"
 
 ---
 
@@ -144,40 +128,56 @@ Go to: **WordPress Admin → AppointEase → Settings**
 
 ## Troubleshooting
 
-### Plugin works but no WebSocket
-✅ **This is normal!** HTTP polling works automatically. WebSocket is optional.
+### Plugin works but no Redis
+✅ **This is normal!** MySQL storage works automatically. Redis is optional for better performance.
 
-### WebSocket won't connect
-1. Check server is running: `ps aux | grep websocket`
-2. Check port is open: `telnet yoursite.com 8080`
-3. Check firewall allows port 8080
-4. View logs: `/var/log/appointease-websocket-error.log`
+### Redis won't connect
+1. Check Redis is running:
+   ```bash
+   redis-cli ping
+   # Should return: PONG
+   ```
+2. Check PHP Redis extension:
+   ```bash
+   php -m | grep redis
+   # Should show: redis
+   ```
+3. Check connection in WordPress:
+   - Go to AppointEase → Settings → Redis
+   - Click "Test Connection"
+4. Check error logs:
+   ```bash
+   tail -f /var/log/redis/redis-server.log
+   ```
 
-### Restart WebSocket Server
+### Restart Redis Server
 ```bash
-# If using screen
-screen -r appointease-ws
-# Press Ctrl+C to stop, then restart
+# Linux
+sudo systemctl restart redis-server
 
-# If using supervisor
-sudo supervisorctl restart appointease-websocket
+# macOS
+brew services restart redis
+
+# Windows (Memurai)
+# Restart from Services app
 ```
 
 ---
 
 ## For Shared Hosting Users
 
-**WebSocket requires VPS/dedicated server.** Shared hosting typically doesn't allow:
-- Long-running PHP processes
-- Custom ports
-- Composer
+**Redis requires VPS/dedicated server.** Shared hosting typically doesn't allow:
+- Redis installation
+- PHP Redis extension
+- Server configuration
 
-**Solution:** Use HTTP polling (default). It works perfectly without any setup!
+**Solution:** Use MySQL storage (default). It works perfectly without any setup!
 
 ---
 
 ## Support
 
 - Documentation: See `README.md`
-- WebSocket Guide: See `README-WEBSOCKET.md`
+- Architecture: See `ARCHITECTURE.md`
+- API Documentation: See `API-DOCUMENTATION.md`
 - Issues: Contact plugin author

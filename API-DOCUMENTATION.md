@@ -2,11 +2,12 @@
 
 ## Table of Contents
 1. [REST API Endpoints](#rest-api-endpoints)
-2. [WebSocket API](#websocket-api)
-3. [Database Schema](#database-schema)
-4. [WordPress Hooks & Filters](#wordpress-hooks--filters)
-5. [JavaScript Events](#javascript-events)
-6. [Configuration Options](#configuration-options)
+2. [WordPress Heartbeat API](#wordpress-heartbeat-api)
+3. [Redis Integration](#redis-integration)
+4. [Database Schema](#database-schema)
+5. [WordPress Hooks & Filters](#wordpress-hooks--filters)
+6. [JavaScript Events](#javascript-events)
+7. [Configuration Options](#configuration-options)
 
 ---
 
@@ -457,154 +458,208 @@ X-WP-Nonce: {nonce}
 
 ---
 
-## WebSocket API
+### 10. Real-Time Slot Management
 
-### Connection URL
-```
-ws://blog.promoplus.com:8080?email=user@example.com
-```
+#### Select Slot (Lock)
+```http
+POST /wp-json/appointease/v1/slots/select
+Content-Type: application/json
 
-### Message Types
-
-#### 1. Connection
-**Client → Server:**
-```json
 {
-  "type": "connection"
-}
-```
-
-**Server → Client:**
-```json
-{
-  "type": "connection",
-  "mode": "websocket",
-  "status": "connected",
-  "clientId": "user@example.com",
-  "timestamp": 1730127045000
-}
-```
-
-#### 2. Lock Slot
-**Client → Server:**
-```json
-{
-  "type": "lock_slot",
   "date": "2025-10-28",
-  "time": "09:00",
-  "employeeId": 2,
-  "service": "Consultation"
+  "time": "10:00",
+  "employee_id": 2,
+  "client_id": "abc123"
 }
 ```
 
-**Server → Client:**
+**Response:**
 ```json
 {
-  "type": "slot_locked",
+  "success": true,
+  "storage_mode": "redis",
+  "redis_ops": {
+    "get": 1,
+    "set": 1,
+    "publish": 1
+  }
+}
+```
+
+#### Deselect Slot (Unlock)
+```http
+POST /wp-json/appointease/v1/slots/deselect
+Content-Type: application/json
+
+{
   "date": "2025-10-28",
-  "time": "09:00",
-  "employeeId": 2,
-  "expiresIn": 600,
-  "timestamp": 1730127045000
+  "time": "10:00",
+  "employee_id": 2
 }
 ```
 
-#### 3. Unlock Slot
-**Client → Server:**
+**Response:**
 ```json
 {
-  "type": "unlock_slot",
-  "date": "2025-10-28",
-  "time": "09:00",
-  "employeeId": 2,
-  "completed": false
+  "success": true,
+  "storage_mode": "redis"
 }
 ```
 
-**Server → Client:**
+---
+
+## WordPress Heartbeat API
+
+### Overview
+AppointEase uses WordPress Heartbeat API for real-time updates at 1-second intervals. This provides sub-second slot locking without WebSocket complexity.
+
+### Configuration
+- **Interval**: 1 second
+- **Suspension**: Disabled on frontend
+- **Transport**: WordPress AJAX (admin-ajax.php)
+
+### Heartbeat Data Exchange
+
+#### Client Sends (every 1 second)
+```javascript
+jQuery(document).on('heartbeat-send', function(e, data) {
+  data.appointease_poll = {
+    date: "2025-10-28",
+    employee_id: 2,
+    client_id: "abc123",        // Only if user selected
+    selected_time: "10:00"      // Only if user selected
+  };
+});
+```
+
+#### Server Responds (every 1 second)
+```javascript
+jQuery(document).on('heartbeat-tick', function(e, data) {
+  // data.appointease_active_selections
+  // data.appointease_booked_slots
+  // data.appointease_locked_slots
+  // data.redis_ops
+});
+```
+
+**Response Structure:**
 ```json
 {
-  "type": "slot_unlocked",
-  "date": "2025-10-28",
-  "time": "09:00",
-  "employeeId": 2,
-  "timestamp": 1730127045000
+  "appointease_active_selections": [
+    {
+      "client_id": "abc123",
+      "time": "10:00",
+      "timestamp": 1730127045
+    },
+    {
+      "client_id": "xyz789",
+      "time": "10:30",
+      "timestamp": 1730127050
+    }
+  ],
+  "appointease_booked_slots": ["09:00", "09:30", "14:00"],
+  "appointease_locked_slots": ["10:00", "10:30"],
+  "redis_ops": {
+    "get": 2,
+    "set": 0,
+    "publish": 0
+  }
 }
 ```
 
-#### 4. Selecting Slot
-**Client → Server:**
-```json
-{
-  "type": "selecting_slot",
-  "date": "2025-10-28",
-  "time": "09:00",
-  "employeeId": 2
-}
+### React Hook Integration
+
+**useHeartbeat.ts:**
+```typescript
+const { 
+  isConnected,
+  activeSelections,
+  bookedSlots,
+  lockedSlots,
+  redisOps,
+  selectSlot,
+  deselectSlot 
+} = useHeartbeat(pollData);
 ```
 
-**Server → Client:**
-```json
-{
-  "type": "active_selections",
-  "date": "2025-10-28",
-  "employeeId": 2,
-  "slots": ["09:00", "10:30"],
-  "timestamp": 1730127045000
-}
+**useHeartbeatSlotPolling.ts:**
+```typescript
+const {
+  activeSelections,
+  bookedSlots,
+  lockedSlots
+} = useHeartbeatSlotPolling(
+  date,
+  employeeId,
+  clientId,
+  selectedTime
+);
 ```
 
-#### 5. Watch Slot (Conflict Detection)
-**Client → Server:**
-```json
-{
-  "type": "watch_slot",
-  "date": "2025-10-28",
-  "time": "09:00",
-  "employeeId": 2
-}
+---
+
+## Redis Integration
+
+### Overview
+Redis provides <1ms operations for slot locking with automatic MySQL fallback.
+
+### Data Structure
+
+#### 1. Active Selections (Temporary Locks)
+```
+Key:   appointease:selections:{date}:{employee_id}
+Type:  SET
+Value: {client_id}:{time}:{timestamp}
+TTL:   300 seconds (5 minutes)
+
+Example:
+appointease:selections:2025-10-28:2
+├─ "abc123:10:00:1730127045"
+├─ "xyz789:10:30:1730127050"
+└─ "def456:11:00:1730127055"
 ```
 
-**Server → Client (on conflict):**
-```json
-{
-  "type": "slot_taken",
-  "slot": "2025-10-28 09:00",
-  "date": "2025-10-28",
-  "time": "09:00",
-  "employeeId": 2,
-  "timestamp": 1730127045000
-}
+#### 2. Booked Slots (Permanent)
+```
+Key:   appointease:booked:{date}:{employee_id}
+Type:  SET
+Value: {time}
+TTL:   86400 seconds (24 hours)
+
+Example:
+appointease:booked:2025-10-28:2
+├─ "09:00"
+├─ "09:30"
+└─ "14:00"
 ```
 
-#### 6. Check Availability
-**Client → Server:**
-```json
-{
-  "type": "check_availability",
-  "date": "2025-10-28",
-  "employeeId": 2
-}
+#### 3. Pub/Sub Channel
+```
+Channel: appointease:slot_updates
+Message: {"date": "2025-10-28", "employee_id": 2, "time": "10:00", "action": "select"}
 ```
 
-**Server → Client:**
-```json
-{
-  "type": "availability_update",
-  "date": "2025-10-28",
-  "employeeId": 2,
-  "unavailable": ["09:00", "10:30"],
-  "timestamp": 1730127045000
-}
-```
+### Redis Operations
 
-#### 7. Booking Session Tracking
-**Client → Server:**
-```json
-{
-  "type": "booking_session",
-  "step": 4,
-  "service": "Consultation",
+| Operation | Command | Latency | Purpose |
+|-----------|---------|---------|----------|
+| Select Slot | SADD + EXPIRE | <1ms | Add to active selections |
+| Deselect Slot | SREM | <1ms | Remove from active selections |
+| Get Selections | SMEMBERS | <1ms | Retrieve all active selections |
+| Book Slot | SADD + SREM | <1ms | Move to booked, remove from selections |
+| Publish Event | PUBLISH | <5ms | Broadcast to all clients |
+
+### MySQL Fallback
+
+When Redis is unavailable:
+- Automatic fallback to MySQL
+- Uses `wp_appointease_temp_locks` table
+- Cron job cleans expired locks
+- Response includes `"storage_mode": "mysql"`
+
+---
+
+## Database Schema": "Consultation",
   "employee": "Dr. Smith",
   "date": "2025-10-28",
   "time": "09:00"
