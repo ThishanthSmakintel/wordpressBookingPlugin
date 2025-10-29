@@ -55,12 +55,12 @@ interface DebugPanelProps {
     storageMode?: 'redis' | 'mysql';
     redisHealth?: boolean;
     heartbeatLatency?: number;
-    redisOps?: { locks: number; selections: number };
+    redisOps?: { locks: number; selections: number; user_selection?: number };
     redisStats?: any;
     tempSelected?: string;
 }
 
-export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState, connectionMode = 'disconnected', wsLatency = 0, storageMode = 'mysql', redisHealth = false, heartbeatLatency = 0, redisOps = { locks: 0, selections: 0 }, redisStats = null, tempSelected = '' }) => {
+export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState, connectionMode = 'disconnected', wsLatency = 0, storageMode = 'mysql', redisHealth = false, heartbeatLatency = 0, redisOps = { locks: 0, selections: 0, user_selection: 0 }, redisStats = null, tempSelected = '' }) => {
     const { step, selectedService, selectedEmployee, selectedDate, selectedTime, formData, serverDate, isOnline } = useBookingStore();
     const { showDebug, setShowDebug } = useDebugStore();
     useAutoLoadDebugData(debugState);
@@ -229,9 +229,26 @@ export const DebugPanel: React.FC<DebugPanelProps> = ({ debugState, bookingState
                 {storageMode === 'redis' && (
                     <div style={{marginTop: '8px', padding: '6px', background: 'rgba(255,165,0,0.1)', borderRadius: '4px'}}>
                         <div style={{color: '#fa0', fontSize: '10px', marginBottom: '4px'}}>📊 REDIS OPERATIONS</div>
-                        <div style={{fontSize: '9px'}}>🔒 DB Locks: {redisOps.locks}</div>
-                        <div style={{fontSize: '9px'}}>👁️ Other Users: {redisOps.selections}</div>
-                        <div style={{fontSize: '9px'}}>✅ Your Selection: {tempSelected ? '1 (' + tempSelected + ')' : '0'}</div>
+                        <div style={{fontSize: '9px'}}>🔒 DB Locks: {redisOps?.locks || 0}</div>
+                        <div style={{fontSize: '9px'}}>👁️ Other Users: {redisOps?.selections || 0}</div>
+                        <div style={{fontSize: '9px'}}>✅ Your Selection: {redisOps?.user_selection || 0}{tempSelected ? ' (' + tempSelected + ')' : ''}</div>
+                        <div style={{fontSize: '8px', color: '#888', marginTop: '2px'}}>Debug: {JSON.stringify(redisOps)}</div>
+                        <button onClick={async () => {
+                            const logs = localStorage.getItem('heartbeat_logs') || 'No logs';
+                            const response = await fetch(`${window.bookingAPI?.root}appointease/v1/collect-logs`, {
+                                method: 'POST',
+                                headers: {'Content-Type': 'application/json'},
+                                body: JSON.stringify({
+                                    browser_logs: logs,
+                                    redis_ops: JSON.stringify(redisOps, null, 2)
+                                })
+                            });
+                            const result = await response.json();
+                            if (result.success) {
+                                alert('Logs saved to: ' + result.path);
+                                window.open(result.path, '_blank');
+                            }
+                        }} style={{background: '#3b82f6', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '8px', marginTop: '4px', width: '100%'}}>💾 Save Logs to File</button>
                         {debugState.activeSelections && debugState.activeSelections.length > 0 && (
                             <div style={{marginTop: '4px', fontSize: '8px', color: '#d97706'}}>
                                 <div>🔴 Others Selecting: {debugState.activeSelections.join(', ')}</div>

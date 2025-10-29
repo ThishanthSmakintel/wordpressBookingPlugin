@@ -1,4 +1,5 @@
 import React, { useEffect, useCallback, useRef } from 'react';
+import '../../utils/consoleLogger';
 import { createRoot } from 'react-dom/client';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import '../../assets/styles/frontend/index.css';
@@ -25,6 +26,7 @@ import ConnectionStatus from '../../components/ui/ConnectionStatus';
 
 // Modules
 import { DebugPanel } from '../../modules/DebugPanel';
+import HeartbeatTest from '../../components/HeartbeatTest';
 import { AppointmentManager } from '../../modules/AppointmentManager';
 import { BookingHeader } from '../../modules/BookingHeader';
 
@@ -99,7 +101,7 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
     }, [bookingState.loginEmail, step, selectedDate, selectedTime, selectedEmployee, bookingState.showDashboard, bookingState.isRescheduling, debugState.showDebug]);
     
     const { isConnected: isHeartbeatConnected, storageMode, latency: heartbeatLatency, redisOps, redisStats, send: sendHeartbeat } = useHeartbeat({
-        enabled: true,
+        enabled: step !== 4,
         pollData: heartbeatPollData,
         onPoll: (data: any) => {
             if (data.appointease_active_selections) {
@@ -547,6 +549,13 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
         );
     }
 
+    // Show test if URL has ?test=heartbeat
+    const showTest = new URLSearchParams(window.location.search).get('test') === 'heartbeat';
+    
+    if (showTest) {
+        return <HeartbeatTest />;
+    }
+    
     return (
         <>
             <DebugPanel debugState={debugState} bookingState={bookingState} connectionMode={connectionMode} wsLatency={wsLatency} storageMode={storageMode} redisHealth={storageMode === 'redis'} heartbeatLatency={heartbeatLatency} redisOps={redisOps} redisStats={redisStats} tempSelected={selectedTime} />

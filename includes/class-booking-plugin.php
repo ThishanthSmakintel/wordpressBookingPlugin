@@ -227,6 +227,9 @@ class Booking_Plugin {
     }
     
     public function enqueue_scripts() {
+        // CRITICAL: Enqueue WordPress Heartbeat API for real-time updates
+        wp_enqueue_script('heartbeat');
+        
         // Use bundled frontend build
         $frontend_asset_file = BOOKING_PLUGIN_PATH . 'build/frontend.asset.php';
         $frontend_asset_data = file_exists($frontend_asset_file) ? include $frontend_asset_file : [

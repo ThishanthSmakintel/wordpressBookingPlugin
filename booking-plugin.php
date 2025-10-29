@@ -19,11 +19,6 @@ if (!defined('ABSPATH')) {
     wp_die('Direct access not allowed.');
 }
 
-// Debug AJAX errors
-if (defined('DOING_AJAX') && DOING_AJAX) {
-    require_once __DIR__ . '/debug-ajax.php';
-}
-
 define('BOOKING_PLUGIN_VERSION', '1.0.0');
 define('BOOKING_PLUGIN_PATH', plugin_dir_path(__FILE__));
 define('BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
@@ -71,11 +66,9 @@ add_action('appointease_clean_locks', function() {
     }
 });
 
-// Initialize heartbeat handler at plugins_loaded (before init)
-add_action('plugins_loaded', function() {
-    new Appointease_Heartbeat_Handler();
-    error_log('[Plugin] Heartbeat handler instantiated at plugins_loaded');
-});
+// Initialize heartbeat handler immediately (not in hook)
+new Appointease_Heartbeat_Handler();
+error_log('[Plugin] Heartbeat handler instantiated immediately');
 
 function run_booking_plugin() {
     $plugin = Booking_Plugin::get_instance();

@@ -6,7 +6,7 @@ import { useHeartbeatSlotPolling } from '../../hooks/useHeartbeatSlotPolling';
 import { SettingsService } from '../../app/shared/services/settings.service';
 import { format, parseISO } from 'date-fns';
 
-// Memoized TimeSlot component for performance
+// Memoized TimeSlot component
 const TimeSlot = memo(({ 
     time, 
     isSelected, 
@@ -84,7 +84,6 @@ const TimeSlot = memo(({
     );
 });
 
-// Helper function to get time slot styles
 const getTimeSlotStyles = (isCurrentAppointment: boolean, isUnavailable: boolean, isSelected: boolean, isBeingBooked: boolean) => {
     if (isCurrentAppointment) {
         return {
@@ -140,9 +139,6 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
     const bookingState = useBookingState();
     const [tempSelected, setTempSelected] = useState<string>(selectedTime || '');
     
-
-    
-    // Memoize current appointment time calculation using date-fns
     const currentAppointmentTime = useMemo(() => {
         if (isRescheduling && currentAppointment?.appointment_date) {
             try {
@@ -155,13 +151,9 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
         return null;
     }, [isRescheduling, currentAppointment?.appointment_date]);
     
-
-    
-    // Generate client ID
     const clientId = useMemo(() => `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, []);
     
-    // Heartbeat hooks
-    const { selectSlot, deselectSlot } = useHeartbeat({ enabled: true });
+    const { selectSlot, deselectSlot, redisOps, storageMode } = useHeartbeat({ enabled: true });
     const { activeSelections: heartbeatSelections, bookedSlots: heartbeatBookedSlots, lockedSlots: heartbeatLockedSlots } = useHeartbeatSlotPolling({
         date: selectedDate,
         employeeId: selectedEmployee?.id || 0,
@@ -170,19 +162,11 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
         selectedTime: tempSelected
     });
     
-    // Merge heartbeat booked slots + locked slots + active selections with initial unavailable slots
     const allUnavailableSlots = useMemo(() => {
         if (unavailableSlots === 'all') return 'all';
         const initial = Array.isArray(unavailableSlots) ? unavailableSlots : [];
-        const merged = [...new Set([...initial, ...heartbeatBookedSlots, ...heartbeatLockedSlots, ...heartbeatSelections])];
-        console.log('[TimeSelector] Merging unavailable slots:');
-        console.log('  - Initial:', initial);
-        console.log('  - Heartbeat booked:', heartbeatBookedSlots);
-        console.log('  - Heartbeat locked:', heartbeatLockedSlots);
-        console.log('  - Heartbeat selections:', heartbeatSelections);
-        console.log('  - Final merged:', merged);
-        return merged;
-    }, [unavailableSlots, heartbeatBookedSlots, heartbeatLockedSlots, heartbeatSelections]);
+        return [...new Set([...initial, ...heartbeatBookedSlots, ...heartbeatLockedSlots])];
+    }, [unavailableSlots, heartbeatBookedSlots, heartbeatLockedSlots]);
     
     const [isSelecting, setIsSelecting] = useState(false);
     
@@ -192,25 +176,17 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
             setIsSelecting(true);
             
             try {
-                // If user already has a selection, deselect it first
                 if (tempSelected && tempSelected !== time) {
-                    console.log('[Heartbeat] Deselecting previous slot:', tempSelected);
                     await deselectSlot(selectedDate, tempSelected, selectedEmployee?.id || 0);
                 }
                 
-                // Select new slot
                 setTempSelected(time);
-                const result = await selectSlot(selectedDate, time, selectedEmployee?.id || 0, clientId);
-                
-                if (result?.success) {
-                    console.log('[Heartbeat] Slot selected:', time);
-                } else {
-                    console.warn('[Heartbeat] Slot selection returned error:', result?.error);
-                    // Continue anyway for optimistic UI
-                }
+                await selectSlot(selectedDate, time, selectedEmployee?.id || 0, clientId);
             } catch (error: any) {
-                console.error('[Heartbeat] Slot selection failed:', error);
-                // Continue anyway for optimistic UI - don't revert
+                console.error('[Heartbeat] Slot selection failed:', error.message);
+                if (tempSelected) {
+                    setTempSelected(tempSelected);
+                }
             } finally {
                 setIsSelecting(false);
             }
@@ -233,9 +209,7 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
     const [timeSlots, setTimeSlots] = useState<string[]>([]);
     const [isLoadingSlots, setIsLoadingSlots] = useState(true);
     const [errorDetails, setErrorDetails] = useState<string>('');
-    const [isRateLimited, setIsRateLimited] = useState(false);
     
-    // Load time slots from settings API
     const loadTimeSlots = useCallback(async () => {
         try {
             setIsLoadingSlots(true);
@@ -261,16 +235,6 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
         loadTimeSlots();
     }, [loadTimeSlots]);
     
-    // Check availability when date/employee changes
-    useEffect(() => {
-        if (selectedDate && selectedEmployee?.id) {
-            console.log('[TimeSelector] Checking availability for:', selectedDate, selectedEmployee.id);
-            // Heartbeat will automatically fetch locked slots and booked slots
-            // No need for manual API call - heartbeat polling handles it
-        }
-    }, [selectedDate, selectedEmployee]);
-
-    // Cleanup on unmount
     useEffect(() => {
         return () => {
             if (tempSelected && selectedDate && selectedEmployee) {
@@ -304,7 +268,6 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                 {isRescheduling ? 'Choose New Time' : 'Choose Your Time'}
             </h2>
             
-            {/* Selected Date Info */}
             <div style={{
                 textAlign: 'center',
                 marginBottom: '2rem',
@@ -323,6 +286,24 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                 </div>
             </div>
             
+            <div style={{
+                textAlign: 'center',
+                marginBottom: '1.5rem',
+                padding: '12px',
+                backgroundColor: storageMode === 'redis' ? '#eff6ff' : '#fef3c7',
+                borderRadius: '8px',
+                border: `1px solid ${storageMode === 'redis' ? '#bfdbfe' : '#fde68a'}`
+            }}>
+                <div style={{fontSize: '0.875rem', color: '#374151', marginBottom: '6px'}}>
+                    <strong>Real-time:</strong> {storageMode === 'redis' ? '🟢 Redis' : '🟡 MySQL'}
+                </div>
+                <div style={{fontSize: '0.75rem', color: '#6b7280', display: 'flex', justifyContent: 'center', gap: '16px'}}>
+                    <span>🔒 Locks: {redisOps.locks}</span>
+                    <span>👁️ Others: {redisOps.selections}</span>
+                    <span>✅ You: {redisOps.user_selection}</span>
+                </div>
+            </div>
+            
             <div style={{maxWidth: '100%', margin: '0 auto', padding: '0 20px'}}>
                 {isLoadingSlots ? (
                     <div style={{textAlign: 'center', padding: '40px'}}>
@@ -331,11 +312,6 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                 ) : !timeSlots || timeSlots.length === 0 ? (
                     <div style={{textAlign: 'center', padding: '40px'}}>
                         <div style={{fontSize: '16px', color: '#ef4444', marginBottom: '16px'}}>⚠️ Time Slots Not Available</div>
-                        <div style={{fontSize: '14px', color: '#666', marginBottom: '16px'}}>API Error: Unable to load time slots from server</div>
-                        <div style={{fontSize: '12px', color: '#999', marginBottom: '16px'}}>Error Details:</div>
-                        <div style={{fontSize: '11px', color: '#666', marginBottom: '16px', fontFamily: 'monospace', backgroundColor: '#f5f5f5', padding: '8px', borderRadius: '4px', textAlign: 'left', maxHeight: '100px', overflow: 'auto', whiteSpace: 'pre-wrap'}}>
-                            {errorDetails || 'No error details captured yet'}
-                        </div>
                         <button 
                             onClick={() => {
                                 const settingsService = SettingsService.getInstance();
@@ -362,53 +338,35 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                         gap: '12px',
                         marginBottom: '32px'
                     }}>
-                    {(timeSlots || []).map(time => {
+                    {timeSlots.map(time => {
                         const isSelected = tempSelected === time || selectedTime === time;
-                        
-                        // Check if slot is locked by another user (from heartbeatLockedSlots)
-                        const isLockedByOther = heartbeatLockedSlots.includes(time) && !isSelected && time !== tempSelected;
-                        
-                        // Check if slot is being actively selected by another user (from heartbeatSelections)
-                        const isActivelySelected = heartbeatSelections.includes(time) && !isSelected && time !== tempSelected;
-                        
-                        // Check if slot is permanently booked (from heartbeatBookedSlots)
+                        const isLockedByOther = heartbeatLockedSlots.includes(time) && !isSelected;
                         const isPermanentlyBooked = heartbeatBookedSlots.includes(time);
-                        
-                        // Check if slot is in initial unavailable list
                         const isInitiallyUnavailable = unavailableSlots === 'all' || (Array.isArray(unavailableSlots) && unavailableSlots.includes(time));
-                        
                         const serviceDuration = selectedService?.duration || 30;
                         const isCurrentAppointment = currentAppointmentTime === time;
-                        
-                        // Processing = locked by another user OR actively being selected
-                        const isProcessing = isLockedByOther || isActivelySelected;
-                        
-                        // Unavailable = permanently booked
+                        const isProcessing = isLockedByOther;
                         const isUnavailable = isPermanentlyBooked || isInitiallyUnavailable;
-                        
-                        // Disable if: permanently booked, locked by another user, current appointment
                         const isDisabled = (isUnavailable || isProcessing || isCurrentAppointment) && !isSelected;
                         
                         return (
-                            <div key={time} style={{position: 'relative'}}>
-                                <TimeSlot
-                                    time={time}
-                                    isSelected={isSelected}
-                                    isCurrentAppointment={isCurrentAppointment}
-                                    isBeingBooked={false}
-                                    isUnavailable={isUnavailable}
-                                    isProcessing={isProcessing}
-                                    isDisabled={isDisabled}
-                                    serviceDuration={serviceDuration}
-                                    onSelect={handleTimeSelect}
-                                />
-                            </div>
+                            <TimeSlot
+                                key={time}
+                                time={time}
+                                isSelected={isSelected}
+                                isCurrentAppointment={isCurrentAppointment}
+                                isBeingBooked={false}
+                                isUnavailable={isUnavailable}
+                                isProcessing={isProcessing}
+                                isDisabled={isDisabled}
+                                serviceDuration={serviceDuration}
+                                onSelect={handleTimeSelect}
+                            />
                         );
                     })}
                     </div>
                 )}
                 
-                {/* Action Buttons */}
                 <div style={{display: 'flex', justifyContent: 'space-between'}}>
                     <button 
                         onClick={handleBack}

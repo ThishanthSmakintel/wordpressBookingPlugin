@@ -219,7 +219,7 @@ add_filter('rest_pre_dispatch', function($response, $server, $request) {
     }
     
     // Skip session endpoints and public endpoints
-    $public_endpoints = ['/session', '/verify-otp', '/services', '/staff', '/appointments', '/user-appointments', '/availability', '/debug', '/fix-working-days', '/server-date', '/settings', '/business-hours', '/time-slots', '/check-slot', '/health', '/realtime/poll', '/realtime/select', '/realtime/deselect', '/slots/select', '/slots/deselect', '/test-heartbeat', '/generate-otp', '/unlock-slot', '/clear-locks'];
+    $public_endpoints = ['/session', '/verify-otp', '/services', '/staff', '/appointments', '/user-appointments', '/availability', '/debug', '/fix-working-days', '/server-date', '/settings', '/business-hours', '/time-slots', '/check-slot', '/health', '/realtime/poll', '/realtime/select', '/realtime/deselect', '/slots/select', '/slots/deselect', '/test-heartbeat', '/generate-otp', '/unlock-slot', '/clear-locks', '/save-browser-logs', '/collect-logs'];
     
     foreach ($public_endpoints as $endpoint) {
         if (strpos($route, $endpoint) !== false) {

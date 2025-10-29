@@ -1,11 +1,9 @@
 /**
  * WordPress Heartbeat API Hook
- * Redis-Primary System: Redis for fast temp data, Heartbeat+MySQL fallback
  * Handles all real-time operations through WordPress Heartbeat (5-second polling)
  */
 
 import { useEffect, useCallback, useRef, useState } from 'react';
-import { getRedisDataService } from '../services/redisDataService';
 
 declare global {
   interface Window {
@@ -30,102 +28,65 @@ export const useHeartbeat = (options: HeartbeatOptions = {}) => {
   const { enabled = true, onPoll, pollData } = options;
   const [isConnected, setIsConnected] = useState(false);
   const [storageMode, setStorageMode] = useState<'redis' | 'mysql'>('redis');
-  const [latency, setLatency] = useState(0);
-  const [redisOps, setRedisOps] = useState({ locks: 0, selections: 0 });
-  const [redisStats, setRedisStats] = useState(null);
+  const [redisOps, setRedisOps] = useState({ locks: 0, selections: 0, user_selection: 0 });
   const handlersRef = useRef<Map<string, (data: any) => void>>(new Map());
   const isInitializedRef = useRef(false);
   const lastConnectRef = useRef(0);
-  const sendTimeRef = useRef(0);
-  const lastDataRef = useRef<string>('');
 
   // Initialize heartbeat
   useEffect(() => {
-    if (!enabled || typeof window.wp === 'undefined' || !window.wp.heartbeat) {
+    if (!enabled || typeof window.wp === 'undefined' || !window.wp.heartbeat || isInitializedRef.current) {
       return;
     }
 
-    // Allow re-initialization when pollData changes
-    if (!isInitializedRef.current) {
-      isInitializedRef.current = true;
-      setIsConnected(true);
-      // Set heartbeat interval to 1 second for ultra-fast real-time updates
-      window.wp.heartbeat.interval(1);
-    }
+    isInitializedRef.current = true;
+    setIsConnected(true);
+
+    // Set heartbeat interval to 1 second
+    window.wp.heartbeat.interval(1);
 
     // Heartbeat send event - add data to be sent
     const handleSend = (event: any, data: any) => {
-      sendTimeRef.current = Date.now();
-      console.log('[Heartbeat] ===== SEND EVENT =====');
-      console.log('[Heartbeat] pollData:', pollData);
+      console.log('[Heartbeat] Send event triggered');
       
       // Add poll data if provided
       if (pollData) {
         data.appointease_poll = pollData;
-        console.log('[Heartbeat] ✓ Added poll data:', pollData);
-      } else {
-        console.log('[Heartbeat] ✗ No poll data to send');
+        console.log('[Heartbeat] Added poll data:', pollData);
       }
-      console.log('[Heartbeat] Full data being sent:', data);
 
       // Add any queued actions
       handlersRef.current.forEach((handler, key) => {
         if (key.startsWith('send_')) {
           const actionKey = key.replace('send_', '');
           data[actionKey] = handler(data);
-          console.log('[Heartbeat] Added action:', actionKey, data[actionKey]);
         }
       });
     };
 
     // Heartbeat tick event - process received data
     const handleTick = (event: any, data: any) => {
-      const timestamp = new Date().toISOString();
-      const logEntry = `\n[${timestamp}] TICK EVENT\nData: ${JSON.stringify(data, null, 2)}\n`;
+      console.log('[Heartbeat] Tick event received:', data);
       
-      // Save to localStorage
-      try {
-        const logs = localStorage.getItem('heartbeat_logs') || '';
-        localStorage.setItem('heartbeat_logs', logs + logEntry);
-      } catch (e) {}
+      if (data.redis_status === 'available') setStorageMode('redis');
+      else if (data.redis_status === 'unavailable') setStorageMode('mysql');
       
-      console.log('[Heartbeat] ===== TICK EVENT FIRED =====');
-      console.log('[Heartbeat] Data:', data);
-      const tickLatency = Date.now() - sendTimeRef.current;
-      setLatency(tickLatency);
-      
-      // Update storage mode only if changed
-      if (data.redis_status === 'available' && storageMode !== 'redis') {
-        setStorageMode('redis');
-      } else if (data.redis_status === 'unavailable' && storageMode !== 'mysql') {
-        setStorageMode('mysql');
-      }
-      
-      // Update Redis operations count
       if (data.redis_ops) {
-        setRedisOps(data.redis_ops);
-      }
-      
-      // Update Redis stats
-      if (data.redis_stats) {
-        setRedisStats(data.redis_stats);
+        setRedisOps({
+          locks: data.redis_ops.locks || 0,
+          selections: data.redis_ops.selections || 0,
+          user_selection: data.redis_ops.user_selection || 0
+        });
       }
       
       // Handle poll response
-      console.log('[Heartbeat] ===== TICK RECEIVED =====');
-      console.log('[Heartbeat] onPoll exists?', !!onPoll);
-      console.log('[Heartbeat] Data received:', data);
       if (onPoll) {
-        console.log('[Heartbeat] Calling onPoll with data');
         onPoll(data);
-      } else {
-        console.log('[Heartbeat] ✗ No onPoll callback registered');
       }
 
       // Handle other responses
       handlersRef.current.forEach((handler, key) => {
         if (key.startsWith('receive_') && data[key.replace('receive_', '')]) {
-          console.log('[Heartbeat] Handling response for:', key);
           handler(data[key.replace('receive_', '')]);
         }
       });
@@ -142,7 +103,7 @@ export const useHeartbeat = (options: HeartbeatOptions = {}) => {
       setIsConnected(false);
       isInitializedRef.current = false;
     };
-  }, [enabled, pollData, onPoll, storageMode]);
+  }, [enabled, pollData, onPoll]);
 
   // Send action via heartbeat
   const send = useCallback((action: string, data: any, callback?: (response: any) => void) => {
@@ -172,54 +133,44 @@ export const useHeartbeat = (options: HeartbeatOptions = {}) => {
     }
   }, []);
 
-  // Select time slot - Uses Redis-primary service
+  // Select time slot - Use direct REST API
   const selectSlot = useCallback(async (date: string, time: string, employeeId: number, clientId: string) => {
-    const redisService = getRedisDataService();
-    if (redisService) {
-      return redisService.selectSlot(date, time, employeeId, clientId);
-    }
-    
-    // Fallback to direct Heartbeat
-    return new Promise((resolve, reject) => {
-      send('appointease_booking', {
-        action: 'select_slot',
-        date,
-        time,
-        employee_id: employeeId,
-        client_id: clientId
-      }, (response) => {
-        if (response.error) {
-          reject(new Error(response.error));
-        } else {
-          resolve(response);
-        }
+    try {
+      const response = await fetch(`${(window as any).bookingAPI?.root || '/wp-json/'}appointease/v1/slots/select`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date, time, employee_id: employeeId, client_id: clientId })
       });
-    });
-  }, [send]);
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || `HTTP ${response.status}`);
+      }
+      const data = await response.json();
+      if (data.error) throw new Error(data.error);
+      console.log('[Heartbeat] Slot selected via REST:', data);
+      return data;
+    } catch (error) {
+      console.error('[Heartbeat] REST selection failed:', error);
+      throw error;
+    }
+  }, []);
 
-  // Deselect time slot - Uses Redis-primary service
+  // Deselect time slot
   const deselectSlot = useCallback(async (date: string, time: string, employeeId: number) => {
-    const redisService = getRedisDataService();
-    if (redisService) {
-      return redisService.deselectSlot(date, time, employeeId);
-    }
-    
-    // Fallback to direct Heartbeat
-    return new Promise((resolve, reject) => {
-      send('appointease_booking', {
-        action: 'deselect_slot',
-        date,
-        time,
-        employee_id: employeeId
-      }, (response) => {
-        if (response.error) {
-          reject(new Error(response.error));
-        } else {
-          resolve(response);
-        }
+    try {
+      const response = await fetch(`${(window as any).bookingAPI?.root || '/wp-json/'}appointease/v1/slots/deselect`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date, time, employee_id: employeeId })
       });
-    });
-  }, [send]);
+      const data = await response.json();
+      console.log('[Heartbeat] Slot deselected via REST:', data);
+      return data;
+    } catch (error) {
+      console.error('[Heartbeat] REST deselection failed:', error);
+      return { success: false };
+    }
+  }, []);
 
   // Confirm booking
   const confirmBooking = useCallback((bookingData: any) => {
@@ -292,9 +243,7 @@ export const useHeartbeat = (options: HeartbeatOptions = {}) => {
   return {
     isConnected,
     storageMode,
-    latency,
     redisOps,
-    redisStats,
     send,
     selectSlot,
     deselectSlot,
