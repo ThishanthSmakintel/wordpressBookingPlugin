@@ -187,14 +187,23 @@ class Appointease_Heartbeat_Handler {
                         if ($redis_available) {
                             $this->redis->set_active_selection($date, $employee_id, $selected_time, $client_id);
                         } else {
-                            // Fallback to transients
+                            // Fallback to transients - release previous slots for this user
                             $key = "appointease_active_{$date}_{$employee_id}";
                             $selections_data = get_transient($key) ?: array();
+                            
+                            // Remove all previous selections by this user
+                            foreach ($selections_data as $time_key => $sel_data) {
+                                if (isset($sel_data['client_id']) && $sel_data['client_id'] === $client_id) {
+                                    unset($selections_data[$time_key]);
+                                }
+                            }
+                            
+                            // Add new selection
                             $selections_data[$selected_time] = array('timestamp' => $now, 'client_id' => $client_id);
                             set_transient($key, $selections_data, 300);
                         }
                         $user_has_selection = 1;
-                        error_log('[Heartbeat] Refreshed timestamp for ' . $selected_time . ' (client: ' . $client_id . ')');
+                        error_log('[Heartbeat] Set slot ' . $selected_time . ' for client ' . $client_id . ' (released previous slots)');
                     }
                 }
                 

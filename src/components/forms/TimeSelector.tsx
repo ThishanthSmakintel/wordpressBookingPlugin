@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, memo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, memo, useRef } from 'react';
 import { useAppointmentStore } from '../../hooks/useAppointmentStore';
 import { useBookingState } from '../../hooks/useBookingState';
 import { useHeartbeat } from '../../hooks/useHeartbeat';
@@ -6,7 +6,6 @@ import { useHeartbeatSlotPolling } from '../../hooks/useHeartbeatSlotPolling';
 import { SettingsService } from '../../app/shared/services/settings.service';
 import { format, parseISO } from 'date-fns';
 
-// Memoized TimeSlot component
 const TimeSlot = memo(({ 
     time, 
     isSelected, 
@@ -28,7 +27,10 @@ const TimeSlot = memo(({
     serviceDuration: number;
     onSelect: (time: string) => void;
 }) => {
-    const slotStyles = getTimeSlotStyles(isCurrentAppointment, isUnavailable || isProcessing, isSelected, isBeingBooked);
+    const slotStyles = useMemo(() => 
+        getTimeSlotStyles(isCurrentAppointment, isUnavailable || isProcessing, isSelected, isBeingBooked),
+        [isCurrentAppointment, isUnavailable, isProcessing, isSelected, isBeingBooked]
+    );
     
     return (
         <div 
@@ -78,7 +80,7 @@ const TimeSlot = memo(({
                 textTransform: 'uppercase',
                 letterSpacing: '0.05em'
             }}>
-                {isSelected ? 'Your Selection' : isCurrentAppointment ? 'Your Current Time' : isProcessing ? '⏳ Processing' : isBeingBooked ? '⏳ Currently Booking' : isUnavailable ? 'Booked' : 'Available'}
+                {isSelected ? 'Your Selection' : isCurrentAppointment ? 'Current Time' : isProcessing ? 'Processing' : isUnavailable ? 'Booked' : 'Available'}
             </div>
         </div>
     );
@@ -136,8 +138,8 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
     isRescheduling
 }) => {
     const { selectedDate = '', selectedTime = '', selectedService, selectedEmployee, setSelectedTime, setStep } = useAppointmentStore();
-    const bookingState = useBookingState();
     const [tempSelected, setTempSelected] = useState<string>(selectedTime || '');
+    const selectingRef = useRef(false);
     
     const currentAppointmentTime = useMemo(() => {
         if (isRescheduling && currentAppointment?.appointment_date) {
@@ -151,89 +153,78 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
         return null;
     }, [isRescheduling, currentAppointment?.appointment_date]);
     
-    const clientId = useMemo(() => `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, []);
+    const clientId = useMemo(() => {
+        const urlParams = new URLSearchParams(window.location.search);
+        const testClientId = urlParams.get('client');
+        if (testClientId) return `client_test_${testClientId}`;
+        
+        const key = 'appointease_client_id';
+        let id = localStorage.getItem(key);
+        if (!id) {
+            id = `client_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            localStorage.setItem(key, id);
+        }
+        return id;
+    }, []);
     
-    const { selectSlot, deselectSlot, redisOps, storageMode } = useHeartbeat({ enabled: true });
-    const { activeSelections: heartbeatSelections, bookedSlots: heartbeatBookedSlots, lockedSlots: heartbeatLockedSlots } = useHeartbeatSlotPolling({
+    const { selectSlot, deselectSlot } = useHeartbeat({ enabled: true });
+    const { bookedSlots: heartbeatBookedSlots, lockedSlots: heartbeatLockedSlots } = useHeartbeatSlotPolling({
         date: selectedDate,
         employeeId: selectedEmployee?.id || 0,
         enabled: !!selectedDate && !!selectedEmployee,
-        clientId: clientId,
+        clientId,
         selectedTime: tempSelected
     });
     
-    const allUnavailableSlots = useMemo(() => {
+    const unavailableSet = useMemo(() => {
         if (unavailableSlots === 'all') return 'all';
-        const initial = Array.isArray(unavailableSlots) ? unavailableSlots : [];
-        return [...new Set([...initial, ...heartbeatBookedSlots, ...heartbeatLockedSlots])];
+        const set = new Set(Array.isArray(unavailableSlots) ? unavailableSlots : []);
+        heartbeatBookedSlots.forEach(s => set.add(s));
+        heartbeatLockedSlots.forEach(s => set.add(s));
+        return set;
     }, [unavailableSlots, heartbeatBookedSlots, heartbeatLockedSlots]);
     
-    const [isSelecting, setIsSelecting] = useState(false);
-    
     const handleTimeSelect = useCallback(async (time: string) => {
-        if (isSelecting) return;
-        if (allUnavailableSlots !== 'all' && (!Array.isArray(allUnavailableSlots) || !allUnavailableSlots.includes(time))) {
-            setIsSelecting(true);
-            
-            try {
-                if (tempSelected && tempSelected !== time) {
-                    await deselectSlot(selectedDate, tempSelected, selectedEmployee?.id || 0);
-                }
-                
-                setTempSelected(time);
-                await selectSlot(selectedDate, time, selectedEmployee?.id || 0, clientId);
-            } catch (error: any) {
-                console.error('[Heartbeat] Slot selection failed:', error.message);
-                if (tempSelected) {
-                    setTempSelected(tempSelected);
-                }
-            } finally {
-                setIsSelecting(false);
-            }
+        if (selectingRef.current || unavailableSet === 'all' || (unavailableSet instanceof Set && unavailableSet.has(time))) return;
+        
+        selectingRef.current = true;
+        const prevSelected = tempSelected;
+        
+        try {
+            setTempSelected(time);
+            await selectSlot(selectedDate, time, selectedEmployee?.id || 0, clientId);
+        } catch (error: any) {
+            console.error('[TimeSelector] Selection failed:', error.message);
+            setTempSelected(prevSelected);
+        } finally {
+            selectingRef.current = false;
         }
-    }, [selectedDate, selectedEmployee, allUnavailableSlots, selectSlot, deselectSlot, clientId, tempSelected, isSelecting]);
+    }, [selectedDate, selectedEmployee, unavailableSet, selectSlot, clientId, tempSelected]);
     
     const handleNext = useCallback(() => {
-        if (tempSelected && setSelectedTime && setStep) {
+        if (tempSelected) {
             setSelectedTime(tempSelected);
             setStep(5);
         }
     }, [tempSelected, setSelectedTime, setStep]);
     
-    const handleBack = useCallback(() => {
-        if (setStep) {
-            setStep(3);
-        }
-    }, [setStep]);
+    const handleBack = useCallback(() => setStep(3), [setStep]);
     
     const [timeSlots, setTimeSlots] = useState<string[]>([]);
     const [isLoadingSlots, setIsLoadingSlots] = useState(true);
-    const [errorDetails, setErrorDetails] = useState<string>('');
-    
-    const loadTimeSlots = useCallback(async () => {
-        try {
-            setIsLoadingSlots(true);
-            const settingsService = SettingsService.getInstance();
-            const settings = await settingsService.getSettings();
-            
-            if (settings?.time_slots?.length > 0) {
-                setTimeSlots(settings.time_slots);
-            } else {
-                setTimeSlots([]);
-                setErrorDetails('No time slots available from server');
-            }
-        } catch (error) {
-            const errorMsg = error instanceof Error ? error.message : 'Unknown error occurred';
-            setErrorDetails(errorMsg);
-            setTimeSlots([]);
-        } finally {
-            setIsLoadingSlots(false);
-        }
-    }, []);
     
     useEffect(() => {
-        loadTimeSlots();
-    }, [loadTimeSlots]);
+        let mounted = true;
+        SettingsService.getInstance().getSettings()
+            .then(settings => {
+                if (mounted && settings?.time_slots?.length > 0) {
+                    setTimeSlots(settings.time_slots);
+                }
+            })
+            .catch(() => {})
+            .finally(() => mounted && setIsLoadingSlots(false));
+        return () => { mounted = false; };
+    }, []);
     
     useEffect(() => {
         return () => {
@@ -291,27 +282,9 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                     <div style={{textAlign: 'center', padding: '40px'}}>
                         <div style={{fontSize: '16px', color: '#666'}}>Loading available times...</div>
                     </div>
-                ) : !timeSlots || timeSlots.length === 0 ? (
-                    <div style={{textAlign: 'center', padding: '40px'}}>
-                        <div style={{fontSize: '16px', color: '#ef4444', marginBottom: '16px'}}>⚠️ Time Slots Not Available</div>
-                        <button 
-                            onClick={() => {
-                                const settingsService = SettingsService.getInstance();
-                                settingsService.clearCache();
-                                loadTimeSlots();
-                            }}
-                            style={{
-                                backgroundColor: '#10b981',
-                                color: 'white',
-                                border: 'none',
-                                borderRadius: '8px',
-                                padding: '8px 16px',
-                                fontSize: '12px',
-                                cursor: 'pointer'
-                            }}
-                        >
-                            Retry Loading
-                        </button>
+                ) : timeSlots.length === 0 ? (
+                    <div style={{textAlign: 'center', padding: '40px', fontSize: '16px', color: '#ef4444'}}>
+                        ⚠️ No time slots available
                     </div>
                 ) : (
                     <div style={{
@@ -321,14 +294,10 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                         marginBottom: '32px'
                     }}>
                     {timeSlots.map(time => {
-                        const isSelected = tempSelected === time || selectedTime === time;
-                        const isLockedByOther = heartbeatLockedSlots.includes(time) && !isSelected;
-                        const isPermanentlyBooked = heartbeatBookedSlots.includes(time);
-                        const isInitiallyUnavailable = unavailableSlots === 'all' || (Array.isArray(unavailableSlots) && unavailableSlots.includes(time));
-                        const serviceDuration = selectedService?.duration || 30;
+                        const isSelected = tempSelected === time;
                         const isCurrentAppointment = currentAppointmentTime === time;
-                        const isProcessing = isLockedByOther;
-                        const isUnavailable = isPermanentlyBooked || isInitiallyUnavailable;
+                        const isProcessing = heartbeatLockedSlots.includes(time) && !isSelected;
+                        const isUnavailable = unavailableSet === 'all' || (unavailableSet instanceof Set && unavailableSet.has(time));
                         const isDisabled = (isUnavailable || isProcessing || isCurrentAppointment) && !isSelected;
                         
                         return (
@@ -341,7 +310,7 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                                 isUnavailable={isUnavailable}
                                 isProcessing={isProcessing}
                                 isDisabled={isDisabled}
-                                serviceDuration={serviceDuration}
+                                serviceDuration={selectedService?.duration || 30}
                                 onSelect={handleTimeSelect}
                             />
                         );

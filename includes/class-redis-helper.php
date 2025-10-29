@@ -172,16 +172,34 @@ class Appointease_Redis_Helper {
         }
     }
 
-    // Active selections (10 sec TTL)
+    /**
+     * Set active selection - uses user-specific key for instant updates
+     * One slot per user approach with O(1) operations
+     */
     public function set_active_selection($date, $employee_id, $time, $client_id) {
         if (!$this->enabled) return false;
         
-        $key = "appointease_active_{$date}_{$employee_id}_{$time}";
-        $data = ['client_id' => $client_id, 'timestamp' => time()];
-        
         try {
             if ($this->redis) {
-                return $this->redis->setex($key, 10, json_encode($data));
+                // Use client-specific key for O(1) lookup and deletion
+                $user_key = "appointease_user_{$client_id}_{$date}_{$employee_id}";
+                $old_time = $this->redis->get($user_key);
+                
+                // Delete old slot if exists
+                if ($old_time) {
+                    $old_slot_key = "appointease_active_{$date}_{$employee_id}_{$old_time}";
+                    $this->redis->del($old_slot_key);
+                }
+                
+                // Set new slot
+                $slot_key = "appointease_active_{$date}_{$employee_id}_{$time}";
+                $data = ['client_id' => $client_id, 'timestamp' => time()];
+                $this->redis->setex($slot_key, 10, json_encode($data));
+                
+                // Store user's current selection for fast lookup
+                $this->redis->setex($user_key, 10, $time);
+                
+                return true;
             }
             return wp_cache_set($key, $data, 'appointease_active', 10);
         } catch (Exception $e) {
