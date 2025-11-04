@@ -45,6 +45,7 @@ booking_plugin_require_file('includes/class-redis-helper.php');
 booking_plugin_require_file('includes/class-api-endpoints.php');
 booking_plugin_require_file('includes/class-heartbeat-handler.php');
 booking_plugin_require_file('includes/session-manager.php');
+booking_plugin_require_file('blocks/register-block.php');
 
 register_activation_hook(__FILE__, array('Booking_Activator', 'activate'));
 register_deactivation_hook(__FILE__, array('Booking_Deactivator', 'deactivate'));
