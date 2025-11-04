@@ -33,6 +33,9 @@ export const useHeartbeat = (options: HeartbeatOptions = {}) => {
   const isInitializedRef = useRef(false);
   const lastConnectRef = useRef(0);
 
+
+
+
   // Initialize heartbeat
   useEffect(() => {
     if (!enabled || typeof window.wp === 'undefined' || !window.wp.heartbeat || isInitializedRef.current) {
@@ -45,6 +48,14 @@ export const useHeartbeat = (options: HeartbeatOptions = {}) => {
     // Set heartbeat interval to 5 seconds (WordPress minimum)
     window.wp.heartbeat.interval(5);
     console.log('[Heartbeat] Interval set to 5 seconds');
+    
+    // Trigger immediate heartbeat on mount to check existing locks
+    setTimeout(() => {
+      if (window.wp?.heartbeat) {
+        window.wp.heartbeat.connectNow();
+        console.log('[Heartbeat] Initial poll triggered');
+      }
+    }, 100);
 
     // Heartbeat send event - add data to be sent
     const handleSend = (event: any, data: any) => {
@@ -73,11 +84,14 @@ export const useHeartbeat = (options: HeartbeatOptions = {}) => {
       else if (data.redis_status === 'unavailable') setStorageMode('mysql');
       
       if (data.redis_ops) {
-        setRedisOps({
+        console.log('[Redis Ops] Raw data:', data.redis_ops);
+        const ops = {
           locks: data.redis_ops.locks || 0,
           selections: data.redis_ops.selections || 0,
           user_selection: data.redis_ops.user_selection || 0
-        });
+        };
+        console.log('[Redis Ops] Parsed:', ops);
+        setRedisOps(ops);
       }
       
       // Handle poll response
@@ -142,13 +156,34 @@ export const useHeartbeat = (options: HeartbeatOptions = {}) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ date, time, employee_id: employeeId, client_id: clientId })
       });
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || `HTTP ${response.status}`);
-      }
+      
       const data = await response.json();
-      if (data.error) throw new Error(data.error);
+      
+      if (!response.ok || data.error) {
+        const errorMsg = data.message || data.error || `HTTP ${response.status}`;
+        console.error('[Heartbeat] Slot selection failed:', errorMsg);
+        
+        // Show user-friendly error
+        if (window.Toastify) {
+          window.Toastify({
+            text: errorMsg === 'Slot is already locked' ? 'This time slot is being viewed by another user' : errorMsg,
+            duration: 3000,
+            gravity: 'top',
+            position: 'center',
+            style: { background: '#ef4444' }
+          }).showToast();
+        }
+        
+        throw new Error(errorMsg);
+      }
+      
       console.log('[Heartbeat] Slot selected via REST:', data);
+      
+      // Trigger immediate heartbeat
+      if (window.wp?.heartbeat) {
+        window.wp.heartbeat.connectNow();
+      }
+      
       return data;
     } catch (error) {
       console.error('[Heartbeat] REST selection failed:', error);

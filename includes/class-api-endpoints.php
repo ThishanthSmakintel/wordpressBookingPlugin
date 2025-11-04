@@ -1414,9 +1414,9 @@ class Booking_API_Endpoints {
             $key = "appointease_active_{$date}_{$employee_id}";
             $selections = get_transient($key) ?: array();
             
-            // Remove old selection by same user
+            // Remove old selection by same client
             foreach ($selections as $slot_time => $data) {
-                if (is_array($data) && isset($data['user_id']) && $data['user_id'] === $user_id) {
+                if (is_array($data) && isset($data['client_id']) && $data['client_id'] === $client_id) {
                     unset($selections[$slot_time]);
                 }
             }
@@ -1428,7 +1428,6 @@ class Booking_API_Endpoints {
             
             $selections[$time] = array(
                 'timestamp' => time(),
-                'user_id' => $user_id,
                 'client_id' => $client_id
             );
             set_transient($key, $selections, 600);
@@ -1666,31 +1665,52 @@ class Booking_API_Endpoints {
         if (!$this->redis->is_enabled()) {
             return rest_ensure_response(array(
                 'enabled' => false,
-                'message' => 'Redis not available'
+                'message' => 'Redis not available',
+                'redis_ops' => array('locks' => 0, 'selections' => 0, 'user_selection' => 0)
             ));
+        }
+        
+        // Get date and employee from query params for ops counting
+        $date = $request->get_param('date');
+        $employee_id = $request->get_param('employee_id');
+        $client_id = $request->get_param('client_id');
+        
+        $redis_ops = array('locks' => 0, 'selections' => 0, 'user_selection' => 0);
+        
+        if ($date && $employee_id) {
+            // Get selections
+            $selections = $this->redis->get_active_selections($date, $employee_id);
+            
+            // Count other users' selections
+            $other_selections = 0;
+            $user_has_selection = 0;
+            
+            foreach ($selections as $time => $sel_data) {
+                if (isset($sel_data['client_id'])) {
+                    if ($client_id && $sel_data['client_id'] === $client_id) {
+                        $user_has_selection = 1;
+                    } else {
+                        $other_selections++;
+                    }
+                }
+            }
+            
+            $redis_ops = array(
+                'locks' => 0,
+                'selections' => $other_selections,
+                'user_selection' => $user_has_selection
+            );
         }
         
         $stats = $this->redis->get_stats();
         $persistence = $this->redis->get_persistence_config();
         
-        // Count active locks
-        $lock_count = 0;
-        $iterator = null;
-        try {
-            while ($keys = $this->redis->get_locks_by_pattern('appointease_lock_*')) {
-                $lock_count = count($keys);
-                break;
-            }
-        } catch (Exception $e) {
-            $lock_count = 0;
-        }
-        
         return rest_ensure_response(array(
             'enabled' => true,
             'stats' => $stats,
             'persistence' => $persistence,
-            'active_locks' => $lock_count,
-            'health' => $this->redis->health_check()
+            'health' => $this->redis->health_check(),
+            'redis_ops' => $redis_ops
         ));
     }
 }

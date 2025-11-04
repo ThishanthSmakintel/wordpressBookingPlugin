@@ -136,7 +136,8 @@ class Appointease_Heartbeat_Handler {
                 
                 if ($redis_available) {
                     $selections = $this->redis->get_active_selections($date, $employee_id);
-                    error_log('[Heartbeat] Using Redis for selections');
+                    error_log('[Heartbeat] Using Redis for selections - Found: ' . count($selections) . ' selections');
+                    error_log('[Heartbeat] Selections data: ' . print_r($selections, true));
                 } else {
                     // Fallback to transients
                     $key = "appointease_active_{$date}_{$employee_id}";
@@ -144,12 +145,12 @@ class Appointease_Heartbeat_Handler {
                     error_log('[Heartbeat] Using transients fallback');
                 }
                 
-                // Extract active times and filter out current user's selection
+                // Extract active times - show ALL selections to everyone
                 $active_times = array();
                 if ($redis_available) {
                     foreach ($selections as $time => $sel_data) {
-                        // Exclude current user's own selection from active_selections
-                        if (isset($sel_data['client_id']) && $sel_data['client_id'] !== $client_id) {
+                        // Show all active selections (other users will see this as "Processing")
+                        if (isset($sel_data['client_id'])) {
                             $active_times[] = $time;
                         }
                     }
@@ -172,11 +173,14 @@ class Appointease_Heartbeat_Handler {
                 
                 // Count current user's selection - check if user has any selection with their client_id
                 error_log('[Heartbeat] Checking user selection - client_id: ' . $client_id . ', selected_time: ' . $selected_time);
+                error_log('[Heartbeat] Total selections found: ' . count($selections));
                 $user_has_selection = 0;
                 if (!empty($client_id)) {
                     // Check if user has any active selection
                     foreach ($selections as $time => $sel_data) {
+                        error_log('[Heartbeat] Checking selection at time ' . $time . ': ' . print_r($sel_data, true));
                         if (isset($sel_data['client_id']) && $sel_data['client_id'] === $client_id) {
+                            error_log('[Heartbeat] MATCH! User has selection at ' . $time);
                             $user_has_selection = 1;
                             break;
                         }

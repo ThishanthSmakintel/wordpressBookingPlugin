@@ -181,6 +181,9 @@ class Appointease_Redis_Helper {
         
         try {
             if ($this->redis) {
+                // Normalize time format to HH:MM
+                $time = substr($time, 0, 5);
+                
                 // Use client-specific key for O(1) lookup and deletion
                 $user_key = "appointease_user_{$client_id}_{$date}_{$employee_id}";
                 $old_time = $this->redis->get($user_key);
@@ -193,8 +196,10 @@ class Appointease_Redis_Helper {
                 
                 // Set new slot
                 $slot_key = "appointease_active_{$date}_{$employee_id}_{$time}";
-                $data = ['client_id' => $client_id, 'timestamp' => time()];
+                $data = ['client_id' => $client_id, 'timestamp' => time(), 'time' => $time];
                 $this->redis->setex($slot_key, 10, json_encode($data));
+                
+                error_log('[Redis] Set selection: ' . $slot_key . ' = ' . json_encode($data));
                 
                 // Store user's current selection for fast lookup
                 $this->redis->setex($user_key, 10, $time);
@@ -203,6 +208,7 @@ class Appointease_Redis_Helper {
             }
             return wp_cache_set($key, $data, 'appointease_active', 10);
         } catch (Exception $e) {
+            error_log('[Redis] set_active_selection error: ' . $e->getMessage());
             return false;
         }
     }
@@ -215,20 +221,28 @@ class Appointease_Redis_Helper {
             $selections = [];
             $iterator = null;
             
+            error_log('[Redis] Scanning for pattern: ' . $pattern);
+            
             // Use SCAN instead of KEYS (non-blocking, production-safe)
             while ($keys = $this->redis->scan($iterator, $pattern, 100)) {
+                error_log('[Redis] Found keys: ' . print_r($keys, true));
                 foreach ($keys as $key) {
                     if (preg_match('/_(\d{2}:\d{2})$/', $key, $matches)) {
                         $data = $this->redis->get($key);
                         if ($data) {
-                            $selections[$matches[1]] = json_decode($data, true);
+                            $decoded = json_decode($data, true);
+                            $selections[$matches[1]] = $decoded;
+                            error_log('[Redis] Selection found at ' . $matches[1] . ': ' . print_r($decoded, true));
                         }
                     }
                 }
                 if ($iterator === 0) break;
             }
+            
+            error_log('[Redis] Total selections: ' . count($selections));
             return $selections;
         } catch (Exception $e) {
+            error_log('[Redis] get_active_selections error: ' . $e->getMessage());
             return [];
         }
     }

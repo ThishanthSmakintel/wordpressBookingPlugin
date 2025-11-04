@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Frontend Heartbeat Test</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+</head>
+<body>
+    <h1>Frontend Heartbeat Test</h1>
+    <div id="status">Initializing...</div>
+    <div id="data"></div>
+    
+    <script>
+        // Simulate WordPress Heartbeat API
+        if (typeof wp === 'undefined') {
+            window.wp = {
+                heartbeat: {
+                    interval: function(seconds) {
+                        console.log('Heartbeat interval set to', seconds, 'seconds');
+                    },
+                    connectNow: function() {
+                        console.log('Heartbeat connectNow called');
+                        // Trigger heartbeat-send event
+                        jQuery(document).trigger('heartbeat-send', [{}]);
+                        
+                        // Simulate server response after 500ms
+                        setTimeout(function() {
+                            var response = {
+                                appointease_test: 'heartbeat_working',
+                                redis_status: 'available',
+                                storage_mode: 'redis',
+                                appointease_active_selections: ['09:00'],
+                                appointease_booked_slots: [],
+                                appointease_locked_slots: [],
+                                redis_ops: {
+                                    locks: 0,
+                                    selections: 1,
+                                    user_selection: 0
+                                }
+                            };
+                            jQuery(document).trigger('heartbeat-tick', [response]);
+                        }, 500);
+                    }
+                }
+            };
+        }
+        
+        // Test heartbeat
+        document.getElementById('status').innerHTML = 'Testing heartbeat...';
+        
+        // Listen for heartbeat events
+        jQuery(document).on('heartbeat-send', function(event, data) {
+            console.log('✅ heartbeat-send event fired');
+            document.getElementById('status').innerHTML = 'Heartbeat send event fired';
+        });
+        
+        jQuery(document).on('heartbeat-tick', function(event, data) {
+            console.log('✅ heartbeat-tick event fired with data:', data);
+            document.getElementById('status').innerHTML = '✅ Heartbeat working!';
+            document.getElementById('data').innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            
+            // Check if active selections are present
+            if (data.appointease_active_selections && data.appointease_active_selections.length > 0) {
+                console.log('✅ Active selections found:', data.appointease_active_selections);
+                alert('SUCCESS! Found ' + data.appointease_active_selections.length + ' active selection(s): ' + data.appointease_active_selections.join(', '));
+            }
+        });
+        
+        // Trigger test
+        setTimeout(function() {
+            wp.heartbeat.connectNow();
+        }, 1000);
+    </script>
+</body>
+</html>

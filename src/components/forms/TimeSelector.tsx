@@ -168,7 +168,7 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
     }, []);
     
     const { selectSlot, deselectSlot } = useHeartbeat({ enabled: true });
-    const { bookedSlots: heartbeatBookedSlots, lockedSlots: heartbeatLockedSlots } = useHeartbeatSlotPolling({
+    const { bookedSlots: heartbeatBookedSlots, activeSelections: heartbeatActiveSelections } = useHeartbeatSlotPolling({
         date: selectedDate,
         employeeId: selectedEmployee?.id || 0,
         enabled: !!selectedDate && !!selectedEmployee,
@@ -180,9 +180,9 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
         if (unavailableSlots === 'all') return 'all';
         const set = new Set(Array.isArray(unavailableSlots) ? unavailableSlots : []);
         heartbeatBookedSlots.forEach(s => set.add(s));
-        heartbeatLockedSlots.forEach(s => set.add(s));
+        heartbeatActiveSelections.forEach(s => set.add(s));
         return set;
-    }, [unavailableSlots, heartbeatBookedSlots, heartbeatLockedSlots]);
+    }, [unavailableSlots, heartbeatBookedSlots, heartbeatActiveSelections]);
     
     const handleTimeSelect = useCallback(async (time: string) => {
         if (selectingRef.current || unavailableSet === 'all' || (unavailableSet instanceof Set && unavailableSet.has(time))) return;
@@ -296,7 +296,7 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                     {timeSlots.map(time => {
                         const isSelected = tempSelected === time;
                         const isCurrentAppointment = currentAppointmentTime === time;
-                        const isProcessing = heartbeatLockedSlots.includes(time) && !isSelected;
+                        const isProcessing = heartbeatActiveSelections.includes(time) && !isSelected;
                         const isUnavailable = unavailableSet === 'all' || (unavailableSet instanceof Set && unavailableSet.has(time));
                         const isDisabled = (isUnavailable || isProcessing || isCurrentAppointment) && !isSelected;
                         

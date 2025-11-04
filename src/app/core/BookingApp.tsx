@@ -91,12 +91,23 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
         
         if (!needsRealtime) return null;
         
+        // Only send poll data if we have date AND employee (required for Redis keys)
+        if (!selectedDate || !selectedEmployee?.id) {
+            return {
+                email: email || null,
+                step,
+                date: null,
+                time: null,
+                employee_id: null
+            };
+        }
+        
         return {
             email: email || null,
             step,
-            date: selectedDate || null,
+            date: selectedDate,
             time: selectedTime || null,
-            employee_id: selectedEmployee?.id || null
+            employee_id: selectedEmployee.id
         };
     }, [bookingState.loginEmail, step, selectedDate, selectedTime, selectedEmployee, bookingState.showDashboard, bookingState.isRescheduling, debugState.showDebug]);
     
