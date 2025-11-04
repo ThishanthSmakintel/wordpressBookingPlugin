@@ -7,7 +7,17 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
+// Prevent duplicate registration
+if (function_exists('appointease_register_block')) {
+    return;
+}
+
 function appointease_register_block() {
+    // Check if already registered
+    if (WP_Block_Type_Registry::get_instance()->is_registered('appointease/booking-form')) {
+        return;
+    }
+    
     // Register block script
     wp_register_script(
         'appointease-block-editor',
