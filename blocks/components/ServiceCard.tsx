@@ -25,7 +25,7 @@ export const ServiceCard = ({
             padding: '24px',
             marginBottom: '16px',
             backgroundColor: 'white',
-            border: isSelected ? '3px solid var(--button-bg, #10b981)' : '2px solid #e5e7eb',
+            border: isSelected ? '3px solid #1CBC9B' : '2px solid #e5e7eb',
             borderRadius: '12px',
             cursor: 'pointer',
             transition: 'all 0.2s ease',
@@ -41,8 +41,8 @@ export const ServiceCard = ({
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            backgroundColor: isSelected ? 'var(--button-bg, #10b981)' : 'white',
-            borderColor: isSelected ? 'var(--button-bg, #10b981)' : '#d1d5db'
+            backgroundColor: isSelected ? '#1CBC9B' : 'white',
+            borderColor: isSelected ? '#1CBC9B' : '#d1d5db'
         }}>
             {isSelected && (
                 <div style={{
@@ -57,7 +57,7 @@ export const ServiceCard = ({
             <h3 style={{
                 fontSize: '1.25rem',
                 fontWeight: '600',
-                color: 'var(--text-primary, #1f2937)',
+                color: '#1f2937',
                 marginBottom: '8px'
             }}>
                 {title}
