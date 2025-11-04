@@ -197,16 +197,16 @@ class Appointease_Redis_Helper {
                 // Set new slot
                 $slot_key = "appointease_active_{$date}_{$employee_id}_{$time}";
                 $data = ['client_id' => $client_id, 'timestamp' => time(), 'time' => $time];
-                $this->redis->setex($slot_key, 10, json_encode($data));
+                $this->redis->setex($slot_key, 300, json_encode($data));
                 
                 error_log('[Redis] Set selection: ' . $slot_key . ' = ' . json_encode($data));
                 
                 // Store user's current selection for fast lookup
-                $this->redis->setex($user_key, 10, $time);
+                $this->redis->setex($user_key, 300, $time);
                 
                 return true;
             }
-            return wp_cache_set($key, $data, 'appointease_active', 10);
+            return wp_cache_set($key, $data, 'appointease_active', 300);
         } catch (Exception $e) {
             error_log('[Redis] set_active_selection error: ' . $e->getMessage());
             return false;
