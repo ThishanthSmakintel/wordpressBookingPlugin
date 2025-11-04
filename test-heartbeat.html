@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Heartbeat Test</title>
+</head>
+<body>
+    <h1>WordPress Heartbeat Test</h1>
+    <div id="status">Checking...</div>
+    <div id="results"></div>
+    
+    <script>
+        // Test if heartbeat is working
+        if (typeof wp !== 'undefined' && wp.heartbeat) {
+            document.getElementById('status').innerHTML = '✅ Heartbeat API Available';
+            
+            // Listen for heartbeat
+            jQuery(document).on('heartbeat-send', function(e, data) {
+                data.appointease_poll = {
+                    date: '2024-01-15',
+                    employee_id: 1
+                };
+                console.log('Sending:', data);
+            });
+            
+            jQuery(document).on('heartbeat-tick', function(e, data) {
+                console.log('Received:', data);
+                document.getElementById('results').innerHTML = '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+            });
+            
+            // Set 1 second interval
+            wp.heartbeat.interval(1);
+        } else {
+            document.getElementById('status').innerHTML = '❌ Heartbeat API Not Available';
+        }
+    </script>
+</body>
+</html>

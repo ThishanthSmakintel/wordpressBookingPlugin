@@ -36,11 +36,11 @@ class Appointease_Heartbeat_Handler {
     }
     
     public function heartbeat_settings($settings) {
-        // Force enable on frontend
-        $settings['interval'] = 1;
+        // Force enable on frontend (WordPress minimum is 5 seconds)
+        $settings['interval'] = 5;
         $settings['suspension'] = 'disable';
         
-        error_log('[Heartbeat] Settings applied: ' . print_r($settings, true));
+        error_log('[Heartbeat] Settings applied: interval=5s, suspension=disable');
         return $settings;
     }
 

@@ -42,8 +42,9 @@ export const useHeartbeat = (options: HeartbeatOptions = {}) => {
     isInitializedRef.current = true;
     setIsConnected(true);
 
-    // Set heartbeat interval to 1 second
-    window.wp.heartbeat.interval(1);
+    // Set heartbeat interval to 5 seconds (WordPress minimum)
+    window.wp.heartbeat.interval(5);
+    console.log('[Heartbeat] Interval set to 5 seconds');
 
     // Heartbeat send event - add data to be sent
     const handleSend = (event: any, data: any) => {
