@@ -1,83 +1,28 @@
-# Testing Guide
+# Race Condition Testing
 
-## Unit Tests
+## API Race Condition Test
 
-Run component unit tests:
+Tests atomic booking protection by simulating concurrent API requests.
+
+### Setup
+
 ```bash
-npm test
+pip install -r requirements.txt
 ```
 
-Watch mode for development:
+### Run Test
+
 ```bash
-npm run test:watch
+python race-condition-api.py
 ```
 
-Generate coverage report:
-```bash
-npm run test:coverage
-```
+### Configuration
 
-## E2E Tests
+Edit `race-condition-api.py`:
+- `BASE_URL` - Your WordPress site URL
+- `CONCURRENT_USERS` - Number of simultaneous requests (default: 10)
 
-Run end-to-end tests:
-```bash
-npm run test:e2e
-```
+### Expected Result
 
-Run specific test file:
-```bash
-npx playwright test block-editor.spec.js
-```
-
-## Test Structure
-
-```
-tests/
-├── blocks/              # Unit tests for block components
-│   ├── StepIndicator.test.tsx
-│   ├── ServiceCard.test.tsx
-│   └── BlockHeader.test.tsx
-├── e2e/                 # End-to-end tests
-│   └── block-editor.spec.js
-├── setup.js             # Jest setup
-└── README.md            # This file
-```
-
-## Writing Tests
-
-### Unit Test Example
-```typescript
-import { render, screen } from '@testing-library/react';
-import { MyComponent } from '../components/MyComponent';
-
-describe('MyComponent', () => {
-    it('renders correctly', () => {
-        render(<MyComponent />);
-        expect(screen.getByText('Hello')).toBeInTheDocument();
-    });
-});
-```
-
-### E2E Test Example
-```javascript
-test('should insert block', async ({ page }) => {
-    await page.goto('/wp-admin/post-new.php');
-    await page.click('.block-editor-inserter__toggle');
-    await page.fill('.block-editor-inserter__search-input', 'AppointEase');
-    await page.click('.editor-block-list-item-appointease-booking-form');
-});
-```
-
-## Coverage Goals
-
-- Branches: 70%
-- Functions: 70%
-- Lines: 70%
-- Statements: 70%
-
-## CI/CD Integration
-
-Tests run automatically on:
-- Pull requests
-- Main branch commits
-- Release tags
+✓ **1 successful booking**, 9 failed = Race condition protection working
+✗ **Multiple successful bookings** = Double booking detected
