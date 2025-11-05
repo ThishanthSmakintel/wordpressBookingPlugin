@@ -1,28 +1,28 @@
 # Race Condition Testing
 
-## API Race Condition Test
+## Tests
 
-Tests atomic booking protection by simulating concurrent API requests.
-
-### Setup
-
-```bash
-pip install -r requirements.txt
-```
-
-### Run Test
-
+### 1. API Race Condition Test
 ```bash
 python race-condition-api.py
 ```
+Tests atomic booking protection with concurrent API requests.
+
+### 2. Admin Panel Automation
+```bash
+npm run test:admin
+```
+Tests all 11 admin pages: Dashboard, Services, Staff, Appointments, Calendar, Customers, Holidays, Settings, Reports, Categories, Emails.
+
+### 3. UI Race Condition Test
+```bash
+npm run test:ui
+```
+Tests frontend booking with concurrent users.
 
 ### Configuration
 
-Edit `race-condition-api.py`:
-- `BASE_URL` - Your WordPress site URL
-- `CONCURRENT_USERS` - Number of simultaneous requests (default: 10)
-
-### Expected Result
-
-✓ **1 successful booking**, 9 failed = Race condition protection working
-✗ **Multiple successful bookings** = Double booking detected
+Edit `admin-automation.js`:
+- `username` - WordPress admin username (default: 'admin')
+- `password` - WordPress admin password (default: 'admin')
+- `baseUrl` - Your site URL

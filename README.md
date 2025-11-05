@@ -26,15 +26,20 @@ Modern appointment booking system with React frontend and real-time slot updates
 
 ## Redis Setup (Optional)
 
-```bash
-# Linux
-sudo apt install redis-server
+Redis provides <1ms slot locking vs ~15ms with MySQL.
 
-# Configure in WordPress
-AppointEase → Settings → Redis
+```bash
+# Windows
+choco install redis-64
+
+# Linux
+sudo apt install redis-server php-redis
+
+# macOS
+brew install redis
 ```
 
-See [INSTALLATION.md](INSTALLATION.md) for details.
+See [REDIS-SETUP.md](REDIS-SETUP.md) for complete guide.
 
 ## Development
 
@@ -67,5 +72,6 @@ GPL v2 or later
 ## Documentation
 
 - [INSTALLATION.md](INSTALLATION.md) - Setup guide
+- [REDIS-SETUP.md](REDIS-SETUP.md) - Redis installation
 - [API-DOCUMENTATION.md](API-DOCUMENTATION.md) - API reference
 - [ARCHITECTURE.md](ARCHITECTURE.md) - System design

@@ -287,8 +287,7 @@ class Booking_Plugin {
         // Pass appearance settings to frontend
         wp_localize_script('booking-frontend', 'appointeaseSettings', array(
             'buttonText' => Booking_Settings::get_button_text(),
-            'primaryColor' => Booking_Settings::get_primary_color(),
-            'wsPingInterval' => Booking_Settings::get_ws_ping_interval()
+            'primaryColor' => Booking_Settings::get_primary_color()
         ));
         
         // Add admin scripts

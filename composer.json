@@ -2,9 +2,7 @@
     "name": "appointease/wordpress-booking-plugin",
     "description": "WordPress booking plugin with React frontend",
     "type": "wordpress-plugin",
-    "require": {
-        "cboden/ratchet": "^0.4"
-    },
+    "require": {},
     "require-dev": {
         "phpunit/phpunit": "^9.0",
         "wp-coding-standards/wpcs": "^2.3",

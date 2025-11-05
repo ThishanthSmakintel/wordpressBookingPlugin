@@ -35,6 +35,8 @@ class AppointEase_Admin {
         add_action('wp_ajax_get_recent_appointments', array($this, 'ajax_get_recent_appointments'));
         add_action('wp_ajax_get_notification_queue', array($this, 'ajax_get_notification_queue'));
         add_action('wp_ajax_bulk_customer_action', array($this, 'bulk_customer_action'));
+        add_action('wp_ajax_check_redis_status', array($this, 'ajax_check_redis_status'));
+        add_action('wp_ajax_install_redis', array($this, 'ajax_install_redis'));
         add_action('admin_init', array($this, 'init_settings'));
     }
     
@@ -1284,7 +1286,7 @@ class AppointEase_Admin {
                         </div>
                     </div>
                     
-                    <div style="text-align: center; margin-top: 30px;">
+                    <div style="text-align: right; margin-top: 30px;">
                         <button type="submit" name="submit" class="ae-btn primary" style="padding: 15px 40px; font-size: 16px;">
                             <i class="dashicons dashicons-saved"></i> Save All Settings
                         </button>
@@ -2077,6 +2079,105 @@ class AppointEase_Admin {
             $booking_settings->appearance_only_page();
         } else {
             echo '<div class="wrap"><h1>Appearance Settings</h1><p>Booking Settings class not found.</p></div>';
+        }
+    }
+    
+    public function ajax_check_redis_status() {
+        check_ajax_referer('redis_installer', 'nonce');
+        
+        $redis_installed = false;
+        $php_redis_installed = extension_loaded('redis');
+        $os = 'Unknown';
+        
+        // Detect OS
+        if (stripos(PHP_OS, 'WIN') === 0) {
+            $os = 'Windows';
+            exec('redis-cli --version 2>&1', $output, $return_code);
+            $redis_installed = ($return_code === 0);
+        } elseif (file_exists('/etc/os-release')) {
+            $os_info = parse_ini_file('/etc/os-release');
+            $os = $os_info['NAME'] ?? 'Linux';
+            exec('which redis-server 2>&1', $output, $return_code);
+            $redis_installed = ($return_code === 0);
+        } else {
+            $os = PHP_OS;
+            exec('which redis-server 2>&1', $output, $return_code);
+            $redis_installed = ($return_code === 0);
+        }
+        
+        wp_send_json_success(array(
+            'redis_installed' => $redis_installed,
+            'php_redis_installed' => $php_redis_installed,
+            'os' => $os
+        ));
+    }
+    
+    public function ajax_install_redis() {
+        check_ajax_referer('redis_installer', 'nonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Insufficient permissions');
+            return;
+        }
+        
+        $output = array();
+        $os = 'Unknown';
+        
+        // Detect OS and run appropriate installation
+        if (stripos(PHP_OS, 'WIN') === 0) {
+            wp_send_json_error('Automatic installation not supported on Windows. Please use manual installation commands.');
+            return;
+        } elseif (file_exists('/etc/os-release')) {
+            $os_info = parse_ini_file('/etc/os-release');
+            $os_id = strtolower($os_info['ID'] ?? '');
+            
+            if (in_array($os_id, ['ubuntu', 'debian'])) {
+                // Ubuntu/Debian
+                $commands = [
+                    'sudo apt update',
+                    'sudo apt install -y redis-server php-redis',
+                    'sudo systemctl enable redis-server',
+                    'sudo systemctl start redis-server'
+                ];
+            } elseif (in_array($os_id, ['centos', 'rhel', 'fedora'])) {
+                // CentOS/RHEL
+                $commands = [
+                    'sudo yum install -y epel-release',
+                    'sudo yum install -y redis php-pecl-redis',
+                    'sudo systemctl enable redis',
+                    'sudo systemctl start redis'
+                ];
+            } else {
+                wp_send_json_error('Unsupported OS: ' . $os_id . '. Please use manual installation.');
+                return;
+            }
+            
+            foreach ($commands as $cmd) {
+                exec($cmd . ' 2>&1', $cmd_output, $return_code);
+                $output[] = '$ ' . $cmd;
+                $output = array_merge($output, $cmd_output);
+                
+                if ($return_code !== 0) {
+                    wp_send_json_error('Installation failed at: ' . $cmd . '. You may need sudo privileges.');
+                    return;
+                }
+            }
+            
+            // Verify installation
+            exec('redis-cli ping 2>&1', $verify_output, $verify_code);
+            if ($verify_code === 0 && in_array('PONG', $verify_output)) {
+                wp_send_json_success(array(
+                    'message' => 'Redis installed successfully! Server is running.',
+                    'output' => $output
+                ));
+            } else {
+                wp_send_json_success(array(
+                    'message' => 'Redis installed but may need manual start. Run: sudo systemctl start redis-server',
+                    'output' => $output
+                ));
+            }
+        } else {
+            wp_send_json_error('Unable to detect OS. Please use manual installation.');
         }
     }
 }
