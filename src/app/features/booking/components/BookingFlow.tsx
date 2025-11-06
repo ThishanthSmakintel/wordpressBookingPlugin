@@ -190,22 +190,75 @@ export const BookingFlow: React.FC<BookingFlowProps> = ({
           )}
           
           {bookingState.isRescheduling && (
-            <AppointmentSummary
-              selectedDate={selectedDate}
-              selectedTime={selectedTime}
-              onBack={() => setStep(4)}
-              onConfirm={() => {
-                bookingState.setIsReschedulingSubmit(true);
-                setTimeout(() => {
-                  bookingState.setManageMode(false);
-                  bookingState.setCurrentAppointment(null);
-                  bookingState.setIsRescheduling(false);
-                  setStep(9);
-                  bookingState.setIsReschedulingSubmit(false);
-                }, 1000);
-              }}
-              isSubmitting={bookingState.isReschedulingSubmit}
-            />
+            <>
+              <AppointmentSummary
+                selectedDate={selectedDate}
+                selectedTime={selectedTime}
+                onBack={() => setStep(4)}
+                onConfirm={async () => {
+                  bookingState.setIsReschedulingSubmit(true);
+                  try {
+                    const apiRoot = (window as any).bookingAPI?.root || '/wp-json/';
+                    const newDateTime = `${selectedDate} ${selectedTime}:00`;
+                    
+                    const response = await fetch(`${apiRoot}appointease/v1/appointments/${bookingState.currentAppointment.id}`, {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ new_date: newDateTime })
+                    });
+                    
+                    if (response.ok) {
+                      bookingState.setManageMode(false);
+                      bookingState.setCurrentAppointment(null);
+                      bookingState.setIsRescheduling(false);
+                      setStep(9);
+                    } else {
+                      console.error('Reschedule failed:', response.status);
+                      alert('Failed to reschedule appointment. Please try again.');
+                    }
+                  } catch (error) {
+                    console.error('Reschedule error:', error);
+                    alert('An error occurred. Please try again.');
+                  } finally {
+                    bookingState.setIsReschedulingSubmit(false);
+                  }
+                }}
+                isSubmitting={bookingState.isReschedulingSubmit}
+              />
+              <div style={{marginTop: '1rem', padding: '1rem', background: '#f0f9ff', border: '2px solid #3b82f6', borderRadius: '8px'}}>
+                <h4 style={{margin: '0 0 0.5rem 0', color: '#1e40af'}}>🧪 Redis Test Panel</h4>
+                <button
+                  onClick={async () => {
+                    const apiRoot = (window as any).bookingAPI?.root || '/wp-json/';
+                    const testTime = '09:15';
+                    console.log('[TEST] Selecting slot:', testTime);
+                    
+                    try {
+                      const response = await fetch(`${apiRoot}appointease/v1/slots/select`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          date: selectedDate,
+                          time: testTime,
+                          employee_id: selectedEmployee?.id,
+                          client_id: (window as any).appointeaseSettings?.clientId
+                        })
+                      });
+                      const result = await response.json();
+                      console.log('[TEST] Selection result:', result);
+                      alert(`Test slot ${testTime} selected! Check console and open another browser to see if it shows as Processing.`);
+                    } catch (error) {
+                      console.error('[TEST] Error:', error);
+                      alert('Test failed. Check console.');
+                    }
+                  }}
+                  style={{padding: '8px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px'}}
+                >
+                  Test: Select Slot 09:15
+                </button>
+                <p style={{margin: '0.5rem 0 0 0', fontSize: '12px', color: '#64748b'}}>Click to manually select slot 09:15. Open another browser to verify it shows as "Processing".</p>
+              </div>
+            </>
           )}
         </StepWrapper>
       )}

@@ -182,7 +182,8 @@ export const useBookingActions = (bookingState: any) => {
                 date: apt.appointment_date,
                 status: apt.status,
                 name: apt.name,
-                email: apt.email
+                email: apt.email,
+                employee_id: apt.employee_id
             }));
             setAppointments(formattedAppointments);
         })

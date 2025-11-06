@@ -267,7 +267,10 @@ class Booking_API_Endpoints {
                 return new WP_Error('db_error', 'Database error occurred', array('status' => 500));
             }
             
-            return rest_ensure_response($staff);
+            $response = rest_ensure_response($staff);
+            $response->header('Cache-Control', 'no-cache, no-store, must-revalidate');
+            $response->header('Pragma', 'no-cache');
+            return $response;
         } catch (Exception $e) {
             return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
@@ -505,13 +508,17 @@ class Booking_API_Endpoints {
             'phone' => trim(sanitize_text_field($params['phone'] ?? '')),
             'appointment_date' => trim(sanitize_text_field($params['date'])),
             'service_id' => intval($params['service_id'] ?? 1),
-            'employee_id' => intval($params['employee_id'] ?? 1),
+            'employee_id' => isset($params['employee_id']) ? intval($params['employee_id']) : null,
             'idempotency_key' => $request->get_header('X-Idempotency-Key')
         ];
         
         // Basic validation
         if (empty($booking_data['name']) || empty($booking_data['email']) || empty($booking_data['appointment_date'])) {
             return new WP_Error('invalid_data', 'Name, email and date are required', array('status' => 400));
+        }
+        
+        if (empty($booking_data['employee_id'])) {
+            return new WP_Error('invalid_data', 'Employee selection is required', array('status' => 400));
         }
         
         if (!is_email($booking_data['email'])) {
@@ -619,25 +626,55 @@ class Booking_API_Endpoints {
             return new WP_Error('not_found', 'Appointment not found', array('status' => 404));
         }
         
-        $table = $wpdb->prefix . 'appointments';
-        $where_clause = $this->get_where_clause_for_id($id);
+        // START TRANSACTION for atomic reschedule
+        $wpdb->query('START TRANSACTION');
         
-        $result = $wpdb->update($table, 
-            array('appointment_date' => $new_date),
-            $where_clause['where'],
-            array('%s'),
-            $where_clause['format']
-        );
-        
-        if ($result === false) {
-            return new WP_Error('update_failed', 'Database error occurred', array('status' => 500));
+        try {
+            // Check new slot availability with pessimistic lock
+            $conflict = $wpdb->get_row($wpdb->prepare(
+                "SELECT id, strong_id FROM {$wpdb->prefix}appointments 
+                 WHERE appointment_date = %s AND employee_id = %d 
+                 AND status IN ('confirmed', 'created') AND id != %d
+                 FOR UPDATE",
+                $new_date, $appointment->employee_id, $appointment->id
+            ));
+            
+            if ($conflict) {
+                $wpdb->query('ROLLBACK');
+                return new WP_Error('slot_taken', 'New time slot is no longer available', array('status' => 409));
+            }
+            
+            $table = $wpdb->prefix . 'appointments';
+            $where_clause = $this->get_where_clause_for_id($id);
+            
+            $result = $wpdb->update($table, 
+                array('appointment_date' => $new_date),
+                $where_clause['where'],
+                array('%s'),
+                $where_clause['format']
+            );
+            
+            if ($result === false) {
+                $wpdb->query('ROLLBACK');
+                return new WP_Error('update_failed', 'Database error occurred', array('status' => 500));
+            }
+            
+            // COMMIT transaction
+            $wpdb->query('COMMIT');
+            
+            // Clear Redis locks for old slot
+            if ($this->redis->is_enabled()) {
+                $old_date = date('Y-m-d', strtotime($appointment->appointment_date));
+                $old_time = date('H:i', strtotime($appointment->appointment_date));
+                $old_key = "appointease_active_{$old_date}_{$appointment->employee_id}_{$old_time}";
+                $this->redis->delete_lock($old_key);
+            }
+            
+            return rest_ensure_response(array('success' => true));
+        } catch (Exception $e) {
+            $wpdb->query('ROLLBACK');
+            throw $e;
         }
-        
-        if ($result === 0) {
-            return new WP_Error('no_changes', 'No appointment was updated', array('status' => 404));
-        }
-        
-        return rest_ensure_response(array('success' => true));
         } catch (Exception $e) {
             return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
@@ -1271,23 +1308,20 @@ class Booking_API_Endpoints {
         $booked_times = array();
         $booking_details = array();
         
-        // Check Redis locks FIRST (processing bookings take priority)
+        // Check Redis active selections FIRST (show as "Processing")
         if ($this->redis->is_enabled()) {
-            $pattern = "appointease_lock_{$date}_{$employee_id}_*";
-            $locked_slots = $this->redis->get_locks_by_pattern($pattern);
+            $selections = $this->redis->get_active_selections($date, $employee_id);
             
-            foreach ($locked_slots as $lock) {
-                $time_slot = isset($lock['time']) ? substr($lock['time'], 0, 5) : '';
-                if ($time_slot && !in_array($time_slot, $booked_times)) {
+            foreach ($selections as $time => $sel_data) {
+                $time_slot = substr($time, 0, 5);
+                if (!in_array($time_slot, $booked_times)) {
                     $booked_times[] = $time_slot;
-                    $ttl = $this->redis->get_ttl("appointease_lock_{$date}_{$employee_id}_{$time_slot}");
                     $booking_details[$time_slot] = array(
-                        'customer_name' => 'Processing',
+                        'customer_name' => 'Viewing by other user',
                         'customer_email' => '',
                         'status' => 'processing',
-                        'booking_id' => 'LOCK-' . substr($lock['client_id'] ?? '', 0, 8),
-                        'is_locked' => true,
-                        'lock_remaining' => max(0, $ttl)
+                        'booking_id' => 'ACTIVE-' . substr($sel_data['client_id'] ?? '', 0, 8),
+                        'is_active' => true
                     );
                 }
             }

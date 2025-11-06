@@ -91,14 +91,15 @@ class Appointease_Heartbeat_Handler {
                 $employee_id = intval($poll_data['employee_id']);
                 $client_id = isset($poll_data['client_id']) ? sanitize_text_field($poll_data['client_id']) : null;
                 $selected_time = isset($poll_data['selected_time']) ? sanitize_text_field($poll_data['selected_time']) : null;
+                $exclude_appointment_id = isset($poll_data['exclude_appointment_id']) ? sanitize_text_field($poll_data['exclude_appointment_id']) : null;
                 
                 // Skip if no date/employee (invalid request)
                 if (empty($date) || $employee_id <= 0) {
                     return $response;
                 }
                 
-                error_log('[Heartbeat] Polling for date: ' . $date . ', employee: ' . $employee_id . ', client: ' . $client_id . ', time: ' . $selected_time);
-                Appointease_Logger::get_instance()->log('Poll', array('date' => $date, 'employee_id' => $employee_id, 'client_id' => $client_id, 'selected_time' => $selected_time));
+                error_log('[Heartbeat] Polling for date: ' . $date . ', employee: ' . $employee_id . ', client: ' . $client_id . ', time: ' . $selected_time . ', exclude: ' . $exclude_appointment_id);
+                Appointease_Logger::get_instance()->log('Poll', array('date' => $date, 'employee_id' => $employee_id, 'client_id' => $client_id, 'selected_time' => $selected_time, 'exclude_appointment_id' => $exclude_appointment_id));
                 
                 // Get booked slots from database
                 global $wpdb;
@@ -107,6 +108,34 @@ class Appointease_Heartbeat_Handler {
                      WHERE DATE(appointment_date) = %s AND employee_id = %d AND status IN ('confirmed', 'created')",
                     $date, $employee_id
                 ));
+                
+                // If user is rescheduling, mark their current appointment slot as "active selection" for other users
+                if (!empty($exclude_appointment_id)) {
+                    // Get the appointment time being rescheduled
+                    if (strpos($exclude_appointment_id, 'APT-') === 0) {
+                        $reschedule_time = $wpdb->get_var($wpdb->prepare(
+                            "SELECT TIME_FORMAT(TIME(appointment_date), '%%H:%%i') FROM {$wpdb->prefix}appointments 
+                             WHERE strong_id = %s",
+                            $exclude_appointment_id
+                        ));
+                    } else {
+                        $numeric_id = intval(str_replace('AE', '', $exclude_appointment_id));
+                        $reschedule_time = $wpdb->get_var($wpdb->prepare(
+                            "SELECT TIME_FORMAT(TIME(appointment_date), '%%H:%%i') FROM {$wpdb->prefix}appointments 
+                             WHERE id = %d",
+                            $numeric_id
+                        ));
+                    }
+                    
+                    // Store/refresh reschedule session in Redis so other users see it as "Processing"
+                    if ($reschedule_time && $redis_available && !empty($client_id)) {
+                        $this->redis->set_active_selection($date, $employee_id, $reschedule_time, 'reschedule_' . $client_id);
+                        error_log('[Heartbeat] Marked slot ' . $reschedule_time . ' as being rescheduled by ' . $client_id);
+                    }
+                    
+                    // Remove from booked_slots for the rescheduling user
+                    $booked_slots = array_diff($booked_slots, [$reschedule_time]);
+                }
                 
                 // Get locked slots from Redis (exclude user's own locks)
                 $locked_slots = array();
@@ -130,9 +159,10 @@ class Appointease_Heartbeat_Handler {
                     error_log('[Heartbeat] Found ' . count($redis_locks) . ' Redis locks, ' . count($locked_slots) . ' from other users');
                 }
                 
-                // Get active selections from Redis with transient fallback
+                // Get active selections from Redis (includes reschedule sessions)
                 $selections = array();
                 $now = time();
+                $reschedule_slots = array(); // Track slots being rescheduled
                 
                 if ($redis_available) {
                     $selections = $this->redis->get_active_selections($date, $employee_id);
@@ -145,30 +175,37 @@ class Appointease_Heartbeat_Handler {
                     error_log('[Heartbeat] Using transients fallback');
                 }
                 
-                // Extract active times - show ALL selections to everyone
+                // Extract active times and separate reschedule slots
                 $active_times = array();
                 if ($redis_available) {
                     foreach ($selections as $time => $sel_data) {
-                        // Show all active selections (other users will see this as "Processing")
                         if (isset($sel_data['client_id'])) {
+                            // Check if this is a reschedule session
+                            if (strpos($sel_data['client_id'], 'reschedule_') === 0) {
+                                $reschedule_slots[] = $time;
+                                // Remove from booked_slots for all users
+                                $booked_slots = array_diff($booked_slots, [$time]);
+                            }
                             $active_times[] = $time;
                         }
                     }
                 } else {
-                    // Clean expired selections for transients (older than 10 seconds)
                     foreach ($selections as $time => $sel_data) {
                         $timestamp = is_array($sel_data) ? ($sel_data['timestamp'] ?? 0) : $sel_data;
-                        $sel_client_id = is_array($sel_data) ? ($sel_data['client_id'] ?? null) : null;
-                        // Exclude current user and expired selections
-                        if ($now - $timestamp < 10 && $sel_client_id !== $client_id) {
+                        if ($now - $timestamp < 600) {
+                            if (isset($sel_data['client_id']) && strpos($sel_data['client_id'], 'reschedule_') === 0) {
+                                $reschedule_slots[] = $time;
+                                $booked_slots = array_diff($booked_slots, [$time]);
+                            }
                             $active_times[] = $time;
                         }
                     }
                 }
                 
                 error_log('[Heartbeat] Found selections: ' . print_r($selections, true));
-                error_log('[Heartbeat] Active times (excluding current user): ' . print_r($active_times, true));
-                error_log('[Heartbeat] Booked slots: ' . print_r($booked_slots, true));
+                error_log('[Heartbeat] Reschedule slots: ' . print_r($reschedule_slots, true));
+                error_log('[Heartbeat] Active times: ' . print_r($active_times, true));
+                error_log('[Heartbeat] Booked slots (after removing reschedule): ' . print_r($booked_slots, true));
                 error_log('[Heartbeat] Locked slots: ' . print_r($locked_slots, true));
                 
                 // Count current user's selection - check if user has any selection with their client_id

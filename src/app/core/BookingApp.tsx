@@ -479,12 +479,14 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                         appointment_date: appointment.date,
                         status: appointment.status,
                         service_name: appointment.service,
-                        staff_name: appointment.staff
+                        staff_name: appointment.staff,
+                        employee_id: appointment.employee_id
                     });
                     setSelectedService({name: appointment.service, price: 0});
-                    // Fetch actual employee ID from staff list
-                    const matchingEmployee = employees.find(emp => emp.name === appointment.staff);
-                    setSelectedEmployee(matchingEmployee || {id: 1, name: appointment.staff});
+                    // Use employee_id from appointment, fallback to name match
+                    const matchingEmployee = employees.find(emp => emp.id === appointment.employee_id) || 
+                                           employees.find(emp => emp.name === appointment.staff);
+                    setSelectedEmployee(matchingEmployee || {id: appointment.employee_id || 1, name: appointment.staff});
                     // For logged-in users, keep their info; for others, clear it
                     if (bookingState.isLoggedIn) {
                         setFormData({
@@ -524,9 +526,10 @@ const BookingApp = React.memo(React.forwardRef<any, any>((props, ref) => {
                 bookingState={bookingState}
                 onReschedule={() => {
                     setSelectedService({name: bookingState.currentAppointment?.service_name, price: 0});
-                    // Match employee by name from staff list
-                    const matchingEmployee = employees.find(emp => emp.name === bookingState.currentAppointment?.staff_name);
-                    setSelectedEmployee(matchingEmployee || {id: 1, name: bookingState.currentAppointment?.staff_name || 'Staff Member'});
+                    // Use employee_id from appointment, fallback to name match
+                    const matchingEmployee = employees.find(emp => emp.id === bookingState.currentAppointment?.employee_id) || 
+                                           employees.find(emp => emp.name === bookingState.currentAppointment?.staff_name);
+                    setSelectedEmployee(matchingEmployee || {id: bookingState.currentAppointment?.employee_id || 1, name: bookingState.currentAppointment?.staff_name || 'Staff Member'});
                     // For logged-in users, keep their info; for others, clear it
                     if (bookingState.isLoggedIn) {
                         setFormData({

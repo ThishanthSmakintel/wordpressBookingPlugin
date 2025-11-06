@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Frontend Slot Selection Test</title>
+    <style>
+        body { font-family: Arial; padding: 20px; }
+        .test-section { margin: 20px 0; padding: 15px; border: 1px solid #ddd; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        button { padding: 10px 20px; margin: 5px; cursor: pointer; }
+        #results { margin-top: 20px; }
+        .result-item { padding: 5px; margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Frontend Slot Selection Test</h1>
+    
+    <div class="test-section">
+        <h2>Test Configuration</h2>
+        <label>Date: <input type="date" id="testDate" /></label><br>
+        <label>Employee ID: <input type="number" id="employeeId" value="1" /></label><br>
+        <label>Time Slot: <input type="time" id="timeSlot" value="10:30" /></label><br>
+        <label>Client ID: <input type="text" id="clientId" value="" readonly /></label>
+    </div>
+
+    <div class="test-section">
+        <h2>Actions</h2>
+        <button onclick="testSlotSelection()">1. Select Slot (User A)</button>
+        <button onclick="testHeartbeatPoll()">2. Poll Heartbeat (User B)</button>
+        <button onclick="testDeselectSlot()">3. Deselect Slot</button>
+        <button onclick="clearResults()">Clear Results</button>
+    </div>
+
+    <div id="results"></div>
+
+    <script>
+        const API_ROOT = '/wp-json/';
+        
+        // Generate unique client ID
+        document.getElementById('clientId').value = 'client_test_' + Date.now();
+        
+        // Set tomorrow's date
+        const tomorrow = new Date();
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        document.getElementById('testDate').value = tomorrow.toISOString().split('T')[0];
+
+        function log(message, type = 'info') {
+            const results = document.getElementById('results');
+            const item = document.createElement('div');
+            item.className = 'result-item ' + type;
+            item.innerHTML = `[${new Date().toLocaleTimeString()}] ${message}`;
+            results.insertBefore(item, results.firstChild);
+        }
+
+        async function testSlotSelection() {
+            const date = document.getElementById('testDate').value;
+            const time = document.getElementById('timeSlot').value;
+            const employeeId = parseInt(document.getElementById('employeeId').value);
+            const clientId = document.getElementById('clientId').value;
+
+            log('🔄 Testing slot selection...', 'info');
+            log(`   Date: ${date}, Time: ${time}, Employee: ${employeeId}`, 'info');
+
+            try {
+                const response = await fetch(API_ROOT + 'appointease/v1/slots/select', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        date: date,
+                        time: time,
+                        employee_id: employeeId,
+                        client_id: clientId
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log('✅ Slot selected successfully', 'success');
+                    log(`   Storage: ${data.storage}, TTL: ${data.ttl}s`, 'success');
+                    if (data.debug_ms) {
+                        log(`   Response time: ${data.debug_ms}ms`, 'success');
+                    }
+                } else {
+                    log('❌ Slot selection failed: ' + (data.message || data.error), 'error');
+                }
+            } catch (error) {
+                log('❌ Error: ' + error.message, 'error');
+            }
+        }
+
+        async function testHeartbeatPoll() {
+            const date = document.getElementById('testDate').value;
+            const employeeId = parseInt(document.getElementById('employeeId').value);
+            const clientId = 'client_test_B_' + Date.now(); // Different client
+
+            log('🔄 Testing heartbeat poll (as User B)...', 'info');
+
+            try {
+                // Simulate heartbeat poll
+                const pollData = {
+                    appointease_poll: {
+                        date: date,
+                        employee_id: employeeId,
+                        client_id: clientId
+                    }
+                };
+
+                // Use WordPress Heartbeat API
+                if (typeof wp !== 'undefined' && wp.heartbeat) {
+                    wp.heartbeat.enqueue('appointease_poll', pollData.appointease_poll);
+                    
+                    // Listen for response
+                    jQuery(document).one('heartbeat-tick', function(event, data) {
+                        log('📡 Heartbeat response received', 'info');
+                        
+                        if (data.appointease_active_selections) {
+                            log(`   Active selections: ${JSON.stringify(data.appointease_active_selections)}`, 'success');
+                            
+                            const time = document.getElementById('timeSlot').value;
+                            if (data.appointease_active_selections.includes(time)) {
+                                log('✅ User A\'s selection IS VISIBLE to User B', 'success');
+                            } else {
+                                log('❌ User A\'s selection NOT visible to User B', 'error');
+                            }
+                        }
+                        
+                        if (data.appointease_booked_slots) {
+                            log(`   Booked slots: ${JSON.stringify(data.appointease_booked_slots)}`, 'info');
+                        }
+                        
+                        if (data.redis_status) {
+                            log(`   Redis status: ${data.redis_status}`, 'info');
+                        }
+                    });
+                    
+                    wp.heartbeat.connectNow();
+                    log('   Heartbeat poll sent, waiting for response...', 'info');
+                } else {
+                    log('❌ WordPress Heartbeat API not available', 'error');
+                    log('   Make sure you\'re on a WordPress page with heartbeat loaded', 'error');
+                }
+            } catch (error) {
+                log('❌ Error: ' + error.message, 'error');
+            }
+        }
+
+        async function testDeselectSlot() {
+            const date = document.getElementById('testDate').value;
+            const time = document.getElementById('timeSlot').value;
+            const employeeId = parseInt(document.getElementById('employeeId').value);
+
+            log('🔄 Testing slot deselection...', 'info');
+
+            try {
+                const response = await fetch(API_ROOT + 'appointease/v1/slots/deselect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        date: date,
+                        time: time,
+                        employee_id: employeeId
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (response.ok) {
+                    log('✅ Slot deselected successfully', 'success');
+                } else {
+                    log('❌ Deselection failed: ' + (data.message || data.error), 'error');
+                }
+            } catch (error) {
+                log('❌ Error: ' + error.message, 'error');
+            }
+        }
+
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+            log('Results cleared', 'info');
+        }
+
+        // Auto-test on load
+        window.addEventListener('load', function() {
+            log('🚀 Frontend test page loaded', 'success');
+            log('📝 Instructions:', 'info');
+            log('   1. Click "Select Slot" to simulate User A selecting a slot', 'info');
+            log('   2. Click "Poll Heartbeat" to check if User B can see it', 'info');
+            log('   3. Check console for detailed logs', 'info');
+        });
+    </script>
+</body>
+</html>

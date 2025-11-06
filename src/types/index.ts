@@ -22,6 +22,7 @@ export interface Appointment {
   status: 'confirmed' | 'cancelled' | 'rescheduled' | 'created';
   name: string;
   email: string;
+  employee_id?: number;
 }
 
 export interface FormData {

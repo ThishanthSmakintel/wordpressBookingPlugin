@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback, memo, useRef } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react';
 import { useAppointmentStore } from '../../hooks/useAppointmentStore';
 import { useBookingState } from '../../hooks/useBookingState';
 import { useHeartbeat } from '../../hooks/useHeartbeat';
@@ -6,17 +6,7 @@ import { useHeartbeatSlotPolling } from '../../hooks/useHeartbeatSlotPolling';
 import { SettingsService } from '../../app/shared/services/settings.service';
 import { format, parseISO } from 'date-fns';
 
-const TimeSlot = memo(({ 
-    time, 
-    isSelected, 
-    isCurrentAppointment, 
-    isBeingBooked, 
-    isUnavailable, 
-    isProcessing, 
-    isDisabled, 
-    serviceDuration, 
-    onSelect 
-}: {
+const TimeSlot: React.FC<{
     time: string;
     isSelected: boolean;
     isCurrentAppointment: boolean;
@@ -26,11 +16,18 @@ const TimeSlot = memo(({
     isDisabled: boolean;
     serviceDuration: number;
     onSelect: (time: string) => void;
+}> = ({ 
+    time, 
+    isSelected, 
+    isCurrentAppointment, 
+    isBeingBooked, 
+    isUnavailable, 
+    isProcessing, 
+    isDisabled, 
+    serviceDuration, 
+    onSelect 
 }) => {
-    const slotStyles = useMemo(() => 
-        getTimeSlotStyles(isCurrentAppointment, isUnavailable || isProcessing, isSelected, isBeingBooked),
-        [isCurrentAppointment, isUnavailable, isProcessing, isSelected, isBeingBooked]
-    );
+    const slotStyles = getTimeSlotStyles(isCurrentAppointment, isUnavailable || isProcessing, isSelected, isBeingBooked);
     
     return (
         <div 
@@ -84,7 +81,7 @@ const TimeSlot = memo(({
             </div>
         </div>
     );
-});
+};
 
 const getTimeSlotStyles = (isCurrentAppointment: boolean, isUnavailable: boolean, isSelected: boolean, isBeingBooked: boolean) => {
     if (isCurrentAppointment) {
@@ -168,21 +165,60 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
     }, []);
     
     const { selectSlot, deselectSlot } = useHeartbeat({ enabled: true });
-    const { bookedSlots: heartbeatBookedSlots, activeSelections: heartbeatActiveSelections } = useHeartbeatSlotPolling({
+    const { 
+        bookedSlots: heartbeatBookedSlots, 
+        activeSelections: heartbeatActiveSelections,
+        isConnected: heartbeatConnected,
+        lastUpdate: heartbeatLastUpdate
+    } = useHeartbeatSlotPolling({
         date: selectedDate,
         employeeId: selectedEmployee?.id || 0,
         enabled: !!selectedDate && !!selectedEmployee,
         clientId,
-        selectedTime: tempSelected
+        selectedTime: tempSelected,
+        excludeAppointmentId: isRescheduling && currentAppointment?.id ? currentAppointment.id : undefined
     });
+    
+    // Debug state
+    const [debugInfo, setDebugInfo] = useState<any>({});
+    
+    useEffect(() => {
+        const pollingEnabled = !!selectedDate && !!selectedEmployee;
+        // Get employee name with all available data
+        const employeeName = selectedEmployee?.name || selectedEmployee?.display_name || selectedEmployee?.full_name || selectedEmployee?.title || 'NOT SET';
+        const employeeEmail = selectedEmployee?.email || 'N/A';
+        const info = {
+            date: selectedDate || 'NOT SET',
+            employeeId: selectedEmployee?.id || 'NOT SET',
+            employeeName,
+            employeeEmail,
+            employeeObj: selectedEmployee ? JSON.stringify(selectedEmployee, null, 2) : 'null',
+            clientId,
+            tempSelected,
+            bookedSlots: heartbeatBookedSlots,
+            activeSelections: heartbeatActiveSelections,
+            isRescheduling,
+            currentAppointmentTime,
+            excludeAppointmentId: isRescheduling && currentAppointment?.id ? currentAppointment.id : 'none',
+            pollingEnabled,
+            heartbeatConnected,
+            lastUpdate: heartbeatLastUpdate
+        };
+        setDebugInfo(info);
+        console.log('[TimeSelector] Heartbeat data updated:', info);
+    }, [selectedDate, selectedEmployee, heartbeatBookedSlots, heartbeatActiveSelections, tempSelected, clientId, isRescheduling, currentAppointmentTime, currentAppointment?.id, heartbeatConnected, heartbeatLastUpdate]);
     
     const unavailableSet = useMemo(() => {
         if (unavailableSlots === 'all') return 'all';
         const set = new Set(Array.isArray(unavailableSlots) ? unavailableSlots : []);
-        heartbeatBookedSlots.forEach(s => set.add(s));
-        heartbeatActiveSelections.forEach(s => set.add(s));
+        heartbeatBookedSlots.forEach(s => {
+            // During reschedule, don't mark current appointment time as unavailable
+            if (!(isRescheduling && s === currentAppointmentTime)) {
+                set.add(s);
+            }
+        });
         return set;
-    }, [unavailableSlots, heartbeatBookedSlots, heartbeatActiveSelections]);
+    }, [unavailableSlots, heartbeatBookedSlots, isRescheduling, currentAppointmentTime]);
     
     const handleTimeSelect = useCallback(async (time: string) => {
         if (selectingRef.current || unavailableSet === 'all' || (unavailableSet instanceof Set && unavailableSet.has(time))) return;
@@ -190,16 +226,24 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
         selectingRef.current = true;
         const prevSelected = tempSelected;
         
+        // Update UI immediately FIRST for instant visual feedback
+        setTempSelected(time);
+        
+        // Deselect previous slot if exists (async, non-blocking)
+        if (prevSelected && prevSelected !== time) {
+            deselectSlot(selectedDate, prevSelected, selectedEmployee?.id || 0).catch(() => {});
+        }
+        
         try {
-            setTempSelected(time);
             await selectSlot(selectedDate, time, selectedEmployee?.id || 0, clientId);
+            console.log('[TimeSelector] Slot selected successfully:', time);
         } catch (error: any) {
             console.error('[TimeSelector] Selection failed:', error.message);
             setTempSelected(prevSelected);
         } finally {
             selectingRef.current = false;
         }
-    }, [selectedDate, selectedEmployee, unavailableSet, selectSlot, clientId, tempSelected]);
+    }, [selectedDate, selectedEmployee, unavailableSet, selectSlot, deselectSlot, clientId, tempSelected]);
     
     const handleNext = useCallback(() => {
         if (tempSelected) {
@@ -236,6 +280,66 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
 
     return (
         <div className="appointease-step-content">
+            {/* Debug Panel */}
+            <div style={{
+                position: 'fixed',
+                top: '10px',
+                right: '10px',
+                background: '#1f2937',
+                color: '#fff',
+                padding: '12px',
+                borderRadius: '8px',
+                fontSize: '11px',
+                fontFamily: 'monospace',
+                zIndex: 9999,
+                maxWidth: '320px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
+            }}>
+                <div style={{fontWeight: 'bold', marginBottom: '8px', color: '#10b981'}}>🔍 Debug Info</div>
+                
+                {/* Warnings */}
+                {!debugInfo.pollingEnabled && (
+                    <div style={{background: '#dc2626', padding: '6px', borderRadius: '4px', marginBottom: '8px', fontWeight: 'bold'}}>
+                        ⚠️ HEARTBEAT NOT POLLING!
+                    </div>
+                )}
+                {debugInfo.date === 'NOT SET' && (
+                    <div style={{background: '#ea580c', padding: '4px', borderRadius: '4px', marginBottom: '4px', fontSize: '10px'}}>
+                        ⚠️ Date not selected
+                    </div>
+                )}
+                {debugInfo.employeeId === 'NOT SET' && (
+                    <div style={{background: '#ea580c', padding: '4px', borderRadius: '4px', marginBottom: '8px', fontSize: '10px'}}>
+                        ⚠️ Employee not selected
+                    </div>
+                )}
+                
+                <div style={{color: '#60a5fa'}}>Date: {debugInfo.date}</div>
+                <div style={{color: '#60a5fa'}}>Employee: {debugInfo.employeeName} (ID: {debugInfo.employeeId})</div>
+                <div style={{color: '#9ca3af', fontSize: '10px'}}>Email: {debugInfo.employeeEmail}</div>
+                <div>Client: {debugInfo.clientId?.substring(0, 20)}...</div>
+                <div>Selected: {debugInfo.tempSelected || 'none'}</div>
+                <div>Reschedule: {debugInfo.isRescheduling ? 'YES' : 'NO'}</div>
+                <div>Current Time: {debugInfo.currentAppointmentTime || 'none'}</div>
+                <div>Exclude ID: {debugInfo.excludeAppointmentId}</div>
+                <div style={{marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #374151'}}>
+                    <div style={{color: debugInfo.heartbeatConnected ? '#10b981' : '#ef4444'}}>
+                        Heartbeat: {debugInfo.heartbeatConnected ? '✅ Connected' : '❌ Disconnected'}
+                    </div>
+                    <div style={{color: '#9ca3af', fontSize: '10px'}}>Last: {debugInfo.lastUpdate ? new Date(debugInfo.lastUpdate).toLocaleTimeString() : 'never'}</div>
+                </div>
+                <div style={{marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #374151'}}>
+                    <div style={{color: '#ef4444'}}>Booked: [{debugInfo.bookedSlots?.join(', ') || 'none'}]</div>
+                    <div style={{color: '#f59e0b'}}>Active: [{debugInfo.activeSelections?.join(', ') || 'none'}]</div>
+                </div>
+                <details style={{marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #374151'}}>
+                    <summary style={{cursor: 'pointer', color: '#9ca3af', fontSize: '10px'}}>Employee Object</summary>
+                    <pre style={{fontSize: '9px', color: '#d1d5db', marginTop: '4px', maxHeight: '200px', overflow: 'auto', background: '#111827', padding: '4px', borderRadius: '4px'}}>
+                        {debugInfo.employeeObj}
+                    </pre>
+                </details>
+            </div>
+            
             {isRescheduling && currentAppointment && (
                 <div className="reschedule-header">
                     <h2><i className="fas fa-calendar-alt"></i> Rescheduling Appointment</h2>
@@ -297,12 +401,26 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                         const isSelected = tempSelected === time;
                         const isCurrentAppointment = currentAppointmentTime === time;
                         const isProcessing = heartbeatActiveSelections.includes(time) && !isSelected;
-                        const isUnavailable = unavailableSet === 'all' || (unavailableSet instanceof Set && unavailableSet.has(time));
-                        const isDisabled = (isUnavailable || isProcessing || isCurrentAppointment) && !isSelected;
+                        const isUnavailable = (unavailableSet === 'all' || (unavailableSet instanceof Set && unavailableSet.has(time))) && !isCurrentAppointment;
+                        const isDisabled = (isUnavailable || isProcessing) && !isSelected && !isCurrentAppointment;
+                        
+                        // Debug log for any slot in activeSelections
+                        if (heartbeatActiveSelections.includes(time)) {
+                            console.log(`[TimeSelector] Slot ${time} SHOULD BE PROCESSING:`, {
+                                time,
+                                isSelected,
+                                isCurrentAppointment,
+                                isProcessing,
+                                isUnavailable,
+                                isDisabled,
+                                heartbeatActiveSelections,
+                                'Component will render as': isProcessing ? 'PROCESSING (yellow)' : 'OTHER'
+                            });
+                        }
                         
                         return (
                             <TimeSlot
-                                key={time}
+                                key={`${time}-${isSelected ? 'selected' : 'unselected'}`}
                                 time={time}
                                 isSelected={isSelected}
                                 isCurrentAppointment={isCurrentAppointment}
@@ -357,4 +475,4 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
     );
 };
 
-export default memo(TimeSelector);
+export default TimeSelector;

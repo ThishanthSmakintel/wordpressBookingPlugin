@@ -15,9 +15,10 @@ interface SlotPollingOptions {
 interface ExtendedSlotPollingOptions extends SlotPollingOptions {
   clientId?: string;
   selectedTime?: string;
+  excludeAppointmentId?: string;
 }
 
-export const useHeartbeatSlotPolling = ({ date, employeeId, enabled = true, clientId, selectedTime }: ExtendedSlotPollingOptions) => {
+export const useHeartbeatSlotPolling = ({ date, employeeId, enabled = true, clientId, selectedTime, excludeAppointmentId }: ExtendedSlotPollingOptions) => {
   const [activeSelections, setActiveSelections] = useState<string[]>([]);
   const [bookedSlots, setBookedSlots] = useState<string[]>([]);
   const [lockedSlots, setLockedSlots] = useState<string[]>([]);
@@ -30,13 +31,28 @@ export const useHeartbeatSlotPolling = ({ date, employeeId, enabled = true, clie
       date, 
       employee_id: parseInt(String(employeeId)),
       ...(clientId ? { client_id: clientId } : {}),
-      ...(selectedTime ? { selected_time: selectedTime } : {})
+      ...(selectedTime ? { selected_time: selectedTime } : {}),
+      ...(excludeAppointmentId ? { exclude_appointment_id: excludeAppointmentId } : {})
     } : null,
     onPoll: (data: any) => {
-      console.log('[HeartbeatPolling] Current state:', { activeSelections, bookedSlots, lockedSlots, lastUpdate });
-      setActiveSelections(data?.appointease_active_selections || []);
-      setBookedSlots(data?.appointease_booked_slots || []);
-      setLockedSlots(data?.appointease_locked_slots || []);
+      console.log('[HeartbeatPolling] Raw data received:', data);
+      console.log('[HeartbeatPolling] Active selections:', data?.appointease_active_selections);
+      console.log('[HeartbeatPolling] Booked slots:', data?.appointease_booked_slots);
+      console.log('[HeartbeatPolling] Redis status:', data?.redis_status);
+      
+      const newActiveSelections = data?.appointease_active_selections || [];
+      const newBookedSlots = data?.appointease_booked_slots || [];
+      const newLockedSlots = data?.appointease_locked_slots || [];
+      
+      console.log('[HeartbeatPolling] Setting state:', { 
+        activeSelections: newActiveSelections, 
+        bookedSlots: newBookedSlots, 
+        lockedSlots: newLockedSlots 
+      });
+      
+      setActiveSelections(newActiveSelections);
+      setBookedSlots(newBookedSlots);
+      setLockedSlots(newLockedSlots);
       setLastUpdate(Date.now());
       setPollCount(prev => prev + 1);
     }
