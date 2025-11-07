@@ -5,10 +5,14 @@
 const puppeteer = require('puppeteer');
 
 const CONFIG = {
-    settingsUrl: 'http://blog.promoplus.com/wp-admin/admin.php?page=appointease-settings',
-    username: 'thishath-admin',
-    password: 'Hht#0768340599'
+    settingsUrl: process.env.WP_ADMIN_URL || 'http://localhost/wp-admin/admin.php?page=appointease-settings',
+    username: process.env.WP_TEST_USERNAME || 'admin',
+    password: process.env.WP_TEST_PASSWORD || 'password'
 };
+
+if (!process.env.WP_TEST_USERNAME || !process.env.WP_TEST_PASSWORD) {
+    console.warn('⚠️  Warning: Using default credentials. Set WP_TEST_USERNAME and WP_TEST_PASSWORD environment variables.');
+}
 
 async function testSettings() {
     console.log('⚙️ Testing Settings Page...\n');

@@ -6,11 +6,15 @@
 const puppeteer = require('puppeteer');
 
 const CONFIG = {
-    baseUrl: 'http://blog.promoplus.com',
-    adminUrl: 'http://blog.promoplus.com/wp-admin',
-    username: 'thishath-admin',
-    password: 'Hht#0768340599'
+    baseUrl: process.env.WP_BASE_URL || 'http://localhost',
+    adminUrl: process.env.WP_ADMIN_URL || 'http://localhost/wp-admin',
+    username: process.env.WP_TEST_USERNAME || 'admin',
+    password: process.env.WP_TEST_PASSWORD || 'password'
 };
+
+if (!process.env.WP_TEST_USERNAME || !process.env.WP_TEST_PASSWORD) {
+    console.warn('⚠️  Warning: Using default credentials. Set WP_TEST_USERNAME and WP_TEST_PASSWORD environment variables.');
+}
 
 let browser, page;
 

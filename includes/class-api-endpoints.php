@@ -245,7 +245,7 @@ class Booking_API_Endpoints {
         try {
             global $wpdb;
             $table = $wpdb->prefix . 'appointease_services';
-            $services = $wpdb->get_results("SELECT * FROM {$table} ORDER BY name");
+            $services = $wpdb->get_results($wpdb->prepare("SELECT * FROM `{$table}` ORDER BY name"));
             
             if ($wpdb->last_error) {
                 return new WP_Error('db_error', 'Database error occurred', array('status' => 500));
@@ -261,7 +261,7 @@ class Booking_API_Endpoints {
         try {
             global $wpdb;
             $table = $wpdb->prefix . 'appointease_staff';
-            $staff = $wpdb->get_results("SELECT * FROM {$table} ORDER BY name");
+            $staff = $wpdb->get_results($wpdb->prepare("SELECT * FROM `{$table}` ORDER BY name"));
             
             if ($wpdb->last_error) {
                 return new WP_Error('db_error', 'Database error occurred', array('status' => 500));
@@ -855,9 +855,9 @@ class Booking_API_Endpoints {
             global $wpdb;
             $table = $wpdb->prefix . 'appointments';
             
-            $appointments = $wpdb->get_results(
-                "SELECT * FROM {$table} ORDER BY appointment_date DESC"
-            );
+            $appointments = $wpdb->get_results($wpdb->prepare(
+                "SELECT * FROM `{$table}` ORDER BY appointment_date DESC"
+            ));
             
             if ($wpdb->last_error) {
                 return new WP_Error('db_error', 'Database error occurred', array('status' => 500));
@@ -1517,9 +1517,10 @@ class Booking_API_Endpoints {
     public function debug_selections($request) {
         try {
             global $wpdb;
-            $all_transients = $wpdb->get_results(
-                "SELECT option_name, option_value FROM {$wpdb->options} WHERE option_name LIKE '_transient_appointease_active_%'"
-            );
+            $all_transients = $wpdb->get_results($wpdb->prepare(
+                "SELECT option_name, option_value FROM `{$wpdb->options}` WHERE option_name LIKE %s",
+                '_transient_appointease_active_%'
+            ));
             $selections = array();
             $now = time();
             $cleaned_count = 0;
@@ -1569,9 +1570,10 @@ class Booking_API_Endpoints {
                 $locks = $this->redis->get_locks_by_pattern('appointease_lock_*');
             } else {
                 global $wpdb;
-                $transients = $wpdb->get_results(
-                    "SELECT option_name, option_value FROM {$wpdb->options} WHERE option_name LIKE '_transient_appointease_active_%'"
-                );
+                $transients = $wpdb->get_results($wpdb->prepare(
+                    "SELECT option_name, option_value FROM `{$wpdb->options}` WHERE option_name LIKE %s",
+                    '_transient_appointease_active_%'
+                ));
                 foreach ($transients as $t) {
                     $data = maybe_unserialize($t->option_value);
                     if (is_array($data)) {
@@ -1653,9 +1655,10 @@ class Booking_API_Endpoints {
             }
             
             // Clear transients
-            $transients = $wpdb->get_results(
-                "SELECT option_name FROM {$wpdb->options} WHERE option_name LIKE '_transient_appointease_active_%'"
-            );
+            $transients = $wpdb->get_results($wpdb->prepare(
+                "SELECT option_name FROM `{$wpdb->options}` WHERE option_name LIKE %s",
+                '_transient_appointease_active_%'
+            ));
             
             $deleted_transients = 0;
             foreach ($transients as $transient) {

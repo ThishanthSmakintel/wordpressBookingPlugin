@@ -57,7 +57,9 @@ function addToastActions(toast, actions) {
                 const actionsDiv = jQuery('<div class="toast-actions"></div>');
                 
                 actions.forEach((action, index) => {
-                    const btn = jQuery(`<button class="toast-action-btn ${action.type || 'secondary'}">${action.text}</button>`);
+                    const btn = jQuery('<button class="toast-action-btn"></button>')
+                    .addClass(action.type || 'secondary')
+                    .text(action.text);
                     btn.on('click', function() {
                         if (action.callback) {
                             action.callback();
@@ -187,8 +189,8 @@ jQuery(document).ready(function($) {
                 const service = response.data;
                 $('#service-modal-title').text('Edit Service');
                 $('#service-id').val(service.id);
-                $('#service-name').val(service.name);
-                $('#service-description').val(service.description);
+                $('#service-name').val($('<div>').text(service.name).html());
+                $('#service-description').val($('<div>').text(service.description).html());
                 $('#service-duration').val(service.duration);
                 $('#service-price').val(service.price);
                 $('#service-modal').addClass('show');
@@ -207,9 +209,9 @@ jQuery(document).ready(function($) {
                 const staff = response.data;
                 $('#staff-modal-title').text('Edit Staff Member');
                 $('#staff-id').val(staff.id);
-                $('#staff-name').val(staff.name);
-                $('#staff-email').val(staff.email);
-                $('#staff-phone').val(staff.phone);
+                $('#staff-name').val($('<div>').text(staff.name).html());
+                $('#staff-email').val($('<div>').text(staff.email).html());
+                $('#staff-phone').val($('<div>').text(staff.phone).html());
                 $('#staff-modal').addClass('show');
             }
         });
@@ -381,7 +383,10 @@ jQuery(document).ready(function($) {
     window.initAppointeaseCalendar = function() {
         if (window.appointeaseCalendarData && document.getElementById('appointease-calendar-root')) {
             const calendarEl = document.getElementById('appointease-calendar-root');
-            calendarEl.innerHTML = '<div style="padding: 20px; text-align: center;">Calendar view with ' + window.appointeaseCalendarData.length + ' appointments loaded</div>';
+            const count = parseInt(window.appointeaseCalendarData.length, 10);
+            calendarEl.textContent = 'Calendar view with ' + count + ' appointments loaded';
+            calendarEl.style.padding = '20px';
+            calendarEl.style.textAlign = 'center';
         }
     };
     
@@ -438,8 +443,8 @@ jQuery(document).ready(function($) {
                 email: email
             }, function(response) {
                 if (response.success && response.data.exists) {
-                    $('#customer-name').val(response.data.name).prop('disabled', true);
-                    $('#customer-phone').val(response.data.phone).prop('disabled', true);
+                    $('#customer-name').val($('<div>').text(response.data.name).html()).prop('disabled', true);
+                    $('#customer-phone').val($('<div>').text(response.data.phone).html()).prop('disabled', true);
                     showWarningToast('Existing Customer', 'This email belongs to an existing customer. Name and phone are auto-filled.');
                 } else {
                     $('#customer-name').prop('disabled', false);
@@ -524,7 +529,9 @@ jQuery(document).ready(function($) {
         }, function(response) {
             if (response.success) {
                 const preview = window.open('', '_blank', 'width=600,height=400');
-                preview.document.write('<h3>' + response.data.subject + '</h3><hr><pre>' + response.data.body + '</pre>');
+                const safeSubject = $('<div>').text(response.data.subject).html();
+                const safeBody = $('<div>').text(response.data.body).html();
+                preview.document.write('<h3>' + safeSubject + '</h3><hr><pre>' + safeBody + '</pre>');
             }
         });
     };

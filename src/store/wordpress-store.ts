@@ -268,11 +268,13 @@ const controls = {
         
         // Validate API configuration
         if (!window.bookingAPI?.root) {
-            throw new Error('API configuration not available');
+            console.error('[Store] API root not configured');
+            return Promise.reject(new Error('API configuration not available'));
         }
         
         if (!window.bookingAPI?.nonce) {
-            throw new Error('Authentication token not available');
+            console.error('[Store] Authentication nonce not available');
+            return Promise.reject(new Error('Authentication token not available'));
         }
         
         const url = `${window.bookingAPI.root}${path.replace(/^\//, '')}`;
@@ -311,9 +313,9 @@ export const store = createReduxStore('appointease/booking', {
 // Register store with error handling
 try {
     register(store);
-
+    console.log('[Store] WordPress data store registered successfully');
 } catch (error) {
-
+    console.error('[Store] Failed to register WordPress data store:', error);
 }
 
 export default store;
