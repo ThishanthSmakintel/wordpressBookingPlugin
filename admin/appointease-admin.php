@@ -4,6 +4,8 @@ class AppointEase_Admin {
     public function __construct() {
         add_action('admin_menu', array($this, 'add_admin_menu'));
         add_action('admin_enqueue_scripts', array($this, 'enqueue_admin_assets'));
+        add_action('dashboard_glance_items', array($this, 'add_redis_glance_item'));
+        add_action('admin_bar_menu', array($this, 'add_redis_admin_bar'), 100);
         add_action('wp_ajax_save_service', array($this, 'save_service'));
         add_action('wp_ajax_save_staff', array($this, 'save_staff'));
         add_action('wp_ajax_get_service', array($this, 'get_service'));
@@ -38,6 +40,113 @@ class AppointEase_Admin {
         add_action('wp_ajax_check_redis_status', array($this, 'ajax_check_redis_status'));
         add_action('wp_ajax_install_redis', array($this, 'ajax_install_redis'));
         add_action('admin_init', array($this, 'init_settings'));
+        add_action('admin_footer', array($this, 'add_redis_dashboard_script'));
+        add_action('wp_head', array($this, 'add_frontend_redis_styles'));
+    }
+    
+    public function add_frontend_redis_styles() {
+        if (is_admin_bar_showing()) {
+            ?>
+            <style>
+            #wpadminbar .appointease-redis-adminbar .ab-icon:before {
+                content: "\f239";
+                top: 2px;
+            }
+            #wpadminbar .appointease-redis-adminbar:hover .ab-icon,
+            #wpadminbar .appointease-redis-adminbar:hover #redis-adminbar-status {
+                opacity: 0.8;
+            }
+            </style>
+            <?php
+        }
+    }
+    
+    public function add_redis_glance_item() {
+        $redis_helper = Appointease_Redis_Helper::get_instance();
+        $is_enabled = $redis_helper->is_enabled();
+        
+        if ($is_enabled) {
+            echo '<li class="appointease-redis-status" style="color: #28a745;">';
+            echo '<i class="dashicons dashicons-performance" style="color: #28a745;"></i> ';
+            echo '<a href="admin.php?page=appointease-settings" style="color: #28a745;">Redis Active (<1ms)</a>';
+            echo '</li>';
+        } else {
+            echo '<li class="appointease-redis-status" style="color: #dc3545;">';
+            echo '<i class="dashicons dashicons-performance" style="color: #dc3545;"></i> ';
+            echo '<a href="admin.php?page=appointease-settings" style="color: #dc3545;">Redis Inactive</a>';
+            echo '</li>';
+        }
+    }
+    
+    public function add_redis_dashboard_script() {
+        $screen = get_current_screen();
+        if ($screen && $screen->id === 'dashboard') {
+            ?>
+            <script>
+            jQuery(document).ready(function($) {
+                // Real-time Redis status check on dashboard
+                $.ajax({
+                    url: ajaxurl,
+                    method: 'POST',
+                    data: {
+                        action: 'check_redis_status',
+                        nonce: '<?php echo wp_create_nonce('redis_installer'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            const active = response.data.redis_installed && response.data.php_redis_installed;
+                            const $item = $('.appointease-redis-status');
+                            if (active) {
+                                $item.css('color', '#28a745').find('i, a').css('color', '#28a745');
+                                $item.find('a').text('Redis Active (<1ms)');
+                            } else {
+                                $item.css('color', '#dc3545').find('i, a').css('color', '#dc3545');
+                                $item.find('a').text('Redis Inactive (Install)');
+                            }
+                        }
+                    }
+                });
+            });
+            </script>
+            <?php
+        }
+    }
+    
+    public function add_redis_admin_bar($wp_admin_bar) {
+        if (!current_user_can('manage_options')) return;
+        
+        $redis_helper = Appointease_Redis_Helper::get_instance();
+        $is_enabled = $redis_helper->is_enabled();
+        
+        $status_text = $is_enabled ? 'Redis: Active' : 'Redis: Inactive';
+        $status_color = $is_enabled ? '#28a745' : '#dc3545';
+        $performance = $is_enabled ? '<1ms' : '~15ms';
+        
+        $wp_admin_bar->add_node(array(
+            'id' => 'appointease-redis',
+            'title' => '<span class="ab-icon dashicons dashicons-performance" style="color: ' . $status_color . ';"></span><span id="redis-adminbar-status" style="color: ' . $status_color . ';">' . $status_text . ' (' . $performance . ')</span>',
+            'href' => admin_url('admin.php?page=appointease-settings'),
+            'meta' => array(
+                'title' => 'AppointEase Redis Performance',
+                'class' => 'appointease-redis-adminbar'
+            )
+        ));
+        
+        $wp_admin_bar->add_node(array(
+            'parent' => 'appointease-redis',
+            'id' => 'appointease-redis-configure',
+            'title' => 'Configure Redis',
+            'href' => admin_url('admin.php?page=appointease-settings')
+        ));
+        
+        if (!$is_enabled) {
+            $wp_admin_bar->add_node(array(
+                'parent' => 'appointease-redis',
+                'id' => 'appointease-redis-install',
+                'title' => 'Install Redis (One-Click)',
+                'href' => admin_url('admin.php?page=appointease-settings')
+            ));
+        }
     }
     
     public function enqueue_admin_assets($hook) {
@@ -50,11 +159,42 @@ class AppointEase_Admin {
             wp_enqueue_script('appointease-admin', BOOKING_PLUGIN_URL . 'admin/appointease-admin.js', array('jquery', 'toastr-js'), '1.0.1', true);
             wp_enqueue_script('appointease-calendar', BOOKING_PLUGIN_URL . 'admin/calendar-integration.js', array('jquery'), '1.0.0', true);
             wp_enqueue_script('appointease-notifications', BOOKING_PLUGIN_URL . 'admin/admin-notifications.js', array('jquery'), '1.0.0', true);
+            wp_enqueue_script('appointease-redis-widget', BOOKING_PLUGIN_URL . 'admin/redis-status-widget.js', array('jquery'), '1.0.0', true);
             
             wp_localize_script('appointease-admin', 'appointeaseAdmin', array(
                 'nonce' => wp_create_nonce('appointease_nonce'),
                 'ajaxurl' => admin_url('admin-ajax.php')
             ));
+            
+            // Add Redis nonce for status checks
+            echo '<input type="hidden" id="redis-nonce" value="' . wp_create_nonce('redis_installer') . '" />';
+            
+            // Add admin bar Redis status updater
+            ?>
+            <script>
+            jQuery(document).ready(function($) {
+                if ($('#redis-adminbar-status').length) {
+                    $.ajax({
+                        url: ajaxurl,
+                        method: 'POST',
+                        data: {
+                            action: 'check_redis_status',
+                            nonce: '<?php echo wp_create_nonce('redis_installer'); ?>'
+                        },
+                        success: function(response) {
+                            if (response.success) {
+                                const active = response.data.redis_installed && response.data.php_redis_installed;
+                                const color = active ? '#28a745' : '#dc3545';
+                                const text = active ? 'Redis: Active (<1ms)' : 'Redis: Inactive (~15ms)';
+                                $('#redis-adminbar-status').text(text).css('color', color);
+                                $('.appointease-redis-adminbar .ab-icon').css('color', color);
+                            }
+                        }
+                    });
+                }
+            });
+            </script>
+            <?php
         }
     }
     
@@ -167,6 +307,26 @@ class AppointEase_Admin {
             'appointease-appearance',
             array($this, 'appearance_page')
         );
+        
+        add_submenu_page(
+            'appointease',
+            'Redis Setup',
+            'Redis Setup',
+            'manage_options',
+            'appointease-redis',
+            array($this, 'redis_installation_page')
+        );
+        
+        if (defined('WP_DEBUG') && WP_DEBUG) {
+            add_submenu_page(
+                'appointease',
+                'Security Scan',
+                'Security Scan',
+                'manage_options',
+                'appointease-security',
+                array($this, 'security_scan_page')
+            );
+        }
     }
     
     public function dashboard_page() {
@@ -234,6 +394,16 @@ class AppointEase_Admin {
                             <span class="trend positive">Available today</span>
                         </div>
                     </div>
+                    <div class="stat-card redis">
+                        <div class="stat-icon">
+                            <i class="dashicons dashicons-performance"></i>
+                        </div>
+                        <div class="stat-info">
+                            <h3 id="redis-status-text">Checking...</h3>
+                            <p>Redis Performance</p>
+                            <span id="redis-performance" class="trend neutral">Loading...</span>
+                        </div>
+                    </div>
                 </div>
                 <div id="quick-actions" class="quick-actions">
                     <h3>Quick Actions</h3>
@@ -258,6 +428,47 @@ class AppointEase_Admin {
                 </div>
             </div>
         </div>
+        
+        <script>
+        jQuery(document).ready(function($) {
+            // Check Redis status on dashboard load
+            function checkRedisStatus() {
+                $.ajax({
+                    url: ajaxurl,
+                    method: 'POST',
+                    data: {
+                        action: 'check_redis_status',
+                        nonce: '<?php echo wp_create_nonce('redis_installer'); ?>'
+                    },
+                    success: function(response) {
+                        if (response.success) {
+                            const data = response.data;
+                            if (data.redis_installed && data.php_redis_installed) {
+                                $('#redis-status-text').text('Active').css('color', '#28a745');
+                                $('#redis-performance').text('<1ms slot locking').removeClass('neutral').addClass('positive');
+                            } else {
+                                $('#redis-status-text').text('Inactive').css('color', '#dc3545');
+                                $('#redis-performance').text('~15ms MySQL fallback').removeClass('neutral').addClass('negative');
+                            }
+                        } else {
+                            $('#redis-status-text').text('Error').css('color', '#dc3545');
+                            $('#redis-performance').text('Check failed').removeClass('neutral').addClass('negative');
+                        }
+                    },
+                    error: function() {
+                        $('#redis-status-text').text('Offline').css('color', '#dc3545');
+                        $('#redis-performance').text('Connection error').removeClass('neutral').addClass('negative');
+                    }
+                });
+            }
+            
+            // Initial check
+            checkRedisStatus();
+            
+            // Refresh every 30 seconds
+            setInterval(checkRedisStatus, 30000);
+        });
+        </script>
         <?php
     }
     
@@ -271,6 +482,13 @@ class AppointEase_Admin {
         }
         ?>
         <div class="appointease-wrap">
+            <div class="redis-status-bar" style="background: linear-gradient(135deg, #1CBC9B, #16a085); color: white; padding: 12px 20px; margin-bottom: 20px; border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; align-items: center; gap: 12px;">
+                    <i class="dashicons dashicons-performance" style="font-size: 20px;"></i>
+                    <span><strong>Redis Status:</strong> <span id="page-redis-status">Checking...</span></span>
+                </div>
+                <a href="admin.php?page=appointease-settings" style="color: white; text-decoration: none; padding: 6px 12px; background: rgba(255,255,255,0.2); border-radius: 4px; font-size: 12px;">Configure</a>
+            </div>
             <div id="services-header" class="ae-page-header">
                 <div class="page-title">
                     <h1><i class="dashicons dashicons-admin-tools"></i> Services</h1>
@@ -2070,7 +2288,12 @@ class AppointEase_Admin {
     }
     
     public function enhanced_settings_page() {
-        $this->settings_page();
+        if (class_exists('Booking_Settings')) {
+            $booking_settings = new Booking_Settings();
+            $booking_settings->settings_page();
+        } else {
+            $this->settings_page();
+        }
     }
     
     public function appearance_page() {
@@ -2080,6 +2303,269 @@ class AppointEase_Admin {
         } else {
             echo '<div class="wrap"><h1>Appearance Settings</h1><p>Booking Settings class not found.</p></div>';
         }
+    }
+    
+    public function security_scan_page() {
+        if (!current_user_can('manage_options')) {
+            wp_die('Unauthorized access');
+        }
+        
+        require_once plugin_dir_path(__FILE__) . '../fix-sql-injection.php';
+        
+        // Handle download guide
+        if (isset($_GET['download_guide'])) {
+            $this->download_fix_guide();
+            return;
+        }
+        
+        // Handle create backups
+        if (isset($_GET['create_backups'])) {
+            $this->create_security_backups();
+        }
+        
+        ?>
+        <div class="appointease-wrap">
+            <div class="ae-page-header">
+                <div class="page-title">
+                    <h1><i class="dashicons dashicons-shield"></i> Security Scan</h1>
+                    <p class="page-subtitle">SQL Injection Vulnerability Scanner</p>
+                </div>
+            </div>
+            
+            <div style="padding: 30px;">
+                <?php 
+                SQL_Injection_Fixer::show_examples();
+                
+                echo '<hr style="margin: 40px 0;">';
+                echo '<h2>Vulnerability Scan Report</h2>';
+                
+                $report = SQL_Injection_Fixer::generate_report();
+                
+                // Add action buttons
+                if (!empty($report)) {
+                    echo '<div style="margin: 20px 0;">';
+                    echo '<a href="' . admin_url('admin.php?page=appointease-security&download_guide=1') . '" class="ae-btn primary" style="margin-right: 10px;">';
+                    echo '<i class="dashicons dashicons-download"></i> Download Fix Guide';
+                    echo '</a>';
+                    echo '<button onclick="if(confirm(\'This will create backup files. Continue?\')) window.location.href=\'' . admin_url('admin.php?page=appointease-security&create_backups=1') . '\'" class="ae-btn" style="background: #f59e0b; color: white;">';
+                    echo '<i class="dashicons dashicons-backup"></i> Create Backups First';
+                    echo '</button>';
+                    echo '<p style="margin-top: 10px; color: #666; font-size: 13px;"><strong>⚠️ Important:</strong> Review the fix guide carefully before applying changes. Test in development first.</p>';
+                    echo '</div>';
+                }
+                
+                if (empty($report)) {
+                    echo '<div style="background: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 20px; border-radius: 8px; margin: 20px 0;">';
+                    echo '<strong>✓ No obvious SQL injection vulnerabilities found!</strong>';
+                    echo '</div>';
+                } else {
+                    echo '<div style="background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 20px; border-radius: 8px; margin: 20px 0;">';
+                    echo '<strong>⚠ Found potential vulnerabilities in ' . count($report) . ' files</strong>';
+                    echo '</div>';
+                    
+                    foreach ($report as $file => $vulnerabilities) {
+                        echo '<div class="ae-card" style="margin: 20px 0;">';
+                        echo '<h3>' . esc_html($file) . ' <span style="color: #dc3545;">(' . count($vulnerabilities) . ' issues)</span></h3>';
+                        echo '<ul style="list-style: none; padding: 0;">';
+                        foreach ($vulnerabilities as $vuln) {
+                            echo '<li style="padding: 10px; margin: 5px 0; background: #f8f9fa; border-left: 4px solid #dc3545;">';
+                            echo '<strong>Line ' . $vuln['line'] . '</strong> [' . $vuln['severity'] . ']: ';
+                            echo '<code style="background: #e9ecef; padding: 5px 10px; border-radius: 4px; display: block; margin-top: 5px;">' . htmlspecialchars($vuln['code']) . '</code>';
+                            echo '</li>';
+                        }
+                        echo '</ul>';
+                        echo '</div>';
+                    }
+                }
+                ?>
+            </div>
+        </div>
+        <?php
+    }
+    
+    public function redis_installation_page() {
+        ?>
+        <div class="appointease-wrap">
+            <div class="ae-page-header">
+                <div class="page-title">
+                    <h1><i class="dashicons dashicons-performance"></i> Redis Installation</h1>
+                    <p class="page-subtitle">Install and configure Redis for 15x faster performance</p>
+                </div>
+            </div>
+            
+            <div style="padding: 30px;">
+                <div class="ae-card" style="margin-bottom: 30px;">
+                    <h3>🚀 One-Click Redis Installation</h3>
+                    <p>Detect your VPS OS and install Redis automatically with PHP extension.</p>
+                    
+                    <div style="background: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                        <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 15px;">
+                            <strong>Status:</strong>
+                            <span id="redis-install-status">Checking...</span>
+                        </div>
+                        <div style="display: flex; gap: 10px;">
+                            <button class="ae-btn primary" onclick="installRedis()">Install Redis</button>
+                            <button class="ae-btn ghost" onclick="checkRedisStatus()">Check Status</button>
+                        </div>
+                    </div>
+                    
+                    <div id="installation-output" style="background: #2c3e50; color: #ecf0f1; padding: 15px; border-radius: 6px; font-family: monospace; font-size: 13px; max-height: 300px; overflow-y: auto; display: none; margin-top: 20px;">
+                        <div id="output-content"></div>
+                    </div>
+                </div>
+                
+                <div class="ae-card">
+                    <h3>📖 Manual Installation Commands</h3>
+                    <p style="margin-bottom: 20px; color: #666;">If automatic installation fails, use these commands based on your operating system:</p>
+                    
+                    <div style="margin-bottom: 30px;">
+                        <h4 style="color: #1CBC9B; margin-bottom: 10px;">Ubuntu / Debian</h4>
+                        <div style="background: #2c3e50; color: #ecf0f1; padding: 15px; border-radius: 6px; font-family: monospace; font-size: 13px;">
+                            <div>sudo apt update</div>
+                            <div>sudo apt install -y redis-server php-redis</div>
+                            <div>sudo systemctl enable redis-server</div>
+                            <div>sudo systemctl start redis-server</div>
+                            <div style="margin-top: 10px; color: #3498db;"># Verify installation</div>
+                            <div>redis-cli ping</div>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 30px;">
+                        <h4 style="color: #1CBC9B; margin-bottom: 10px;">CentOS / RHEL</h4>
+                        <div style="background: #2c3e50; color: #ecf0f1; padding: 15px; border-radius: 6px; font-family: monospace; font-size: 13px;">
+                            <div>sudo yum install -y epel-release</div>
+                            <div>sudo yum install -y redis php-pecl-redis</div>
+                            <div>sudo systemctl enable redis</div>
+                            <div>sudo systemctl start redis</div>
+                            <div style="margin-top: 10px; color: #3498db;"># Verify installation</div>
+                            <div>redis-cli ping</div>
+                        </div>
+                    </div>
+                    
+                    <div style="margin-bottom: 30px;">
+                        <h4 style="color: #1CBC9B; margin-bottom: 10px;">Windows</h4>
+                        <div style="background: #2c3e50; color: #ecf0f1; padding: 15px; border-radius: 6px; font-family: monospace; font-size: 13px;">
+                            <div style="color: #e74c3c;"># Using Chocolatey</div>
+                            <div>choco install redis-64</div>
+                            <div style="margin-top: 10px; color: #e74c3c;"># Or download from:</div>
+                            <div>https://github.com/microsoftarchive/redis/releases</div>
+                            <div style="margin-top: 10px; color: #3498db;"># Install PHP Redis extension</div>
+                            <div>pecl install redis</div>
+                        </div>
+                    </div>
+                    
+                    <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; border-radius: 6px;">
+                        <strong>⚠️ Note:</strong> After installing PHP Redis extension, restart your web server (Apache/Nginx) for changes to take effect.
+                    </div>
+                </div>
+                
+                <div class="ae-card" style="margin-top: 30px;">
+                    <h3>⚡ Performance Benefits</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin-top: 20px;">
+                        <div style="background: #e8f5e9; padding: 20px; border-radius: 8px; border-left: 4px solid #4caf50;">
+                            <h4 style="margin: 0 0 10px 0; color: #2e7d32;">Slot Locking</h4>
+                            <p style="margin: 0; font-size: 24px; font-weight: bold; color: #1b5e20;">&lt;1ms</p>
+                            <p style="margin: 5px 0 0 0; color: #666; font-size: 13px;">vs 15ms with MySQL</p>
+                        </div>
+                        <div style="background: #e3f2fd; padding: 20px; border-radius: 8px; border-left: 4px solid #2196f3;">
+                            <h4 style="margin: 0 0 10px 0; color: #1565c0;">Race Conditions</h4>
+                            <p style="margin: 0; font-size: 24px; font-weight: bold; color: #0d47a1;">Prevented</p>
+                            <p style="margin: 5px 0 0 0; color: #666; font-size: 13px;">Atomic operations</p>
+                        </div>
+                        <div style="background: #fce4ec; padding: 20px; border-radius: 8px; border-left: 4px solid #e91e63;">
+                            <h4 style="margin: 0 0 10px 0; color: #c2185b;">Real-time Updates</h4>
+                            <p style="margin: 0; font-size: 24px; font-weight: bold; color: #880e4f;">Instant</p>
+                            <p style="margin: 5px 0 0 0; color: #666; font-size: 13px;">Pub/Sub support</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <script>
+        function checkRedisStatus() {
+            jQuery('#redis-install-status').html('<i class="dashicons dashicons-update" style="animation: spin 1s linear infinite;"></i> Checking...');
+            
+            jQuery.ajax({
+                url: ajaxurl,
+                method: 'POST',
+                data: {
+                    action: 'check_redis_status',
+                    nonce: '<?php echo wp_create_nonce('redis_installer'); ?>'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        const data = response.data;
+                        let status = '';
+                        
+                        if (data.redis_installed) {
+                            status += '<span style="color: #28a745;">✓ Redis Installed</span> | ';
+                        } else {
+                            status += '<span style="color: #dc3545;">✗ Redis Not Installed</span> | ';
+                        }
+                        
+                        if (data.php_redis_installed) {
+                            status += '<span style="color: #28a745;">✓ PHP Redis Extension</span> | ';
+                        } else {
+                            status += '<span style="color: #dc3545;">✗ PHP Redis Extension</span> | ';
+                        }
+                        
+                        status += 'OS: ' + data.os;
+                        
+                        jQuery('#redis-install-status').html(status);
+                    } else {
+                        jQuery('#redis-install-status').html('<span style="color: #dc3545;">Error checking status</span>');
+                    }
+                },
+                error: function() {
+                    jQuery('#redis-install-status').html('<span style="color: #dc3545;">Connection error</span>');
+                }
+            });
+        }
+        
+        function installRedis() {
+            if (!confirm('This will attempt to install Redis on your server. Continue?')) {
+                return;
+            }
+            
+            jQuery('#installation-output').show();
+            jQuery('#output-content').html('<div style="color: #3498db;">Starting installation...</div>');
+            
+            jQuery.ajax({
+                url: ajaxurl,
+                method: 'POST',
+                data: {
+                    action: 'install_redis',
+                    nonce: '<?php echo wp_create_nonce('redis_installer'); ?>'
+                },
+                success: function(response) {
+                    if (response.success) {
+                        let output = '<div style="color: #2ecc71; margin-bottom: 10px;">✓ ' + response.data.message + '</div>';
+                        if (response.data.output) {
+                            output += '<div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid #34495e;">';
+                            response.data.output.forEach(function(line) {
+                                output += '<div>' + line + '</div>';
+                            });
+                            output += '</div>';
+                        }
+                        jQuery('#output-content').html(output);
+                        
+                        setTimeout(checkRedisStatus, 2000);
+                    } else {
+                        jQuery('#output-content').html('<div style="color: #e74c3c;">✗ Installation failed: ' + response.data + '</div>');
+                    }
+                },
+                error: function() {
+                    jQuery('#output-content').html('<div style="color: #e74c3c;">✗ Connection error during installation</div>');
+                }
+            });
+        }
+        
+        jQuery(document).ready(function() {
+            checkRedisStatus();
+        });
+        </script>
+        <?php
     }
     
     public function ajax_check_redis_status() {

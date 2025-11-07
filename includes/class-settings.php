@@ -309,57 +309,34 @@ class Booking_Settings {
     }
     
     public function redis_section_callback() {
-        echo '<p>Install Redis on your VPS for <1ms slot locking performance. Optional - MySQL fallback available.</p>';
+        echo '<p>Install Redis on your VPS for <1ms slot locking performance (15x faster than MySQL). Optional - MySQL fallback available.</p>';
+        echo '<p><a href="admin.php?page=appointease-redis" class="button button-primary">Open Redis Installation Page →</a></p>';
     }
     
     public function redis_installer_field() {
         ?>
         <div id="redis-installer" style="background: #f8f9fa; padding: 20px; border-radius: 8px; border-left: 4px solid #1CBC9B;">
-            <h3 style="margin-top: 0;">🚀 One-Click Redis Installation</h3>
-            <p>Detect your VPS OS and install Redis automatically with PHP extension.</p>
-            
             <div id="redis-status" style="margin: 15px 0; padding: 12px; background: white; border-radius: 6px; border: 1px solid #e5e7eb;">
-                <strong>Status:</strong> <span id="redis-status-text">Checking...</span>
+                <strong>Current Status:</strong> <span id="redis-status-text">Checking...</span>
             </div>
             
-            <button type="button" id="install-redis-btn" class="button button-primary" style="margin-right: 10px;">
-                <span class="dashicons dashicons-download" style="margin-top: 3px;"></span> Install Redis
-            </button>
-            
-            <button type="button" id="check-redis-btn" class="button">
-                <span class="dashicons dashicons-update" style="margin-top: 3px;"></span> Check Status
-            </button>
-            
-            <div id="redis-output" style="margin-top: 15px; padding: 12px; background: #263238; color: #00ff00; border-radius: 6px; font-family: monospace; font-size: 13px; max-height: 300px; overflow-y: auto; display: none;">
-                <div id="redis-log"></div>
+            <div style="margin-top: 15px;">
+                <a href="admin.php?page=appointease-redis" class="button button-primary" style="margin-right: 10px;">
+                    <span class="dashicons dashicons-performance" style="margin-top: 3px;"></span> Open Redis Setup Page
+                </a>
+                
+                <button type="button" id="check-redis-btn" class="button">
+                    <span class="dashicons dashicons-update" style="margin-top: 3px;"></span> Refresh Status
+                </button>
             </div>
             
-            <details style="margin-top: 15px;">
-                <summary style="cursor: pointer; font-weight: 600; color: #1CBC9B;">📖 Manual Installation Commands</summary>
-                <div style="margin-top: 10px; padding: 15px; background: white; border-radius: 6px;">
-                    <h4>Ubuntu/Debian:</h4>
-                    <code style="display: block; background: #263238; color: #00ff00; padding: 10px; border-radius: 4px; margin-bottom: 10px;">sudo apt update && sudo apt install -y redis-server php-redis && sudo systemctl enable redis-server && sudo systemctl start redis-server</code>
-                    
-                    <h4>CentOS/RHEL:</h4>
-                    <code style="display: block; background: #263238; color: #00ff00; padding: 10px; border-radius: 4px; margin-bottom: 10px;">sudo yum install -y epel-release && sudo yum install -y redis php-pecl-redis && sudo systemctl enable redis && sudo systemctl start redis</code>
-                    
-                    <h4>Verify Installation:</h4>
-                    <code style="display: block; background: #263238; color: #00ff00; padding: 10px; border-radius: 4px;">redis-cli ping</code>
-                    <p style="margin-top: 5px; color: #666; font-size: 13px;">Should return: PONG</p>
-                </div>
-            </details>
+            <div style="margin-top: 15px; padding: 12px; background: #e8f5e9; border-radius: 6px; border: 1px solid #c3e6c3;">
+                <p style="margin: 0; color: #2d5a2d; font-size: 14px;"><strong>⚡ Performance:</strong> Redis provides <1ms slot locking vs ~15ms with MySQL (15x faster). Visit the Redis Setup page for one-click installation and manual commands.</p>
+            </div>
         </div>
         
         <script>
         jQuery(document).ready(function($) {
-            function logOutput(message, type = 'info') {
-                const log = $('#redis-log');
-                const color = type === 'error' ? '#ff4444' : type === 'success' ? '#00ff00' : '#00bfff';
-                log.append(`<div style="color: ${color}; margin-bottom: 5px;">[${new Date().toLocaleTimeString()}] ${message}</div>`);
-                $('#redis-output').show();
-                log.parent().scrollTop(log.parent()[0].scrollHeight);
-            }
-            
             function checkRedisStatus() {
                 $('#redis-status-text').html('<span class="spinner is-active" style="float: none; margin: 0 5px;"></span>Checking...');
                 
@@ -375,16 +352,12 @@ class Booking_Settings {
                             const data = response.data;
                             let statusHtml = '';
                             
-                            if (data.redis_installed) {
-                                statusHtml = '<span style="color: #28a745;">✓ Redis Installed</span>';
+                            if (data.redis_installed && data.php_redis_installed) {
+                                statusHtml = '<span style="color: #28a745; font-weight: 600;">✓ Redis Active (<1ms performance)</span>';
+                            } else if (data.redis_installed) {
+                                statusHtml = '<span style="color: #f59e0b;">⚠ Redis installed but PHP extension missing</span>';
                             } else {
-                                statusHtml = '<span style="color: #dc3545;">✗ Redis Not Installed</span>';
-                            }
-                            
-                            if (data.php_redis_installed) {
-                                statusHtml += ' | <span style="color: #28a745;">✓ PHP Redis Extension</span>';
-                            } else {
-                                statusHtml += ' | <span style="color: #dc3545;">✗ PHP Redis Extension Missing</span>';
+                                statusHtml = '<span style="color: #dc3545;">✗ Redis not installed (using MySQL ~15ms)</span>';
                             }
                             
                             statusHtml += ` | <strong>OS:</strong> ${data.os}`;
@@ -402,40 +375,6 @@ class Booking_Settings {
             
             $('#check-redis-btn').on('click', function() {
                 checkRedisStatus();
-            });
-            
-            $('#install-redis-btn').on('click', function() {
-                const btn = $(this);
-                btn.prop('disabled', true).html('<span class="spinner is-active" style="float: none; margin: 0 5px;"></span>Installing...');
-                $('#redis-log').empty();
-                $('#redis-output').show();
-                
-                logOutput('Starting Redis installation...', 'info');
-                
-                $.ajax({
-                    url: ajaxurl,
-                    method: 'POST',
-                    data: {
-                        action: 'install_redis',
-                        nonce: '<?php echo wp_create_nonce('redis_installer'); ?>'
-                    },
-                    success: function(response) {
-                        if (response.success) {
-                            logOutput(response.data.message, 'success');
-                            if (response.data.output) {
-                                response.data.output.forEach(line => logOutput(line, 'info'));
-                            }
-                            setTimeout(checkRedisStatus, 2000);
-                        } else {
-                            logOutput('Installation failed: ' + response.data, 'error');
-                        }
-                        btn.prop('disabled', false).html('<span class="dashicons dashicons-download" style="margin-top: 3px;"></span> Install Redis');
-                    },
-                    error: function(xhr) {
-                        logOutput('AJAX error: ' + xhr.statusText, 'error');
-                        btn.prop('disabled', false).html('<span class="dashicons dashicons-download" style="margin-top: 3px;"></span> Install Redis');
-                    }
-                });
             });
             
             // Initial status check
