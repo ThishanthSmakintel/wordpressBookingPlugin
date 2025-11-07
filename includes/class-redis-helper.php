@@ -70,6 +70,10 @@ class Appointease_Redis_Helper {
     public function is_enabled() {
         return $this->enabled;
     }
+    
+    public function get_connection() {
+        return $this->redis;
+    }
 
     /**
      * Atomic slot lock with client ownership
