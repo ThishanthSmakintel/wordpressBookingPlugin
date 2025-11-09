@@ -25,6 +25,26 @@ define('BOOKING_PLUGIN_URL', plugin_dir_url(__FILE__));
 
 // Secure file includes with validation
 function booking_plugin_require_file($file) {
+    $allowed_files = [
+        'includes/class-security-helper.php',
+        'includes/class-activator.php',
+        'includes/class-deactivator.php',
+        'includes/class-booking-plugin.php',
+        'includes/class-settings.php',
+        'includes/class-db-seeder.php',
+        'includes/class-db-reset.php',
+        'includes/class-db-reset-filters.php',
+        'includes/class-redis-helper.php',
+        'includes/class-api-endpoints.php',
+        'includes/class-heartbeat-handler.php',
+        'includes/session-manager.php',
+        'blocks/register-block.php'
+    ];
+    
+    if (!in_array($file, $allowed_files)) {
+        wp_die('Invalid file requested: ' . esc_html($file));
+    }
+    
     $full_path = BOOKING_PLUGIN_PATH . $file;
     if (file_exists($full_path) && is_readable($full_path)) {
         require_once $full_path;

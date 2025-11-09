@@ -597,13 +597,19 @@ class AppointEase_Admin {
     
     public function save_service() {
         check_ajax_referer('appointease_nonce', '_wpnonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Unauthorized access');
+            return;
+        }
+        
         global $wpdb;
         
-        $id = intval($_POST['id']);
-        $name = sanitize_text_field($_POST['name']);
-        $duration = intval($_POST['duration']);
-        $price = floatval($_POST['price']);
-        $description = sanitize_textarea_field($_POST['description']);
+        $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
+        $name = isset($_POST['name']) ? sanitize_text_field($_POST['name']) : '';
+        $duration = isset($_POST['duration']) ? intval($_POST['duration']) : 0;
+        $price = isset($_POST['price']) ? floatval($_POST['price']) : 0;
+        $description = isset($_POST['description']) ? sanitize_textarea_field($_POST['description']) : '';
         
         // Validate input
         if (empty($name) || $duration <= 0 || $price < 0) {
@@ -637,12 +643,18 @@ class AppointEase_Admin {
     
     public function save_staff() {
         check_ajax_referer('appointease_nonce', '_wpnonce');
+        
+        if (!current_user_can('manage_options')) {
+            wp_send_json_error('Unauthorized access');
+            return;
+        }
+        
         global $wpdb;
         
-        $id = intval($_POST['id']);
-        $name = sanitize_text_field($_POST['name']);
-        $email = sanitize_email($_POST['email']);
-        $phone = sanitize_text_field($_POST['phone']);
+        $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
+        $name = isset($_POST['name']) ? sanitize_text_field($_POST['name']) : '';
+        $email = isset($_POST['email']) ? sanitize_email($_POST['email']) : '';
+        $phone = isset($_POST['phone']) ? sanitize_text_field($_POST['phone']) : '';
         
         // Validate input
         if (empty($name) || empty($email) || !is_email($email)) {

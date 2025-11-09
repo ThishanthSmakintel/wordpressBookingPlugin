@@ -19,7 +19,7 @@ AppointEase is a WordPress booking plugin with real-time slot locking using **Wo
 - **Frontend**: React 18 + TypeScript + WordPress @wordpress/data
 - **Backend**: PHP 7.4+ + WordPress REST API
 - **Storage**: Redis 6.0+ (primary) + MySQL 5.7+ (fallback)
-- **Real-Time**: WordPress Heartbeat (1-second polling) + Redis Pub/Sub
+- **Real-Time**: WordPress Heartbeat (5-second polling) + Redis
 
 ### Key Features
 - Sub-second real-time updates without WebSocket
@@ -34,7 +34,7 @@ AppointEase is a WordPress booking plugin with real-time slot locking using **Wo
 
 ### WordPress Heartbeat Integration
 
-WordPress Heartbeat provides 1-second polling for real-time updates on the frontend.
+WordPress Heartbeat provides 5-second polling for real-time updates on the frontend.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -78,7 +78,7 @@ useHeartbeat Hook
 ```php
 // Force enable on frontend (WordPress suspends by default)
 add_filter('heartbeat_settings', function($settings) {
-    $settings['interval'] = 1;           // 1-second polling
+    $settings['interval'] = 5;           // 5-second polling
     $settings['suspension'] = 'disable'; // Never suspend
     return $settings;
 });
@@ -185,7 +185,7 @@ Redis Pub/Sub (<5ms)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│           CONTINUOUS POLLING (Every 1 second)               │
+│           CONTINUOUS POLLING (Every 5 seconds)              │
 └─────────────────────────────────────────────────────────────┘
 
 Frontend                    Backend                    Redis
@@ -201,7 +201,7 @@ useHeartbeatSlotPolling
   │   }
   │
   ├─► Heartbeat sends ──────► heartbeat_received() ──► Redis Operations:
-  │   every 1 second            │                       │
+  │   every 5 seconds           │                       │
   │                             ├─► GET selections  ◄───┤ GET appointease:
   │                             │                       │ selections:{date}:
   │                             │                       │ {employee_id}
@@ -686,7 +686,7 @@ Response:
 
 ### Heartbeat Polling
 
-**Heartbeat Data (sent every 1 second)**
+**Heartbeat Data (sent every 5 seconds)**
 ```json
 Request (via heartbeat-send):
 {
@@ -766,7 +766,7 @@ Response:
 | Redis GET | <1ms | Active selections, booked slots |
 | Redis SET | <1ms | Lock/unlock slots |
 | Redis PUBLISH | <5ms | Broadcast to all clients |
-| Heartbeat Poll | 1s | Configurable interval |
+| Heartbeat Poll | 5s | WordPress minimum interval |
 | Slot Selection | <100ms | Optimistic UI + Redis |
 | Booking Creation | <200ms | MySQL transaction + Redis update |
 
@@ -863,7 +863,7 @@ Debug panel shows:
 AppointEase uses **WordPress Heartbeat + Redis Pub/Sub** to achieve real-time slot locking without WebSocket complexity. The architecture prioritizes:
 
 - **Simplicity**: Standard WordPress APIs, no custom WebSocket server
-- **Performance**: <1ms Redis operations, 1-second polling
+- **Performance**: <1ms Redis operations, 5-second polling
 - **Reliability**: MySQL fallback, atomic transactions
 - **Security**: Session-based auth, input validation, CSRF protection
 

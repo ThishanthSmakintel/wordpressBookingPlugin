@@ -40,7 +40,10 @@ class Appointease_Redis_Helper {
                 
                 return true;
             } catch (Exception $e) {
-                error_log('[Redis] Connection failed: ' . $e->getMessage());
+                $sanitized_message = preg_replace('/host=[^\s]+/', 'host=***', $e->getMessage());
+                $sanitized_message = preg_replace('/port=\d+/', 'port=***', $sanitized_message);
+                $sanitized_message = preg_replace('/password=[^\s]+/', 'password=***', $sanitized_message);
+                error_log('[Redis] Connection failed: ' . $sanitized_message);
                 return false;
             }
         }
@@ -154,9 +157,12 @@ class Appointease_Redis_Helper {
         try {
             $locks = [];
             $iterator = null;
+            $max_iterations = 1000;
+            $current_iteration = 0;
             
             // Use SCAN instead of KEYS (non-blocking)
-            while ($keys = $this->redis->scan($iterator, $pattern, 100)) {
+            while ($keys = $this->redis->scan($iterator, $pattern, 100) && $current_iteration < $max_iterations) {
+                $current_iteration++;
                 foreach ($keys as $key) {
                     $data = $this->redis->get($key);
                     if ($data) {
@@ -167,7 +173,7 @@ class Appointease_Redis_Helper {
                         }
                     }
                 }
-                if ($iterator === 0) break;
+                if ($iterator === 0 || $current_iteration >= $max_iterations) break;
             }
             return $locks;
         } catch (Exception $e) {
