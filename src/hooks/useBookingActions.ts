@@ -136,18 +136,37 @@ export const useBookingActions = (bookingState: any) => {
             },
             body: JSON.stringify(requestBody)
         })
-        .then(response => response.json())
-        .then(result => {
-            if (result.success || result.strong_id || result.id) {
+        .then(async response => {
+            const result = await response.json();
+            return { status: response.status, data: result };
+        })
+        .then(({ status, data }) => {
+            if (status === 409) {
+                // Slot taken by another user
+                if (window.Toastify) {
+                    window.Toastify({
+                        text: "⚠️ This slot was just booked by another user. Please select a different time.",
+                        duration: 5000,
+                        gravity: "top",
+                        position: "center",
+                        style: { background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)" }
+                    }).showToast();
+                }
+                // Refresh availability to disable the slot
+                checkAvailability(selectedDate, selectedEmployee.id);
+                // Go back to time selection
+                setStep(4);
+                setErrors({time: 'This slot is no longer available. Please select another time.'});
+            } else if (data.success || data.strong_id || data.id) {
                 setErrors({});
                 if (isReschedule) {
-                    setStep(9); // Reschedule success page
+                    setStep(9);
                 } else {
-                    bookingState.setAppointmentId(result.strong_id || `APT-${new Date().getFullYear()}-${result.id.toString().padStart(6, '0')}`);
-                    setStep(7); // Booking success page
+                    bookingState.setAppointmentId(data.strong_id || `APT-${new Date().getFullYear()}-${data.id.toString().padStart(6, '0')}`);
+                    setStep(7);
                 }
             } else {
-                setErrors({general: result.message || (isReschedule ? 'Reschedule failed. Please try again.' : 'Booking failed. Please try again.')});
+                setErrors({general: data.message || (isReschedule ? 'Reschedule failed. Please try again.' : 'Booking failed. Please try again.')});
             }
         })
         .catch(error => {
