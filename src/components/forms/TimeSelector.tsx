@@ -205,11 +205,14 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
             lastUpdate: heartbeatLastUpdate
         };
         
-        // Only update if data actually changed
-        if (JSON.stringify(prevDebugInfoRef.current) !== JSON.stringify(info)) {
+        // Only update if slot data actually changed (exclude lastUpdate from comparison)
+        const infoWithoutTimestamp = {...info, lastUpdate: 0};
+        const prevWithoutTimestamp = {...prevDebugInfoRef.current, lastUpdate: 0};
+        
+        if (JSON.stringify(prevWithoutTimestamp) !== JSON.stringify(infoWithoutTimestamp)) {
             prevDebugInfoRef.current = info;
             setDebugInfo(info);
-            console.log('[TimeSelector] Heartbeat data updated:', info);
+            console.log('[TimeSelector] Slot data changed:', info);
         }
     }, [selectedDate, selectedEmployee, heartbeatBookedSlots, heartbeatActiveSelections, tempSelected, clientId, isRescheduling, currentAppointmentTime, currentAppointment?.id, heartbeatConnected, heartbeatLastUpdate]);
     
