@@ -18,6 +18,14 @@ interface ExtendedSlotPollingOptions extends SlotPollingOptions {
   excludeAppointmentId?: string;
 }
 
+// Smart array comparison - only update if actually changed
+const arraysEqual = (a: string[], b: string[]): boolean => {
+  if (a.length !== b.length) return false;
+  const sortedA = [...a].sort();
+  const sortedB = [...b].sort();
+  return sortedA.every((val, idx) => val === sortedB[idx]);
+};
+
 export const useHeartbeatSlotPolling = ({ date, employeeId, enabled = true, clientId, selectedTime, excludeAppointmentId }: ExtendedSlotPollingOptions) => {
   const [activeSelections, setActiveSelections] = useState<string[]>([]);
   const [bookedSlots, setBookedSlots] = useState<string[]>([]);
@@ -35,24 +43,14 @@ export const useHeartbeatSlotPolling = ({ date, employeeId, enabled = true, clie
       ...(excludeAppointmentId ? { exclude_appointment_id: excludeAppointmentId } : {})
     } : null,
     onPoll: (data: any) => {
-      console.log('[HeartbeatPolling] Raw data received:', data);
-      console.log('[HeartbeatPolling] Active selections:', data?.appointease_active_selections);
-      console.log('[HeartbeatPolling] Booked slots:', data?.appointease_booked_slots);
-      console.log('[HeartbeatPolling] Redis status:', data?.redis_status);
-      
       const newActiveSelections = data?.appointease_active_selections || [];
       const newBookedSlots = data?.appointease_booked_slots || [];
       const newLockedSlots = data?.appointease_locked_slots || [];
       
-      console.log('[HeartbeatPolling] Setting state:', { 
-        activeSelections: newActiveSelections, 
-        bookedSlots: newBookedSlots, 
-        lockedSlots: newLockedSlots 
-      });
-      
-      setActiveSelections(newActiveSelections);
-      setBookedSlots(newBookedSlots);
-      setLockedSlots(newLockedSlots);
+      // Smart diffing - only update if changed
+      setActiveSelections(prev => arraysEqual(prev, newActiveSelections) ? prev : newActiveSelections);
+      setBookedSlots(prev => arraysEqual(prev, newBookedSlots) ? prev : newBookedSlots);
+      setLockedSlots(prev => arraysEqual(prev, newLockedSlots) ? prev : newLockedSlots);
       setLastUpdate(Date.now());
       setPollCount(prev => prev + 1);
     }
