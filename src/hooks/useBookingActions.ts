@@ -26,19 +26,29 @@ export const useBookingActions = (bookingState: any) => {
             
             // Use different endpoint for rescheduling
             let endpoint = `${window.bookingAPI.root}booking/v1/availability`;
+            let useAjax = false;
             
             if (bookingState.isRescheduling && bookingState.currentAppointment?.id) {
                 endpoint = `${window.bookingAPI.root}appointease/v1/reschedule-availability`;
                 requestBody.exclude_appointment_id = bookingState.currentAppointment.id;
             }
             
+            // Fallback to admin-ajax.php if REST API fails
+            if (!window.bookingAPI.root.includes('/wp-json/')) {
+                endpoint = '/wp-admin/admin-ajax.php';
+                requestBody.action = bookingState.isRescheduling ? 'appointease_reschedule_availability' : 'appointease_check_availability';
+                useAjax = true;
+            }
+            
             const response = await fetch(endpoint, {
                 method: 'POST',
-                headers: {
+                headers: useAjax ? {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                } : {
                     'Content-Type': 'application/json',
                     'X-WP-Nonce': window.bookingAPI.nonce
                 },
-                body: JSON.stringify(requestBody)
+                body: useAjax ? new URLSearchParams(requestBody).toString() : JSON.stringify(requestBody)
             });
             
             if (response.ok) {
