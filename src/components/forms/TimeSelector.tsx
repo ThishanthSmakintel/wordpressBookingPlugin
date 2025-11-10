@@ -208,6 +208,24 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
         console.log('[TimeSelector] Heartbeat data updated:', info);
     }, [selectedDate, selectedEmployee, heartbeatBookedSlots, heartbeatActiveSelections, tempSelected, clientId, isRescheduling, currentAppointmentTime, currentAppointment?.id, heartbeatConnected, heartbeatLastUpdate]);
     
+    // Stabilize activeSelections to prevent flickering
+    const [stableActiveSelections, setStableActiveSelections] = useState<string[]>([]);
+    const activeSelectionsTimeoutRef = useRef<NodeJS.Timeout>();
+    
+    useEffect(() => {
+        if (activeSelectionsTimeoutRef.current) {
+            clearTimeout(activeSelectionsTimeoutRef.current);
+        }
+        activeSelectionsTimeoutRef.current = setTimeout(() => {
+            setStableActiveSelections(heartbeatActiveSelections);
+        }, 200);
+        return () => {
+            if (activeSelectionsTimeoutRef.current) {
+                clearTimeout(activeSelectionsTimeoutRef.current);
+            }
+        };
+    }, [heartbeatActiveSelections]);
+    
     const unavailableSet = useMemo(() => {
         if (unavailableSlots === 'all') return 'all';
         const set = new Set(Array.isArray(unavailableSlots) ? unavailableSlots : []);
@@ -400,23 +418,11 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                     {timeSlots.map(time => {
                         const isSelected = tempSelected === time;
                         const isCurrentAppointment = currentAppointmentTime === time;
-                        const isProcessing = heartbeatActiveSelections.includes(time) && !isSelected;
+                        const isProcessing = stableActiveSelections.includes(time) && !isSelected;
                         const isUnavailable = (unavailableSet === 'all' || (unavailableSet instanceof Set && unavailableSet.has(time))) && !isCurrentAppointment;
                         const isDisabled = (isUnavailable || isProcessing) && !isSelected && !isCurrentAppointment;
                         
-                        // Debug log for any slot in activeSelections
-                        if (heartbeatActiveSelections.includes(time)) {
-                            console.log(`[TimeSelector] Slot ${time} SHOULD BE PROCESSING:`, {
-                                time,
-                                isSelected,
-                                isCurrentAppointment,
-                                isProcessing,
-                                isUnavailable,
-                                isDisabled,
-                                heartbeatActiveSelections,
-                                'Component will render as': isProcessing ? 'PROCESSING (yellow)' : 'OTHER'
-                            });
-                        }
+
                         
                         return (
                             <TimeSlot
