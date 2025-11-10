@@ -185,6 +185,7 @@ class Appointease_Redis_Helper {
     /**
      * Set active selection - uses user-specific key for instant updates
      * One slot per user approach with O(1) operations
+     * FIX: Only refresh TTL if selection exists, don't recreate (prevents flicker)
      */
     public function set_active_selection($date, $employee_id, $time, $client_id) {
         if (!$this->enabled) return false;
@@ -198,18 +199,27 @@ class Appointease_Redis_Helper {
                 $user_key = "appointease_user_{$client_id}_{$date}_{$employee_id}";
                 $old_time = $this->redis->get($user_key);
                 
-                // Delete old slot if exists
-                if ($old_time) {
+                // If user is selecting the SAME slot, just refresh TTL (no delete/recreate)
+                if ($old_time === $time) {
+                    $slot_key = "appointease_active_{$date}_{$employee_id}_{$time}";
+                    // Check if key exists before refreshing
+                    if ($this->redis->exists($slot_key)) {
+                        $this->redis->expire($slot_key, 300);
+                        $this->redis->expire($user_key, 300);
+                        return true; // TTL refreshed, no flicker
+                    }
+                }
+                
+                // Delete old slot if user is switching to different time
+                if ($old_time && $old_time !== $time) {
                     $old_slot_key = "appointease_active_{$date}_{$employee_id}_{$old_time}";
                     $this->redis->del($old_slot_key);
                 }
                 
-                // Set new slot
+                // Set new slot (only if switching or first selection)
                 $slot_key = "appointease_active_{$date}_{$employee_id}_{$time}";
                 $data = ['client_id' => $client_id, 'timestamp' => time(), 'time' => $time];
                 $this->redis->setex($slot_key, 300, json_encode($data));
-                
-                error_log('[Redis] Set selection: ' . $slot_key . ' = ' . json_encode($data));
                 
                 // Store user's current selection for fast lookup
                 $this->redis->setex($user_key, 300, $time);

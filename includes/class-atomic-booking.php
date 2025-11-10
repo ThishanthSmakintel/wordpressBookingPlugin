@@ -68,6 +68,18 @@ class Atomic_Booking {
                 return $validation;
             }
             
+            // Layer 2.5: Final slot check (catch race conditions)
+            $final_check = $this->wpdb->get_var($this->wpdb->prepare(
+                "SELECT COUNT(*) FROM {$this->wpdb->prefix}appointments 
+                 WHERE appointment_date = %s AND employee_id = %d AND status IN ('confirmed', 'created')",
+                $data['appointment_date'], $data['employee_id']
+            ));
+            
+            if ($final_check > 0) {
+                $this->wpdb->query('ROLLBACK');
+                return new WP_Error('slot_taken', 'Slot was just booked by another user', ['status' => 409]);
+            }
+            
             // Layer 3: Create appointment atomically
             $appointment_id = $this->insert_appointment_atomic($data, $idempotency_key);
             
