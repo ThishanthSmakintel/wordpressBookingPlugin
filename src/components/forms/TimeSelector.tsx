@@ -208,23 +208,22 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
         console.log('[TimeSelector] Heartbeat data updated:', info);
     }, [selectedDate, selectedEmployee, heartbeatBookedSlots, heartbeatActiveSelections, tempSelected, clientId, isRescheduling, currentAppointmentTime, currentAppointment?.id, heartbeatConnected, heartbeatLastUpdate]);
     
-    // Stabilize activeSelections to prevent flickering
-    const [stableActiveSelections, setStableActiveSelections] = useState<string[]>([]);
-    const activeSelectionsTimeoutRef = useRef<NodeJS.Timeout>();
+    // Smart diff: Only update if data actually changed
+    const [prevActiveSelections, setPrevActiveSelections] = useState<string[]>([]);
+    const [stableOtherSelections, setStableOtherSelections] = useState<string[]>([]);
     
     useEffect(() => {
-        if (activeSelectionsTimeoutRef.current) {
-            clearTimeout(activeSelectionsTimeoutRef.current);
+        const filtered = heartbeatActiveSelections.filter(time => time !== tempSelected);
+        
+        // Only update if the filtered list actually changed
+        const hasChanged = filtered.length !== prevActiveSelections.length || 
+                          filtered.some((time, idx) => time !== prevActiveSelections[idx]);
+        
+        if (hasChanged) {
+            setPrevActiveSelections(filtered);
+            setStableOtherSelections(filtered);
         }
-        activeSelectionsTimeoutRef.current = setTimeout(() => {
-            setStableActiveSelections(heartbeatActiveSelections);
-        }, 200);
-        return () => {
-            if (activeSelectionsTimeoutRef.current) {
-                clearTimeout(activeSelectionsTimeoutRef.current);
-            }
-        };
-    }, [heartbeatActiveSelections]);
+    }, [heartbeatActiveSelections, tempSelected, prevActiveSelections]);
     
     const unavailableSet = useMemo(() => {
         if (unavailableSlots === 'all') return 'all';
@@ -418,7 +417,7 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                     {timeSlots.map(time => {
                         const isSelected = tempSelected === time;
                         const isCurrentAppointment = currentAppointmentTime === time;
-                        const isProcessing = stableActiveSelections.includes(time) && !isSelected;
+                        const isProcessing = stableOtherSelections.includes(time);
                         const isUnavailable = (unavailableSet === 'all' || (unavailableSet instanceof Set && unavailableSet.has(time))) && !isCurrentAppointment;
                         const isDisabled = (isUnavailable || isProcessing) && !isSelected && !isCurrentAppointment;
                         
