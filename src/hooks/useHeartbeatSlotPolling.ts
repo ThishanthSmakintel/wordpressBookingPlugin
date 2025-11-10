@@ -19,14 +19,12 @@ interface ExtendedSlotPollingOptions extends SlotPollingOptions {
   excludeAppointmentId?: string;
 }
 
-export const useHeartbeatSlotPolling = ({ date, employeeId, enabled = true, clientId, selectedTime, excludeAppointmentId }: ExtendedSlotPollingOptions) => {
-  const [activeSelections, setActiveSelections] = useState<string[]>([]);
-  const [bookedSlots, setBookedSlots] = useState<string[]>([]);
-  const [lockedSlots, setLockedSlots] = useState<string[]>([]);
-  const [lastUpdate, setLastUpdate] = useState<number>(0);
-  const [pollCount, setPollCount] = useState(0);
+interface ExtendedSlotPollingOptionsWithCallback extends ExtendedSlotPollingOptions {
+  onUpdate?: (data: { bookedSlots?: string[]; activeSelections?: string[]; lockedSlots?: string[] }) => void;
+}
 
-  const { isConnected } = useHeartbeat({
+export const useHeartbeatSlotPolling = ({ date, employeeId, enabled = true, clientId, selectedTime, excludeAppointmentId, onUpdate }: ExtendedSlotPollingOptionsWithCallback) => {
+  const { isConnected, setConnectionStatus } = useHeartbeat({
     enabled: enabled && !!date && !!employeeId,
     pollData: date && employeeId ? { 
       date, 
@@ -40,35 +38,21 @@ export const useHeartbeatSlotPolling = ({ date, employeeId, enabled = true, clie
       const newBookedSlots = data?.appointease_booked_slots || [];
       const newLockedSlots = data?.appointease_locked_slots || [];
       
-      // Smart diffing - only update if changed
-      setActiveSelections(prev => {
-        const next = smartSetState(prev, newActiveSelections, arraysEqual);
-        if (next !== prev) console.log('[Polling] Active selections changed:', prev, '→', next);
-        return next;
-      });
-      setBookedSlots(prev => {
-        const next = smartSetState(prev, newBookedSlots, arraysEqual);
-        if (next !== prev) console.log('[Polling] Booked slots changed:', prev, '→', next);
-        return next;
-      });
-      setLockedSlots(prev => {
-        const next = smartSetState(prev, newLockedSlots, arraysEqual);
-        if (next !== prev) console.log('[Polling] Locked slots changed:', prev, '→', next);
-        return next;
-      });
+      // Update global store via callback
+      if (onUpdate) {
+        onUpdate({
+          bookedSlots: newBookedSlots,
+          activeSelections: newActiveSelections,
+          lockedSlots: newLockedSlots
+        });
+      }
       
-      // Always update metadata
-      setLastUpdate(Date.now());
-      setPollCount(prev => prev + 1);
+      // Update connection status
+      if (setConnectionStatus) {
+        setConnectionStatus(true);
+      }
     }
   });
 
-  return {
-    activeSelections,
-    bookedSlots,
-    lockedSlots,
-    isConnected,
-    lastUpdate,
-    pollCount
-  };
+  return { isConnected };
 };
