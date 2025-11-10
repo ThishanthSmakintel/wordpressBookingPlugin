@@ -47,10 +47,24 @@ export const useHeartbeatSlotPolling = ({ date, employeeId, enabled = true, clie
       const newBookedSlots = data?.appointease_booked_slots || [];
       const newLockedSlots = data?.appointease_locked_slots || [];
       
-      // Smart diffing - only update if changed
-      setActiveSelections(prev => arraysEqual(prev, newActiveSelections) ? prev : newActiveSelections);
-      setBookedSlots(prev => arraysEqual(prev, newBookedSlots) ? prev : newBookedSlots);
-      setLockedSlots(prev => arraysEqual(prev, newLockedSlots) ? prev : newLockedSlots);
+      // Check if any data actually changed
+      setActiveSelections(prev => {
+        const changed = !arraysEqual(prev, newActiveSelections);
+        if (changed) console.log('[Polling] Active selections changed:', prev, '→', newActiveSelections);
+        return changed ? newActiveSelections : prev;
+      });
+      setBookedSlots(prev => {
+        const changed = !arraysEqual(prev, newBookedSlots);
+        if (changed) console.log('[Polling] Booked slots changed:', prev, '→', newBookedSlots);
+        return changed ? newBookedSlots : prev;
+      });
+      setLockedSlots(prev => {
+        const changed = !arraysEqual(prev, newLockedSlots);
+        if (changed) console.log('[Polling] Locked slots changed:', prev, '→', newLockedSlots);
+        return changed ? newLockedSlots : prev;
+      });
+      
+      // Always update metadata
       setLastUpdate(Date.now());
       setPollCount(prev => prev + 1);
     }
