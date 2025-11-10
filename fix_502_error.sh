@@ -3,19 +3,24 @@
 
 echo "=== Fixing 502 Bad Gateway Error ==="
 
-# 1. Use PHP 8.0
-PHP_VERSION="8.0"
-echo "Using PHP version: $PHP_VERSION"
+# 1. Backup configs
+cp /etc/php/8.0/fpm/pool.d/www.conf /etc/php/8.0/fpm/pool.d/www.conf.backup.$(date +%Y%m%d)
+echo "✓ Backed up FPM pool config"
 
-# 2. Backup php.ini
-cp /etc/php/8.0/fpm/php.ini /etc/php/8.0/fpm/php.ini.backup.$(date +%Y%m%d)
-echo "✓ Backed up php.ini"
+# 2. Remove old PHP admin values if they exist
+sed -i '/php_admin_value\[memory_limit\]/d' /etc/php/8.0/fpm/pool.d/www.conf
+sed -i '/php_admin_value\[max_execution_time\]/d' /etc/php/8.0/fpm/pool.d/www.conf
+sed -i '/php_admin_value\[error_log\]/d' /etc/php/8.0/fpm/pool.d/www.conf
 
-# 3. Update PHP settings
-sed -i 's/^max_execution_time = 30/max_execution_time = 60/' /etc/php/8.0/fpm/php.ini
-sed -i 's/^memory_limit = 128M/memory_limit = 256M/' /etc/php/8.0/fpm/php.ini
-sed -i 's/^;error_log = php_errors.log/error_log = \/var\/log\/php_errors.log/' /etc/php/8.0/fpm/php.ini
-echo "✓ Updated PHP settings"
+# 3. Add PHP-FPM pool settings (these override php.ini)
+cat >> /etc/php/8.0/fpm/pool.d/www.conf << 'EOF'
+
+; Custom settings for WordPress booking plugin
+php_admin_value[memory_limit] = 256M
+php_admin_value[max_execution_time] = 60
+php_admin_value[error_log] = /var/log/php_errors.log
+EOF
+echo "✓ Updated PHP-FPM pool settings"
 
 # 4. Enable WordPress debug
 WP_CONFIG="/var/www/news.thishanth.com/wp-config.php"
@@ -44,18 +49,17 @@ systemctl restart php8.0-fpm
 systemctl restart nginx
 echo "✓ Restarted PHP-FPM and Nginx"
 
-# 7. Show current settings
+# 7. Verify settings were applied
 echo ""
-echo "=== Current PHP Settings ==="
-php -i | grep "max_execution_time"
-php -i | grep "memory_limit"
-php -i | grep "error_log"
+echo "=== Verifying FPM Pool Config ==="
+grep -A 3 "Custom settings" /etc/php/8.0/fpm/pool.d/www.conf
 
 echo ""
 echo "=== Monitor logs with these commands ==="
 echo "tail -f /var/log/nginx/error.log"
+echo "tail -f /var/log/php8.0-fpm.log"
 echo "tail -f /var/log/php_errors.log"
 echo "tail -f /var/www/news.thishanth.com/wp-content/debug.log"
 
 echo ""
-echo "✓ Fix complete! Test your site now."
+echo "✓ Fix complete! Test your site and watch logs for errors."
