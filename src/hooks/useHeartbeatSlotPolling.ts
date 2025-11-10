@@ -5,6 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { useHeartbeat } from './useHeartbeat';
+import { arraysEqual, smartSetState } from '../utils/smartDiff';
 
 interface SlotPollingOptions {
   date: string;
@@ -17,14 +18,6 @@ interface ExtendedSlotPollingOptions extends SlotPollingOptions {
   selectedTime?: string;
   excludeAppointmentId?: string;
 }
-
-// Smart array comparison - only update if actually changed
-const arraysEqual = (a: string[], b: string[]): boolean => {
-  if (a.length !== b.length) return false;
-  const sortedA = [...a].sort();
-  const sortedB = [...b].sort();
-  return sortedA.every((val, idx) => val === sortedB[idx]);
-};
 
 export const useHeartbeatSlotPolling = ({ date, employeeId, enabled = true, clientId, selectedTime, excludeAppointmentId }: ExtendedSlotPollingOptions) => {
   const [activeSelections, setActiveSelections] = useState<string[]>([]);
@@ -47,21 +40,21 @@ export const useHeartbeatSlotPolling = ({ date, employeeId, enabled = true, clie
       const newBookedSlots = data?.appointease_booked_slots || [];
       const newLockedSlots = data?.appointease_locked_slots || [];
       
-      // Check if any data actually changed
+      // Smart diffing - only update if changed
       setActiveSelections(prev => {
-        const changed = !arraysEqual(prev, newActiveSelections);
-        if (changed) console.log('[Polling] Active selections changed:', prev, '→', newActiveSelections);
-        return changed ? newActiveSelections : prev;
+        const next = smartSetState(prev, newActiveSelections, arraysEqual);
+        if (next !== prev) console.log('[Polling] Active selections changed:', prev, '→', next);
+        return next;
       });
       setBookedSlots(prev => {
-        const changed = !arraysEqual(prev, newBookedSlots);
-        if (changed) console.log('[Polling] Booked slots changed:', prev, '→', newBookedSlots);
-        return changed ? newBookedSlots : prev;
+        const next = smartSetState(prev, newBookedSlots, arraysEqual);
+        if (next !== prev) console.log('[Polling] Booked slots changed:', prev, '→', next);
+        return next;
       });
       setLockedSlots(prev => {
-        const changed = !arraysEqual(prev, newLockedSlots);
-        if (changed) console.log('[Polling] Locked slots changed:', prev, '→', newLockedSlots);
-        return changed ? newLockedSlots : prev;
+        const next = smartSetState(prev, newLockedSlots, arraysEqual);
+        if (next !== prev) console.log('[Polling] Locked slots changed:', prev, '→', next);
+        return next;
       });
       
       // Always update metadata

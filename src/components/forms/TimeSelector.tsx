@@ -5,6 +5,7 @@ import { useHeartbeat } from '../../hooks/useHeartbeat';
 import { useHeartbeatSlotPolling } from '../../hooks/useHeartbeatSlotPolling';
 import { SettingsService } from '../../app/shared/services/settings.service';
 import { format, parseISO } from 'date-fns';
+import { objectsEqual, arraysEqual } from '../../utils/smartDiff';
 
 const TimeSlot: React.FC<{
     time: string;
@@ -205,11 +206,8 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
             lastUpdate: heartbeatLastUpdate
         };
         
-        // Only update if slot data actually changed (exclude lastUpdate from comparison)
-        const infoWithoutTimestamp = {...info, lastUpdate: 0};
-        const prevWithoutTimestamp = {...prevDebugInfoRef.current, lastUpdate: 0};
-        
-        if (JSON.stringify(prevWithoutTimestamp) !== JSON.stringify(infoWithoutTimestamp)) {
+        // Smart diffing - exclude timestamp from comparison
+        if (!objectsEqual(prevDebugInfoRef.current, info, ['lastUpdate'])) {
             prevDebugInfoRef.current = info;
             setDebugInfo(info);
             console.log('[TimeSelector] Slot data changed:', info);
@@ -273,9 +271,9 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
         SettingsService.getInstance().getSettings()
             .then(settings => {
                 if (mounted && settings?.time_slots?.length > 0) {
-                    // Only update if slots changed
+                    // Smart diffing - only update if slots changed
                     const newSlots = settings.time_slots;
-                    if (JSON.stringify(prevTimeSlotsRef.current) !== JSON.stringify(newSlots)) {
+                    if (!arraysEqual(prevTimeSlotsRef.current, newSlots)) {
                         prevTimeSlotsRef.current = newSlots;
                         setTimeSlots(newSlots);
                     }
