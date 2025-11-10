@@ -413,7 +413,7 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                     {timeSlots.map(time => {
                         const isSelected = tempSelected === time;
                         const isCurrentAppointment = currentAppointmentTime === time;
-                        const isProcessing = stableActiveSelections.includes(time) && !isSelected;
+                        const isProcessing = heartbeatActiveSelections.includes(time) && !isSelected;
                         const isUnavailable = (unavailableSet === 'all' || (unavailableSet instanceof Set && unavailableSet.has(time))) && !isCurrentAppointment;
                         const isDisabled = (isUnavailable || isProcessing) && !isSelected && !isCurrentAppointment;
                         
