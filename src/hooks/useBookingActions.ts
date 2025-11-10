@@ -9,11 +9,8 @@ export const useBookingActions = (bookingState: any) => {
         setUnavailableSlots, setBookingDetails
     } = useBookingStore();
 
-    const checkAvailability = useCallback(async (date: string, employeeId: number) => {
-
-        
+    const checkAvailability = useCallback(async (date: string, employeeId: number, retryCount = 0) => {
         if (!window.bookingAPI || !date || !employeeId) {
-
             setUnavailableSlots([]);
             return;
         }
@@ -24,7 +21,6 @@ export const useBookingActions = (bookingState: any) => {
                 employee_id: parseInt(String(employeeId), 10)
             };
             
-            // Use different endpoint for rescheduling
             const endpoint = bookingState.isRescheduling && bookingState.currentAppointment?.id
                 ? `${window.bookingAPI.root}appointease/v1/reschedule-availability`
                 : `${window.bookingAPI.root}booking/v1/availability`;
@@ -42,9 +38,17 @@ export const useBookingActions = (bookingState: any) => {
                 body: JSON.stringify(requestBody)
             });
             
+            // Handle Cloudflare rate limiting (429) or server errors (5xx)
+            if (response.status === 429 || response.status >= 500) {
+                if (retryCount < 3) {
+                    const delay = Math.min(1000 * Math.pow(2, retryCount), 5000);
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    return checkAvailability(date, employeeId, retryCount + 1);
+                }
+            }
+            
             if (response.ok) {
                 const data = await response.json();
-
                 
                 if (data.unavailable === 'all') {
                     setUnavailableSlots('all');
@@ -52,13 +56,10 @@ export const useBookingActions = (bookingState: any) => {
                 } else if (Array.isArray(data.unavailable)) {
                     setUnavailableSlots(data.unavailable);
                     setBookingDetails(data.booking_details || {});
-
                 } else {
                     setUnavailableSlots([]);
                     setBookingDetails({});
                 }
-            } else {
-
             }
         } catch (error) {
             setUnavailableSlots([]);

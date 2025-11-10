@@ -87,6 +87,12 @@ const DateSelector: React.FC<DateSelectorProps> = ({ isReschedule = false }) => 
     const canGoNext = () => currentMonth < 3;
     const canGoPrev = () => currentMonth > 0;
     
+    // Cache key for avoiding redundant checks
+    const cacheKey = useMemo(() => {
+        const employeeId = typeof selectedEmployee === 'object' ? selectedEmployee.id : selectedEmployee;
+        return `${employeeId}_${currentMonth}_${refreshTrigger}`;
+    }, [selectedEmployee, currentMonth, refreshTrigger]);
+    
     // Check availability for all dates when employee, month, or refresh trigger changes
     useEffect(() => {
         if (!selectedEmployee) {
@@ -107,11 +113,17 @@ const DateSelector: React.FC<DateSelectorProps> = ({ isReschedule = false }) => 
         });
         setDateStatuses(newStatuses);
         
-        // Check dates in batches for better performance
+        // Check dates in batches with delay to avoid rate limiting
         const checkDates = async () => {
-            const batchSize = 5;
+            const batchSize = 3;
             for (let i = 0; i < dates.length; i += batchSize) {
                 const batch = dates.slice(i, i + batchSize);
+                
+                // Add 300ms delay between batches to avoid Cloudflare blocking
+                if (i > 0) {
+                    await new Promise(resolve => setTimeout(resolve, 300));
+                }
+                
                 await Promise.all(batch.map(async (date) => {
                     const dateString = formatDateString(date);
                     
