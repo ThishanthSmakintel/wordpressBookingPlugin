@@ -179,12 +179,12 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
         excludeAppointmentId: isRescheduling && currentAppointment?.id ? currentAppointment.id : undefined
     });
     
-    // Debug state
+    // Debug state with smart diffing
     const [debugInfo, setDebugInfo] = useState<any>({});
+    const prevDebugInfoRef = useRef<any>({});
     
     useEffect(() => {
         const pollingEnabled = !!selectedDate && !!selectedEmployee;
-        // Get employee name with all available data
         const employeeName = selectedEmployee?.name || selectedEmployee?.display_name || selectedEmployee?.full_name || selectedEmployee?.title || 'NOT SET';
         const employeeEmail = selectedEmployee?.email || 'N/A';
         const info = {
@@ -204,27 +204,16 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
             heartbeatConnected,
             lastUpdate: heartbeatLastUpdate
         };
-        setDebugInfo(info);
-        console.log('[TimeSelector] Heartbeat data updated:', info);
+        
+        // Only update if data actually changed
+        if (JSON.stringify(prevDebugInfoRef.current) !== JSON.stringify(info)) {
+            prevDebugInfoRef.current = info;
+            setDebugInfo(info);
+            console.log('[TimeSelector] Heartbeat data updated:', info);
+        }
     }, [selectedDate, selectedEmployee, heartbeatBookedSlots, heartbeatActiveSelections, tempSelected, clientId, isRescheduling, currentAppointmentTime, currentAppointment?.id, heartbeatConnected, heartbeatLastUpdate]);
     
-    // Stabilize activeSelections to prevent flickering
-    const [stableActiveSelections, setStableActiveSelections] = useState<string[]>([]);
-    const activeSelectionsTimeoutRef = useRef<NodeJS.Timeout>();
-    
-    useEffect(() => {
-        if (activeSelectionsTimeoutRef.current) {
-            clearTimeout(activeSelectionsTimeoutRef.current);
-        }
-        activeSelectionsTimeoutRef.current = setTimeout(() => {
-            setStableActiveSelections(heartbeatActiveSelections);
-        }, 200);
-        return () => {
-            if (activeSelectionsTimeoutRef.current) {
-                clearTimeout(activeSelectionsTimeoutRef.current);
-            }
-        };
-    }, [heartbeatActiveSelections]);
+    // Smart diffing already prevents flickering - no need for stabilization timeout
     
     const unavailableSet = useMemo(() => {
         if (unavailableSlots === 'all') return 'all';
@@ -274,13 +263,19 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
     
     const [timeSlots, setTimeSlots] = useState<string[]>([]);
     const [isLoadingSlots, setIsLoadingSlots] = useState(true);
+    const prevTimeSlotsRef = useRef<string[]>([]);
     
     useEffect(() => {
         let mounted = true;
         SettingsService.getInstance().getSettings()
             .then(settings => {
                 if (mounted && settings?.time_slots?.length > 0) {
-                    setTimeSlots(settings.time_slots);
+                    // Only update if slots changed
+                    const newSlots = settings.time_slots;
+                    if (JSON.stringify(prevTimeSlotsRef.current) !== JSON.stringify(newSlots)) {
+                        prevTimeSlotsRef.current = newSlots;
+                        setTimeSlots(newSlots);
+                    }
                 }
             })
             .catch(() => {})
