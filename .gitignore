@@ -4,12 +4,12 @@ vendor/
 composer.lock
 
 # Build output
-build/
 dist/
+*.zip
 
 # Logs
 npm-debug.log
-*.log
+logs/*.log
 /var/log/appointease-*.log
 
 # Environment
@@ -38,3 +38,6 @@ coverage/
 *.tmp
 *.bak
 *.cache
+
+# Build script
+build-plugin.ps1
