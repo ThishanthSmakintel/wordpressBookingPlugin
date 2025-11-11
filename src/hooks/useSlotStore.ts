@@ -89,30 +89,37 @@ export const useSlotStore = create<SlotState>((set, get) => ({
     const updates: Partial<SlotState> = {};
     let hasChanges = false;
 
-    if (data.bookedSlots && !arraysEqual(current.bookedSlots, data.bookedSlots)) {
-      console.log('[SlotStore] Booked slots changed:', { old: current.bookedSlots, new: data.bookedSlots });
-      updates.bookedSlots = data.bookedSlots;
-      hasChanges = true;
+    // Always check even if undefined to handle clearing
+    if (data.bookedSlots !== undefined) {
+      if (!arraysEqual(current.bookedSlots, data.bookedSlots)) {
+        console.log('[SlotStore] Booked slots changed:', { old: current.bookedSlots, new: data.bookedSlots });
+        updates.bookedSlots = data.bookedSlots;
+        hasChanges = true;
+      }
     }
 
-    if (data.activeSelections && !arraysEqual(current.activeSelections, data.activeSelections)) {
-      console.log('[SlotStore] Active selections changed:', { old: current.activeSelections, new: data.activeSelections });
-      updates.activeSelections = data.activeSelections;
-      hasChanges = true;
+    if (data.activeSelections !== undefined) {
+      if (!arraysEqual(current.activeSelections, data.activeSelections)) {
+        console.log('[SlotStore] Active selections changed:', { old: current.activeSelections, new: data.activeSelections });
+        updates.activeSelections = data.activeSelections;
+        hasChanges = true;
+      }
     }
 
-    if (data.lockedSlots && !arraysEqual(current.lockedSlots, data.lockedSlots)) {
-      console.log('[SlotStore] Locked slots changed:', { old: current.lockedSlots, new: data.lockedSlots });
-      updates.lockedSlots = data.lockedSlots;
-      hasChanges = true;
+    if (data.lockedSlots !== undefined) {
+      if (!arraysEqual(current.lockedSlots, data.lockedSlots)) {
+        console.log('[SlotStore] Locked slots changed:', { old: current.lockedSlots, new: data.lockedSlots });
+        updates.lockedSlots = data.lockedSlots;
+        hasChanges = true;
+      }
     }
 
     if (hasChanges) {
       updates.lastUpdate = Date.now();
       set(updates);
-      console.log('[SlotStore] State updated - re-render triggered');
+      console.log('[SlotStore] ✅ State updated - re-render triggered', updates);
     } else {
-      console.log('[SlotStore] No changes detected - re-render prevented');
+      console.log('[SlotStore] ⏭️ No changes - re-render prevented', { received: data, current: { bookedSlots: current.bookedSlots, activeSelections: current.activeSelections, lockedSlots: current.lockedSlots } });
     }
   },
 
