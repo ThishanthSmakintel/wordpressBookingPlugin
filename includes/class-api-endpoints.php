@@ -226,6 +226,13 @@ class Booking_API_Endpoints {
             'callback' => array($this, 'get_time_slots'),
             'permission_callback' => '__return_true'
         ));
+        
+        // Custom 1-second polling endpoint
+        register_rest_route('appointease/v1', '/slots/poll', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'poll_slots'),
+            'permission_callback' => '__return_true'
+        ));
     }
     
     public function test_heartbeat($request) {
@@ -1693,6 +1700,97 @@ class Booking_API_Endpoints {
         file_put_contents($log_file, $params['logs'], FILE_APPEND | LOCK_EX);
         
         return rest_ensure_response(array('success' => true));
+    }
+    
+    /**
+     * Custom 1-second polling endpoint
+     */
+    public function poll_slots($request) {
+        try {
+            $date = sanitize_text_field($request->get_param('date'));
+            $employee_id = intval($request->get_param('employee_id'));
+            $client_id = sanitize_text_field($request->get_param('client_id'));
+            $selected_time = sanitize_text_field($request->get_param('selected_time'));
+            $exclude_appointment_id = sanitize_text_field($request->get_param('exclude_appointment_id'));
+            
+            if (empty($date) || $employee_id <= 0) {
+                return new WP_Error('missing_params', 'Date and employee_id required', array('status' => 400));
+            }
+            
+            global $wpdb;
+            
+            // Get booked slots
+            $booked_slots = $wpdb->get_col($wpdb->prepare(
+                "SELECT TIME_FORMAT(TIME(appointment_date), '%%H:%%i') FROM {$wpdb->prefix}appointments 
+                 WHERE DATE(appointment_date) = %s AND employee_id = %d AND status IN ('confirmed', 'created')",
+                $date, $employee_id
+            ));
+            
+            // Handle reschedule exclusion
+            if (!empty($exclude_appointment_id)) {
+                if (strpos($exclude_appointment_id, 'APT-') === 0) {
+                    $reschedule_time = $wpdb->get_var($wpdb->prepare(
+                        "SELECT TIME_FORMAT(TIME(appointment_date), '%%H:%%i') FROM {$wpdb->prefix}appointments 
+                         WHERE strong_id = %s",
+                        $exclude_appointment_id
+                    ));
+                } else {
+                    $numeric_id = intval(str_replace('AE', '', $exclude_appointment_id));
+                    $reschedule_time = $wpdb->get_var($wpdb->prepare(
+                        "SELECT TIME_FORMAT(TIME(appointment_date), '%%H:%%i') FROM {$wpdb->prefix}appointments 
+                         WHERE id = %d",
+                        $numeric_id
+                    ));
+                }
+                
+                if ($reschedule_time && $this->redis->is_enabled() && !empty($client_id)) {
+                    $this->redis->set_active_selection($date, $employee_id, $reschedule_time, 'reschedule_' . $client_id);
+                }
+                
+                $booked_slots = array_diff($booked_slots, [$reschedule_time]);
+            }
+            
+            // Get active selections
+            $active_times = array();
+            if ($this->redis->is_enabled()) {
+                $selections = $this->redis->get_active_selections($date, $employee_id);
+                foreach ($selections as $time => $sel_data) {
+                    if (isset($sel_data['client_id'])) {
+                        if (strpos($sel_data['client_id'], 'reschedule_') === 0) {
+                            $booked_slots = array_diff($booked_slots, [$time]);
+                        }
+                        $active_times[] = $time;
+                    }
+                }
+                
+                // Refresh user's selection
+                if (!empty($client_id) && !empty($selected_time)) {
+                    $this->redis->set_active_selection($date, $employee_id, $selected_time, $client_id);
+                }
+            }
+            
+            // Get locked slots
+            $locked_slots = array();
+            if ($this->redis->is_enabled()) {
+                $pattern = "appointease_lock_{$date}_{$employee_id}_*";
+                $redis_locks = $this->redis->get_locks_by_pattern($pattern);
+                foreach ($redis_locks as $lock) {
+                    $time_slot = isset($lock['time']) ? substr($lock['time'], 0, 5) : '';
+                    if ($time_slot) {
+                        $locked_slots[] = $time_slot;
+                    }
+                }
+            }
+            
+            return rest_ensure_response(array(
+                'active_selections' => $active_times,
+                'booked_slots' => array_values($booked_slots),
+                'locked_slots' => $locked_slots,
+                'timestamp' => time()
+            ));
+        } catch (Exception $e) {
+            return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
+        }
     }
     
     /**
