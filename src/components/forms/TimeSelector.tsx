@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useAppointmentStore } from '../../hooks/useAppointmentStore';
 import { useBookingState } from '../../hooks/useBookingState';
 import { useHeartbeat } from '../../hooks/useHeartbeat';
-import { useHeartbeatSlotPolling } from '../../hooks/useHeartbeatSlotPolling';
+import { useSlotPolling } from '../../hooks/useSlotPolling';
 import { SettingsService } from '../../app/shared/services/settings.service';
 import { format, parseISO } from 'date-fns';
 
@@ -170,7 +170,7 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
         activeSelections: heartbeatActiveSelections,
         isConnected: heartbeatConnected,
         lastUpdate: heartbeatLastUpdate
-    } = useHeartbeatSlotPolling({
+    } = useSlotPolling({
         date: selectedDate,
         employeeId: selectedEmployee?.id || 0,
         enabled: !!selectedDate && !!selectedEmployee,
@@ -181,12 +181,18 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
     
     // Debug state
     const [debugInfo, setDebugInfo] = useState<any>({});
+    const lastUpdateRef = useRef<number>(0);
     
     useEffect(() => {
         const pollingEnabled = !!selectedDate && !!selectedEmployee;
-        // Get employee name with all available data
         const employeeName = selectedEmployee?.name || selectedEmployee?.display_name || selectedEmployee?.full_name || selectedEmployee?.title || 'NOT SET';
         const employeeEmail = selectedEmployee?.email || 'N/A';
+        
+        // Calculate latency
+        const now = Date.now();
+        const latency = lastUpdateRef.current > 0 ? now - lastUpdateRef.current : 0;
+        lastUpdateRef.current = now;
+        
         const info = {
             date: selectedDate || 'NOT SET',
             employeeId: selectedEmployee?.id || 'NOT SET',
@@ -202,10 +208,12 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
             excludeAppointmentId: isRescheduling && currentAppointment?.id ? currentAppointment.id : 'none',
             pollingEnabled,
             heartbeatConnected,
-            lastUpdate: heartbeatLastUpdate
+            lastUpdate: heartbeatLastUpdate,
+            pollingMethod: 'REST API (1s)',
+            latency: latency > 0 ? `${latency}ms` : 'N/A'
         };
         setDebugInfo(info);
-        console.log('[TimeSelector] Heartbeat data updated:', info);
+        console.log('[TimeSelector] Polling data updated:', info);
     }, [selectedDate, selectedEmployee, heartbeatBookedSlots, heartbeatActiveSelections, tempSelected, clientId, isRescheduling, currentAppointmentTime, currentAppointment?.id, heartbeatConnected, heartbeatLastUpdate]);
     
     const unavailableSet = useMemo(() => {
@@ -324,9 +332,10 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
                 <div>Exclude ID: {debugInfo.excludeAppointmentId}</div>
                 <div style={{marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #374151'}}>
                     <div style={{color: debugInfo.heartbeatConnected ? '#10b981' : '#ef4444'}}>
-                        Heartbeat: {debugInfo.heartbeatConnected ? '✅ Connected' : '❌ Disconnected'}
+                        {debugInfo.pollingMethod || 'Polling'}: {debugInfo.heartbeatConnected ? '✅ Connected' : '❌ Disconnected'}
                     </div>
                     <div style={{color: '#9ca3af', fontSize: '10px'}}>Last: {debugInfo.lastUpdate ? new Date(debugInfo.lastUpdate).toLocaleTimeString() : 'never'}</div>
+                    <div style={{color: '#60a5fa', fontSize: '10px'}}>Latency: {debugInfo.latency || 'N/A'}</div>
                 </div>
                 <div style={{marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #374151'}}>
                     <div style={{color: '#ef4444'}}>Booked: [{debugInfo.bookedSlots?.join(', ') || 'none'}]</div>

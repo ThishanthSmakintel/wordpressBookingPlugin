@@ -226,6 +226,13 @@ class Booking_API_Endpoints {
             'callback' => array($this, 'get_time_slots'),
             'permission_callback' => '__return_true'
         ));
+        
+        // 1-second polling endpoint for real-time slot updates
+        register_rest_route('appointease/v1', '/slots/poll', array(
+            'methods' => 'GET',
+            'callback' => array($this, 'poll_slots'),
+            'permission_callback' => '__return_true'
+        ));
     }
     
     public function test_heartbeat($request) {
@@ -1693,6 +1700,58 @@ class Booking_API_Endpoints {
         file_put_contents($log_file, $params['logs'], FILE_APPEND | LOCK_EX);
         
         return rest_ensure_response(array('success' => true));
+    }
+    
+    /**
+     * Fast 1-second polling endpoint for slot updates
+     */
+    public function poll_slots($request) {
+        $date = $request->get_param('date');
+        $employee_id = intval($request->get_param('employee_id'));
+        $client_id = $request->get_param('client_id');
+        $selected_time = $request->get_param('selected_time');
+        $exclude_appointment_id = $request->get_param('exclude_appointment_id');
+        
+        if (!$date || !$employee_id) {
+            return new WP_Error('missing_params', 'Date and employee_id required', array('status' => 400));
+        }
+        
+        // Get booked slots from database
+        global $wpdb;
+        $booked_slots = $wpdb->get_col($wpdb->prepare(
+            "SELECT TIME_FORMAT(TIME(appointment_date), '%%H:%%i') FROM {$wpdb->prefix}appointments 
+             WHERE DATE(appointment_date) = %s AND employee_id = %d AND status IN ('confirmed', 'created')",
+            $date, $employee_id
+        ));
+        
+        // Get active selections from Redis
+        $active_selections = array();
+        $locked_slots = array();
+        
+        if ($this->redis->is_enabled()) {
+            $selections = $this->redis->get_active_selections($date, $employee_id);
+            
+            foreach ($selections as $time => $sel_data) {
+                if (isset($sel_data['client_id'])) {
+                    // Don't include user's own selection in active_selections
+                    if (!$client_id || $sel_data['client_id'] !== $client_id) {
+                        $active_selections[] = $time;
+                    }
+                }
+            }
+            
+            // Refresh user's selection if provided
+            if ($client_id && $selected_time) {
+                $this->redis->set_active_selection($date, $employee_id, $selected_time, $client_id);
+            }
+        }
+        
+        return rest_ensure_response(array(
+            'active_selections' => $active_selections,
+            'booked_slots' => $booked_slots,
+            'locked_slots' => $locked_slots,
+            'timestamp' => time()
+        ));
     }
     
     /**
