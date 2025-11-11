@@ -231,7 +231,7 @@ class Booking_API_Endpoints {
         register_rest_route('appointease/v1', '/slots/poll', array(
             'methods' => 'GET',
             'callback' => array($this, 'poll_slots'),
-            'permission_callback' => '__return_true'
+            'permission_callback' => array($this, 'public_permission')
         ));
     }
     

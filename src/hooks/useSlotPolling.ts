@@ -63,8 +63,12 @@ export const useSlotPolling = ({
         setLastUpdate(Date.now());
         setPollCount(prev => prev + 1);
         setIsConnected(true);
-      } catch (error) {
-        console.error('[SlotPolling] Poll failed:', error);
+      } catch (error: any) {
+        console.error('[SlotPolling] Poll failed:', {
+          error: error.message,
+          url: `${apiRoot}appointease/v1/slots/poll`,
+          params: { date, employee_id: employeeId, client_id: clientId, selected_time: selectedTime }
+        });
         setIsConnected(false);
       }
     };
