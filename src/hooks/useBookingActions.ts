@@ -9,8 +9,11 @@ export const useBookingActions = (bookingState: any) => {
         setUnavailableSlots, setBookingDetails
     } = useBookingStore();
 
-    const checkAvailability = useCallback(async (date: string, employeeId: number, retryCount = 0) => {
+    const checkAvailability = useCallback(async (date: string, employeeId: number) => {
+
+        
         if (!window.bookingAPI || !date || !employeeId) {
+
             setUnavailableSlots([]);
             return;
         }
@@ -21,11 +24,11 @@ export const useBookingActions = (bookingState: any) => {
                 employee_id: parseInt(String(employeeId), 10)
             };
             
-            const endpoint = bookingState.isRescheduling && bookingState.currentAppointment?.id
-                ? `${window.bookingAPI.root}appointease/v1/reschedule-availability`
-                : `${window.bookingAPI.root}booking/v1/availability`;
+            // Use different endpoint for rescheduling
+            let endpoint = `${window.bookingAPI.root}booking/v1/availability`;
             
             if (bookingState.isRescheduling && bookingState.currentAppointment?.id) {
+                endpoint = `${window.bookingAPI.root}appointease/v1/reschedule-availability`;
                 requestBody.exclude_appointment_id = bookingState.currentAppointment.id;
             }
             
@@ -38,17 +41,9 @@ export const useBookingActions = (bookingState: any) => {
                 body: JSON.stringify(requestBody)
             });
             
-            // Handle Cloudflare rate limiting (429) or server errors (5xx)
-            if (response.status === 429 || response.status >= 500) {
-                if (retryCount < 3) {
-                    const delay = Math.min(1000 * Math.pow(2, retryCount), 5000);
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                    return checkAvailability(date, employeeId, retryCount + 1);
-                }
-            }
-            
             if (response.ok) {
                 const data = await response.json();
+
                 
                 if (data.unavailable === 'all') {
                     setUnavailableSlots('all');
@@ -56,10 +51,13 @@ export const useBookingActions = (bookingState: any) => {
                 } else if (Array.isArray(data.unavailable)) {
                     setUnavailableSlots(data.unavailable);
                     setBookingDetails(data.booking_details || {});
+
                 } else {
                     setUnavailableSlots([]);
                     setBookingDetails({});
                 }
+            } else {
+
             }
         } catch (error) {
             setUnavailableSlots([]);
@@ -138,37 +136,18 @@ export const useBookingActions = (bookingState: any) => {
             },
             body: JSON.stringify(requestBody)
         })
-        .then(async response => {
-            const result = await response.json();
-            return { status: response.status, data: result };
-        })
-        .then(({ status, data }) => {
-            if (status === 409) {
-                // Slot taken by another user
-                if (window.Toastify) {
-                    window.Toastify({
-                        text: "⚠️ This slot was just booked by another user. Please select a different time.",
-                        duration: 5000,
-                        gravity: "top",
-                        position: "center",
-                        style: { background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)" }
-                    }).showToast();
-                }
-                // Refresh availability to disable the slot
-                checkAvailability(selectedDate, selectedEmployee.id);
-                // Go back to time selection
-                setStep(4);
-                setErrors({time: 'This slot is no longer available. Please select another time.'});
-            } else if (data.success || data.strong_id || data.id) {
+        .then(response => response.json())
+        .then(result => {
+            if (result.success || result.strong_id || result.id) {
                 setErrors({});
                 if (isReschedule) {
-                    setStep(9);
+                    setStep(9); // Reschedule success page
                 } else {
-                    bookingState.setAppointmentId(data.strong_id || `APT-${new Date().getFullYear()}-${data.id.toString().padStart(6, '0')}`);
-                    setStep(7);
+                    bookingState.setAppointmentId(result.strong_id || `APT-${new Date().getFullYear()}-${result.id.toString().padStart(6, '0')}`);
+                    setStep(7); // Booking success page
                 }
             } else {
-                setErrors({general: data.message || (isReschedule ? 'Reschedule failed. Please try again.' : 'Booking failed. Please try again.')});
+                setErrors({general: result.message || (isReschedule ? 'Reschedule failed. Please try again.' : 'Booking failed. Please try again.')});
             }
         })
         .catch(error => {

@@ -66,7 +66,7 @@ class Booking_API_Endpoints {
         register_rest_route('booking/v1', '/availability', array(
             'methods' => 'POST',
             'callback' => array($this, 'check_availability'),
-            'permission_callback' => '__return_true'
+            'permission_callback' => array($this, 'verify_nonce_or_session_permission')
         ));
         
         register_rest_route('booking/v1', '/check-customer/(?P<email>[^/]+)', array(
@@ -277,7 +277,6 @@ class Booking_API_Endpoints {
     }
     
     public function check_availability($request) {
-        error_log('[AVAILABILITY] Request started - Memory: ' . memory_get_usage(true) / 1024 / 1024 . 'MB');
         try {
             global $wpdb;
             $params = $request->get_json_params();
@@ -482,13 +481,11 @@ class Booking_API_Endpoints {
         error_log("[AVAILABILITY] Final unavailable times: " . json_encode($booked_times));
         error_log("[AVAILABILITY] Booking details count: " . (is_array($booking_details) ? count($booking_details) : 0));
         
-        error_log('[AVAILABILITY] Request completed - Memory: ' . memory_get_usage(true) / 1024 / 1024 . 'MB');
         return rest_ensure_response(array(
             'unavailable' => $booked_times,
             'booking_details' => $booking_details
         ));
         } catch (Exception $e) {
-            error_log('[AVAILABILITY] EXCEPTION: ' . $e->getMessage() . ' | Trace: ' . $e->getTraceAsString());
             return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
         }
     }
