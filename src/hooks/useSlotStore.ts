@@ -90,16 +90,19 @@ export const useSlotStore = create<SlotState>((set, get) => ({
     let hasChanges = false;
 
     if (data.bookedSlots && !arraysEqual(current.bookedSlots, data.bookedSlots)) {
+      console.log('[SlotStore] Booked slots changed:', { old: current.bookedSlots, new: data.bookedSlots });
       updates.bookedSlots = data.bookedSlots;
       hasChanges = true;
     }
 
     if (data.activeSelections && !arraysEqual(current.activeSelections, data.activeSelections)) {
+      console.log('[SlotStore] Active selections changed:', { old: current.activeSelections, new: data.activeSelections });
       updates.activeSelections = data.activeSelections;
       hasChanges = true;
     }
 
     if (data.lockedSlots && !arraysEqual(current.lockedSlots, data.lockedSlots)) {
+      console.log('[SlotStore] Locked slots changed:', { old: current.lockedSlots, new: data.lockedSlots });
       updates.lockedSlots = data.lockedSlots;
       hasChanges = true;
     }
@@ -107,6 +110,9 @@ export const useSlotStore = create<SlotState>((set, get) => ({
     if (hasChanges) {
       updates.lastUpdate = Date.now();
       set(updates);
+      console.log('[SlotStore] State updated - re-render triggered');
+    } else {
+      console.log('[SlotStore] No changes detected - re-render prevented');
     }
   },
 
