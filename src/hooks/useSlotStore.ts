@@ -15,6 +15,9 @@ interface SlotState {
   lastUpdate: number;
   isConnected: boolean;
   
+  // Computed selectors
+  getOtherActiveSelections: () => string[];
+  
   // Actions with smart diffing
   setBookedSlots: (slots: string[]) => void;
   setActiveSelections: (selections: string[]) => void;
@@ -39,6 +42,12 @@ export const useSlotStore = create<SlotState>((set, get) => ({
   isSelecting: false,
   lastUpdate: 0,
   isConnected: false,
+
+  // Computed selectors
+  getOtherActiveSelections: () => {
+    const { activeSelections, selectedSlot } = get();
+    return activeSelections.filter(slot => slot !== selectedSlot);
+  },
 
   // Smart diffing actions
   setBookedSlots: (slots) => {
