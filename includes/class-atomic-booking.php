@@ -52,13 +52,21 @@ class Atomic_Booking {
                 // Broadcast conflict to WebSocket clients
                 $this->broadcast_slot_conflict($data);
                 
-                return new WP_Error('slot_taken', 'Time slot is no longer available', [
-                    'status' => 409,
-                    'data' => [
-                        'conflict_time' => $data['appointment_date'],
-                        'suggested_slots' => $this->get_suggested_slots($data)
+                $time_slot = date('g:i A', strtotime($data['appointment_date']));
+                $suggested = $this->get_suggested_slots($data);
+                
+                return new WP_Error('slot_taken', 
+                    "Sorry! The {$time_slot} slot was just booked by another user. Please select a different time.", 
+                    [
+                        'status' => 409,
+                        'data' => [
+                            'conflict_time' => $data['appointment_date'],
+                            'conflict_time_formatted' => $time_slot,
+                            'suggested_slots' => $suggested,
+                            'message' => 'This slot is currently being booked by another user. Please choose another slot.'
+                        ]
                     ]
-                ]);
+                );
             }
             
             // Layer 2: Business rules validation

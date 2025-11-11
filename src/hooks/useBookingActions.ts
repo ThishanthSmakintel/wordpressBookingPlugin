@@ -93,7 +93,7 @@ export const useBookingActions = (bookingState: any) => {
         }
     }, [bookingState, setErrors]);
 
-    const handleSubmit = useCallback((event?: React.FormEvent) => {
+    const handleSubmit = useCallback(async (event?: React.FormEvent) => {
         if (event) event.preventDefault();
         setIsSubmitting(true);
         const appointmentDateTime = `${selectedDate} ${selectedTime}:00`;
@@ -105,6 +105,47 @@ export const useBookingActions = (bookingState: any) => {
                 setIsSubmitting(false);
             }, 1500);
             return;
+        }
+        
+        // VERIFY SLOT AVAILABILITY BEFORE BOOKING
+        try {
+            const verifyEndpoint = bookingState.isRescheduling 
+                ? `${window.bookingAPI.root}appointease/v1/reschedule-availability`
+                : `${window.bookingAPI.root}booking/v1/availability`;
+            
+            const verifyBody: any = {
+                date: selectedDate,
+                employee_id: parseInt(String(selectedEmployee.id), 10)
+            };
+            
+            if (bookingState.isRescheduling && bookingState.currentAppointment?.id) {
+                verifyBody.exclude_appointment_id = bookingState.currentAppointment.id;
+            }
+            
+            const verifyResponse = await fetch(verifyEndpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-WP-Nonce': window.bookingAPI.nonce
+                },
+                body: JSON.stringify(verifyBody)
+            });
+            
+            if (verifyResponse.ok) {
+                const availData = await verifyResponse.json();
+                const unavailable = availData.unavailable || [];
+                
+                // Check if selected time is unavailable
+                if (unavailable === 'all' || (Array.isArray(unavailable) && unavailable.includes(selectedTime))) {
+                    setErrors({general: 'This time slot is no longer available. Another user has booked it. Please select a different time.'});
+                    setIsSubmitting(false);
+                    // Refresh availability
+                    await checkAvailability(selectedDate, selectedEmployee.id);
+                    return;
+                }
+            }
+        } catch (error) {
+            console.error('[BOOKING] Slot verification failed:', error);
         }
         
         // Use different endpoint and method for reschedule
@@ -156,7 +197,7 @@ export const useBookingActions = (bookingState: any) => {
         .finally(() => {
             setIsSubmitting(false);
         });
-    }, [bookingState, selectedDate, selectedTime, selectedService, selectedEmployee, formData, setStep, setErrors, setIsSubmitting]);
+    }, [bookingState, selectedDate, selectedTime, selectedService, selectedEmployee, formData, setStep, setErrors, setIsSubmitting, checkAvailability]);
 
     const loadUserAppointmentsRealtime = useCallback((email?: string) => {
         const emailToUse = email || bookingState.loginEmail;
