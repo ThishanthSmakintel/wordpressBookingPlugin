@@ -232,7 +232,8 @@ class Appointease_Redis_Helper {
             $hash_key = "appointease_active_{$date}_{$employee_id}";
             
             // HGETALL is O(N) where N = number of slots (max ~20)
-            // vs SCAN which is O(N) where N = total Redis keys (could be 1000s)
+            // Persistent connection (pconnect) reuses TCP connection = <1ms
+            // Perfect for 1-second polling
             $raw_selections = $this->redis->hGetAll($hash_key);
             
             $selections = [];

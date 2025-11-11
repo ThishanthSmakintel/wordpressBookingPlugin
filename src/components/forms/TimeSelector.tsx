@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useAppointmentStore } from '../../hooks/useAppointmentStore';
 import { useBookingState } from '../../hooks/useBookingState';
 import { useHeartbeat } from '../../hooks/useHeartbeat';
-import { useHeartbeatSlotPolling } from '../../hooks/useHeartbeatSlotPolling';
+import { useRealtimePolling } from '../../hooks/useRealtimePolling';
 import { SettingsService } from '../../app/shared/services/settings.service';
 import { format, parseISO } from 'date-fns';
 
@@ -170,12 +170,11 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
         activeSelections: heartbeatActiveSelections,
         isConnected: heartbeatConnected,
         lastUpdate: heartbeatLastUpdate
-    } = useHeartbeatSlotPolling({
+    } = useRealtimePolling({
         date: selectedDate,
         employeeId: selectedEmployee?.id || 0,
         enabled: !!selectedDate && !!selectedEmployee,
         clientId,
-        selectedTime: tempSelected,
         excludeAppointmentId: isRescheduling && currentAppointment?.id ? currentAppointment.id : undefined
     });
     
