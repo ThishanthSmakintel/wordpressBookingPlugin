@@ -98,6 +98,12 @@ export const useSlotStore = create<SlotState>((set, get) => ({
     const updates: Partial<SlotState> = {};
     let hasChanges = false;
 
+    // Skip updates if user is actively selecting (optimistic locking)
+    if (current.isSelecting) {
+      console.log('[SlotStore] ⏸️ Update skipped - user is selecting');
+      return;
+    }
+
     // Always check even if undefined to handle clearing
     if (data.bookedSlots !== undefined) {
       if (!arraysEqual(current.bookedSlots, data.bookedSlots)) {
