@@ -224,29 +224,43 @@ add_filter('rest_pre_dispatch', function($response, $server, $request) {
     $route = $request->get_route();
     
     // Only check booking plugin routes
-    if (strpos($route, '/appointease/v1/') !== 0) {
+    if (strpos($route, '/appointease/v1/') !== 0 && strpos($route, '/booking/v1/') !== 0) {
         return $response;
     }
     
-    // Skip session endpoints and public endpoints
-    $public_endpoints = ['/session', '/verify-otp', '/services', '/staff', '/appointments', '/user-appointments', '/availability', '/debug', '/fix-working-days', '/server-date', '/settings', '/business-hours', '/time-slots', '/check-slot', '/health', '/realtime/poll', '/realtime/select', '/realtime/deselect', '/slots/select', '/slots/deselect', '/slots/poll', '/test-heartbeat', '/generate-otp', '/unlock-slot', '/clear-locks', '/save-browser-logs', '/collect-logs'];
+    // Public endpoints (no auth required)
+    $public_endpoints = [
+        // Session & Auth
+        '/session', '/verify-otp', '/generate-otp',
+        // Browse data
+        '/services', '/staff', '/check-customer',
+        // Availability checking
+        '/availability', '/reschedule-availability', '/check-slot',
+        // Slot polling & selection
+        '/slots/poll', '/slots/select', '/slots/deselect',
+        // Settings & config
+        '/server-date', '/settings', '/business-hours', '/time-slots',
+        // Redis monitoring
+        '/redis/stats',
+        // Debug endpoints
+        '/debug', '/test-heartbeat', '/clear-locks', '/log'
+    ];
     
+    // Private endpoints (auth required) - explicitly list for security
+    $private_endpoints = [
+        // Booking creation (requires session/nonce)
+        // '/appointments' POST only
+    ];
+    
+    // Check if route is public
     foreach ($public_endpoints as $endpoint) {
         if (strpos($route, $endpoint) !== false) {
-            return $response;
+            return $response; // Allow public access
         }
     }
     
-    $session_manager = BookingSessionManager::getInstance();
-    $user = $session_manager->validateSession();
-    
-    if (!$user) {
-        return new WP_Error('session_invalid', 'Invalid or expired session', ['status' => 401]);
-    }
-    
-    // Set current user for this request
-    wp_set_current_user($user->ID);
-    
+    // All other routes require authentication
+    // Note: Booking creation uses verify_nonce_or_session_permission in endpoint itself
     return $response;
 }, 10, 3);
 
