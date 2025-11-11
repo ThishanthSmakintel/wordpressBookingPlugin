@@ -16,7 +16,7 @@ class Booking_API_Endpoints {
         register_rest_route('appointease/v1', '/appointments', array(
             'methods' => 'POST',
             'callback' => array($this, 'create_appointment'),
-            'permission_callback' => '__return_true'
+            'permission_callback' => array($this, 'verify_nonce_or_session_permission')
         ));
         
         // IMPORTANT: Escape backslash properly for regex
@@ -66,7 +66,7 @@ class Booking_API_Endpoints {
         register_rest_route('booking/v1', '/availability', array(
             'methods' => 'POST',
             'callback' => array($this, 'check_availability'),
-            'permission_callback' => '__return_true'
+            'permission_callback' => array($this, 'verify_nonce_or_session_permission')
         ));
         
         register_rest_route('booking/v1', '/check-customer/(?P<email>[^/]+)', array(
@@ -288,13 +288,6 @@ class Booking_API_Endpoints {
         $date = sanitize_text_field($params['date']);
         $employee_id = intval($params['employee_id']);
         
-        // 1-second cache for high-frequency polling (prevents DB hammering)
-        $cache_key = "avail_{$date}_{$employee_id}_" . md5(json_encode($params));
-        $cached = wp_cache_get($cache_key, 'appointease_availability');
-        if ($cached !== false) {
-            return rest_ensure_response($cached);
-        }
-        
         error_log("[AVAILABILITY] Checking availability for date: {$date}, employee: {$employee_id}");
         
         // Validate date format and ensure it's a valid date
@@ -488,15 +481,10 @@ class Booking_API_Endpoints {
         error_log("[AVAILABILITY] Final unavailable times: " . json_encode($booked_times));
         error_log("[AVAILABILITY] Booking details count: " . (is_array($booking_details) ? count($booking_details) : 0));
         
-        $response_data = array(
+        return rest_ensure_response(array(
             'unavailable' => $booked_times,
             'booking_details' => $booking_details
-        );
-        
-        // Cache for 1 second (handles 1s polling without DB overhead)
-        wp_cache_set($cache_key, $response_data, 'appointease_availability', 1);
-        
-        return rest_ensure_response($response_data);
+        ));
         } catch (Exception $e) {
             return new WP_Error('exception', 'Error: ' . $e->getMessage(), array('status' => 500));
         }

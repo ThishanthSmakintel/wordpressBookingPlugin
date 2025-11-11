@@ -1,12 +1,10 @@
 /**
  * Heartbeat-based Slot Polling Hook
- * Polls for active slot selections via WordPress Heartbeat
- * Uses Zustand store for centralized state management with smart diffing
+ * Polls for active slot selections every second via WordPress Heartbeat
  */
 
-import { useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useHeartbeat } from './useHeartbeat';
-import { useSlotStore } from './useSlotStore';
 
 interface SlotPollingOptions {
   date: string;
@@ -21,7 +19,11 @@ interface ExtendedSlotPollingOptions extends SlotPollingOptions {
 }
 
 export const useHeartbeatSlotPolling = ({ date, employeeId, enabled = true, clientId, selectedTime, excludeAppointmentId }: ExtendedSlotPollingOptions) => {
-  const { updateSlotData, setConnectionStatus } = useSlotStore();
+  const [activeSelections, setActiveSelections] = useState<string[]>([]);
+  const [bookedSlots, setBookedSlots] = useState<string[]>([]);
+  const [lockedSlots, setLockedSlots] = useState<string[]>([]);
+  const [lastUpdate, setLastUpdate] = useState<number>(0);
+  const [pollCount, setPollCount] = useState(0);
 
   const { isConnected } = useHeartbeat({
     enabled: enabled && !!date && !!employeeId,
@@ -33,20 +35,35 @@ export const useHeartbeatSlotPolling = ({ date, employeeId, enabled = true, clie
       ...(excludeAppointmentId ? { exclude_appointment_id: excludeAppointmentId } : {})
     } : null,
     onPoll: (data: any) => {
-      // Zustand store handles smart diffing internally
-      updateSlotData({
-        activeSelections: data?.appointease_active_selections || [],
-        bookedSlots: data?.appointease_booked_slots || [],
-        lockedSlots: data?.appointease_locked_slots || []
+      console.log('[HeartbeatPolling] Raw data received:', data);
+      console.log('[HeartbeatPolling] Active selections:', data?.appointease_active_selections);
+      console.log('[HeartbeatPolling] Booked slots:', data?.appointease_booked_slots);
+      console.log('[HeartbeatPolling] Redis status:', data?.redis_status);
+      
+      const newActiveSelections = data?.appointease_active_selections || [];
+      const newBookedSlots = data?.appointease_booked_slots || [];
+      const newLockedSlots = data?.appointease_locked_slots || [];
+      
+      console.log('[HeartbeatPolling] Setting state:', { 
+        activeSelections: newActiveSelections, 
+        bookedSlots: newBookedSlots, 
+        lockedSlots: newLockedSlots 
       });
+      
+      setActiveSelections(newActiveSelections);
+      setBookedSlots(newBookedSlots);
+      setLockedSlots(newLockedSlots);
+      setLastUpdate(Date.now());
+      setPollCount(prev => prev + 1);
     }
   });
 
-  // Sync connection status to store
-  useEffect(() => {
-    setConnectionStatus(isConnected);
-  }, [isConnected, setConnectionStatus]);
-
-  // Return store selectors for backward compatibility
-  return useSlotStore();
+  return {
+    activeSelections,
+    bookedSlots,
+    lockedSlots,
+    isConnected,
+    lastUpdate,
+    pollCount
+  };
 };

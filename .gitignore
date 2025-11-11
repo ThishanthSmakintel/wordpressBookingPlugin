@@ -4,8 +4,8 @@ vendor/
 composer.lock
 
 # Build output
+build/
 dist/
-
 
 # Logs
 npm-debug.log

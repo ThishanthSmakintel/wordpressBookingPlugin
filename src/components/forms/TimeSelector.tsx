@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import { useAppointmentStore } from '../../hooks/useAppointmentStore';
 import { useBookingState } from '../../hooks/useBookingState';
 import { useHeartbeat } from '../../hooks/useHeartbeat';
-import { useRealtimePolling } from '../../hooks/useRealtimePolling';
+import { useHeartbeatSlotPolling } from '../../hooks/useHeartbeatSlotPolling';
 import { SettingsService } from '../../app/shared/services/settings.service';
 import { format, parseISO } from 'date-fns';
 
@@ -170,11 +170,12 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
         activeSelections: heartbeatActiveSelections,
         isConnected: heartbeatConnected,
         lastUpdate: heartbeatLastUpdate
-    } = useRealtimePolling({
+    } = useHeartbeatSlotPolling({
         date: selectedDate,
         employeeId: selectedEmployee?.id || 0,
         enabled: !!selectedDate && !!selectedEmployee,
         clientId,
+        selectedTime: tempSelected,
         excludeAppointmentId: isRescheduling && currentAppointment?.id ? currentAppointment.id : undefined
     });
     
@@ -211,22 +212,13 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
         if (unavailableSlots === 'all') return 'all';
         const set = new Set(Array.isArray(unavailableSlots) ? unavailableSlots : []);
         heartbeatBookedSlots.forEach(s => {
-            // Exclude user's own selection (Calendly pattern)
-            if (s === tempSelected) return;
             // During reschedule, don't mark current appointment time as unavailable
             if (!(isRescheduling && s === currentAppointmentTime)) {
                 set.add(s);
             }
         });
-        // Also exclude from active selections (other users viewing)
-        heartbeatActiveSelections.forEach(s => {
-            // Don't mark user's own selection as unavailable
-            if (s !== tempSelected) {
-                set.add(s);
-            }
-        });
         return set;
-    }, [unavailableSlots, heartbeatBookedSlots, heartbeatActiveSelections, tempSelected, isRescheduling, currentAppointmentTime]);
+    }, [unavailableSlots, heartbeatBookedSlots, isRescheduling, currentAppointmentTime]);
     
     const handleTimeSelect = useCallback(async (time: string) => {
         if (selectingRef.current || unavailableSet === 'all' || (unavailableSet instanceof Set && unavailableSet.has(time))) return;
@@ -234,32 +226,20 @@ const TimeSelector: React.FC<TimeSelectorProps> = ({
         selectingRef.current = true;
         const prevSelected = tempSelected;
         
-        // Calendly Pattern: Optimistic UI update FIRST
+        // Update UI immediately FIRST for instant visual feedback
         setTempSelected(time);
         
+        // Deselect previous slot if exists (async, non-blocking)
+        if (prevSelected && prevSelected !== time) {
+            deselectSlot(selectedDate, prevSelected, selectedEmployee?.id || 0).catch(() => {});
+        }
+        
         try {
-            // Atomic swap: deselect old + select new in single operation
-            const promises = [];
-            
-            if (prevSelected && prevSelected !== time) {
-                promises.push(deselectSlot(selectedDate, prevSelected, selectedEmployee?.id || 0));
-            }
-            
-            promises.push(selectSlot(selectedDate, time, selectedEmployee?.id || 0, clientId));
-            
-            // Wait for both operations
-            await Promise.all(promises);
-            
-            console.log('[TimeSelector] Slot swap completed:', { from: prevSelected, to: time });
+            await selectSlot(selectedDate, time, selectedEmployee?.id || 0, clientId);
+            console.log('[TimeSelector] Slot selected successfully:', time);
         } catch (error: any) {
             console.error('[TimeSelector] Selection failed:', error.message);
-            // Rollback: revert UI to previous state
             setTempSelected(prevSelected);
-            
-            // Show user-friendly error
-            if (error.message.includes('already locked')) {
-                alert('This time slot was just selected by another user. Please choose a different time.');
-            }
         } finally {
             selectingRef.current = false;
         }

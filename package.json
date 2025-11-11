@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "WordPress booking plugin with React frontend",
   "scripts": {
-    "prebuild": "node -e \"const fs=require('fs');const path='build';if(fs.existsSync(path))fs.rmSync(path,{recursive:true});console.log('✅ Cleaned build/')\"",
     "build": "webpack --mode production",
     "dev": "webpack --mode development --watch",
     "ws:start": "node websocket-server.js",
@@ -25,8 +24,7 @@
     "react": "^18.2.0",
     "react-bootstrap": "^2.9.0",
     "react-dom": "^18.2.0",
-    "ws": "^8.14.2",
-    "zustand": "^5.0.8"
+    "ws": "^8.14.2"
   },
   "devDependencies": {
     "@babel/core": "^7.23.0",
