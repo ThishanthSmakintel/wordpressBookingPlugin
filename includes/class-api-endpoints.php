@@ -16,7 +16,7 @@ class Booking_API_Endpoints {
         register_rest_route('appointease/v1', '/appointments', array(
             'methods' => 'POST',
             'callback' => array($this, 'create_appointment'),
-            'permission_callback' => array($this, 'verify_nonce_or_session_permission')
+            'permission_callback' => '__return_true'
         ));
         
         // IMPORTANT: Escape backslash properly for regex
@@ -66,7 +66,7 @@ class Booking_API_Endpoints {
         register_rest_route('booking/v1', '/availability', array(
             'methods' => 'POST',
             'callback' => array($this, 'check_availability'),
-            'permission_callback' => array($this, 'verify_nonce_or_session_permission')
+            'permission_callback' => '__return_true'
         ));
         
         register_rest_route('booking/v1', '/check-customer/(?P<email>[^/]+)', array(
