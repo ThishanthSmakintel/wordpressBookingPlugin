@@ -252,7 +252,7 @@ class Booking_API_Endpoints {
         try {
             global $wpdb;
             $table = $wpdb->prefix . 'appointease_services';
-            $services = $wpdb->get_results($wpdb->prepare("SELECT * FROM `%1s` ORDER BY name", $table));
+            $services = $wpdb->get_results("SELECT * FROM `{$table}` ORDER BY name");
             
             if ($wpdb->last_error) {
                 return new WP_Error('db_error', 'Database error occurred', array('status' => 500));
@@ -268,7 +268,7 @@ class Booking_API_Endpoints {
         try {
             global $wpdb;
             $table = $wpdb->prefix . 'appointease_staff';
-            $staff = $wpdb->get_results($wpdb->prepare("SELECT * FROM `%1s` ORDER BY name", $table));
+            $staff = $wpdb->get_results("SELECT * FROM `{$table}` ORDER BY name");
             
             if ($wpdb->last_error) {
                 return new WP_Error('db_error', 'Database error occurred', array('status' => 500));
@@ -774,6 +774,16 @@ class Booking_API_Endpoints {
     }
     
     public function public_permission($request) {
+        // Rate limiting by IP
+        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        $key = 'appointease_rate_' . md5($ip);
+        $count = get_transient($key) ?: 0;
+        
+        if ($count > 100) { // 100 requests per minute
+            return new WP_Error('rate_limited', 'Too many requests. Please wait.', array('status' => 429));
+        }
+        
+        set_transient($key, $count + 1, 60);
         return true;
     }
     

@@ -157,11 +157,17 @@ class Appointease_Redis_Helper {
         try {
             $locks = [];
             $iterator = null;
-            $max_iterations = 1000;
+            $max_iterations = 500;
             $current_iteration = 0;
+            $start_time = microtime(true);
+            $max_time = 2; // 2 seconds timeout
             
             // Use SCAN instead of KEYS (non-blocking)
-            while ($keys = $this->redis->scan($iterator, $pattern, 100) && $current_iteration < $max_iterations) {
+            while ($keys = $this->redis->scan($iterator, $pattern, 100)) {
+                if ($current_iteration >= $max_iterations || (microtime(true) - $start_time) > $max_time) {
+                    error_log('[Redis] SCAN timeout - too many keys or time exceeded');
+                    break;
+                }
                 $current_iteration++;
                 foreach ($keys as $key) {
                     $data = $this->redis->get($key);
@@ -173,7 +179,7 @@ class Appointease_Redis_Helper {
                         }
                     }
                 }
-                if ($iterator === 0 || $current_iteration >= $max_iterations) break;
+                if ($iterator === 0) break;
             }
             return $locks;
         } catch (Exception $e) {
@@ -230,11 +236,20 @@ class Appointease_Redis_Helper {
             $pattern = "appointease_active_{$date}_{$employee_id}_*";
             $selections = [];
             $iterator = null;
+            $start_time = microtime(true);
+            $max_time = 2;
+            $max_iterations = 500;
+            $current_iteration = 0;
             
             error_log('[Redis] Scanning for pattern: ' . $pattern);
             
             // Use SCAN instead of KEYS (non-blocking, production-safe)
             while ($keys = $this->redis->scan($iterator, $pattern, 100)) {
+                if ($current_iteration >= $max_iterations || (microtime(true) - $start_time) > $max_time) {
+                    error_log('[Redis] SCAN timeout in get_active_selections');
+                    break;
+                }
+                $current_iteration++;
                 error_log('[Redis] Found keys: ' . print_r($keys, true));
                 foreach ($keys as $key) {
                     if (preg_match('/_(\d{2}:\d{2})$/', $key, $matches)) {
@@ -266,10 +281,18 @@ class Appointease_Redis_Helper {
         try {
             $deleted = 0;
             $patterns = ['appointease_lock_*', 'appointease_active_*'];
+            $start_time = microtime(true);
+            $max_time = 5; // 5 seconds for clear operation
             
             foreach ($patterns as $pattern) {
                 $iterator = null;
+                $iterations = 0;
                 while ($keys = $this->redis->scan($iterator, $pattern, 100)) {
+                    if ((microtime(true) - $start_time) > $max_time || $iterations >= 1000) {
+                        error_log('[Redis] Clear locks timeout');
+                        break 2;
+                    }
+                    $iterations++;
                     if (!empty($keys)) {
                         $deleted += $this->redis->del($keys);
                     }
