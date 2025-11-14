@@ -20,7 +20,9 @@ class Booking_Settings {
     }
     
     public function init_settings() {
-        register_setting('appointease_settings', 'appointease_options');
+        register_setting('appointease_settings', 'appointease_options', array(
+            'sanitize_callback' => array($this, 'validate_settings')
+        ));
         
         add_settings_section(
             'appointease_general',
@@ -33,6 +35,30 @@ class Booking_Settings {
             'business_hours',
             'Business Hours',
             array($this, 'business_hours_field'),
+            'appointease_settings',
+            'appointease_general'
+        );
+        
+        add_settings_field(
+            'working_days',
+            'Working Days',
+            array($this, 'working_days_field'),
+            'appointease_settings',
+            'appointease_general'
+        );
+        
+        add_settings_field(
+            'slot_duration',
+            'Slot Duration',
+            array($this, 'slot_duration_field'),
+            'appointease_settings',
+            'appointease_general'
+        );
+        
+        add_settings_field(
+            'advance_booking',
+            'Advance Booking',
+            array($this, 'advance_booking_field'),
             'appointease_settings',
             'appointease_general'
         );
@@ -183,20 +209,22 @@ class Booking_Settings {
                 </div>
                 
                 <div class="settings-preview" style="flex: 1; max-width: 400px;">
-                    <h3>Preview</h3>
-                    <div class="preview-container" id="preview-container" style="border: 1px solid #ddd; padding: 20px; border-radius: 8px; background: #f9f9f9;">
-                        <div class="preview-header" id="preview-header" style="background: #1CBC9B; color: white; padding: 15px; border-radius: 6px; margin-bottom: 15px; text-align: center;">
+                    <h3>Live Preview</h3>
+                    <div class="preview-container" id="preview-container" style="border: 1px solid #ddd; border-radius: 8px; background: #f9f9f9; overflow: hidden;">
+                        <div class="preview-header" id="preview-header" style="background: var(--primary-color, #1CBC9B); color: white; padding: 15px; text-align: center;">
                             <strong>AppointEase</strong>
                         </div>
-                        <div class="preview-card" id="preview-card" style="background: white; border: 1px solid #e0e0e0; padding: 15px; border-radius: 6px; margin-bottom: 15px;">
-                            <p id="preview-text" style="color: #333; margin: 0 0 10px;">Sample booking form text</p>
-                            <input type="text" id="preview-input" placeholder="Your name" style="width: 100%; padding: 8px; border: 1px solid #e0e0e0; border-radius: 4px; margin-bottom: 10px;" />
-                        </div>
-                        <div class="preview-button" id="preview-button" style="background: #1CBC9B; color: white; padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; width: 100%; text-align: center; font-weight: 600;">
-                            <span id="preview-button-text">Book Appointment</span>
-                        </div>
-                        <div class="preview-success" id="preview-success" style="background: #28a745; color: white; padding: 10px; border-radius: 6px; margin-top: 15px; text-align: center; font-size: 14px;">
-                            ✓ Success Message
+                        <div style="padding: 20px;">
+                            <div class="preview-card" id="preview-card" style="background: var(--bg-color, white); border: 1px solid var(--border-color, #e0e0e0); padding: 15px; border-radius: var(--border-radius, 6px); margin-bottom: 15px;">
+                                <p id="preview-text" style="color: var(--text-color, #333); margin: 0 0 10px;">Sample booking form text</p>
+                                <input type="text" id="preview-input" placeholder="Your name" style="width: 100%; padding: 8px; border: 1px solid var(--border-color, #e0e0e0); border-radius: var(--border-radius, 4px); box-sizing: border-box;" />
+                            </div>
+                            <div class="preview-button" id="preview-button" style="background: var(--primary-color, #1CBC9B); color: white; padding: 12px 24px; border: none; border-radius: var(--border-radius, 6px); cursor: pointer; width: 100%; text-align: center; font-weight: 600; box-sizing: border-box; margin-bottom: 15px;">
+                                <span id="preview-button-text">Book Appointment</span>
+                            </div>
+                            <div class="preview-success" id="preview-success" style="background: var(--success-color, #28a745); color: white; padding: 10px; border-radius: var(--border-radius, 6px); text-align: center; font-size: 14px;">
+                                ✓ Success Message
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -225,15 +253,6 @@ class Booking_Settings {
             
             <script>
                 document.addEventListener('DOMContentLoaded', function() {
-                    const primaryColorInput = document.querySelector('input[name="appointease_options[primary_color]"]');
-                    const successColorInput = document.querySelector('input[name="appointease_options[success_color]"]');
-                    const buttonTextInput = document.querySelector('input[name="appointease_options[button_text]"]');
-                    
-                    const previewHeader = document.querySelector('.preview-header');
-                    const previewButton = document.querySelector('.preview-button');
-                    const previewSuccess = document.querySelector('.preview-success');
-                    const previewButtonText = document.getElementById('preview-button-text');
-                    
                     function updatePreview() {
                         const primaryColor = document.querySelector('input[name="appointease_options[primary_color]"]')?.value || '#1CBC9B';
                         const successColor = document.querySelector('input[name="appointease_options[success_color]"]')?.value || '#28a745';
@@ -245,47 +264,22 @@ class Booking_Settings {
                         const buttonText = document.querySelector('input[name="appointease_options[button_text]"]')?.value || 'Book Appointment';
                         
                         const container = document.getElementById('preview-container');
-                        const header = document.getElementById('preview-header');
-                        const card = document.getElementById('preview-card');
-                        const text = document.getElementById('preview-text');
-                        const input = document.getElementById('preview-input');
-                        const button = document.getElementById('preview-button');
-                        const success = document.getElementById('preview-success');
-                        const buttonTextEl = document.getElementById('preview-button-text');
+                        if (container) {
+                            container.style.setProperty('--primary-color', primaryColor);
+                            container.style.setProperty('--success-color', successColor);
+                            container.style.setProperty('--bg-color', backgroundColor);
+                            container.style.setProperty('--text-color', textColor);
+                            container.style.setProperty('--border-color', borderColor);
+                            container.style.setProperty('--border-radius', borderRadius + 'px');
+                            container.style.fontSize = fontSize + 'px';
+                        }
                         
-                        if (container) container.style.fontSize = fontSize + 'px';
-                        if (header) {
-                            header.style.background = primaryColor;
-                            header.style.borderRadius = borderRadius + 'px';
-                        }
-                        if (card) {
-                            card.style.background = backgroundColor;
-                            card.style.borderColor = borderColor;
-                            card.style.borderRadius = borderRadius + 'px';
-                        }
-                        if (text) text.style.color = textColor;
-                        if (input) {
-                            input.style.borderColor = borderColor;
-                            input.style.borderRadius = borderRadius + 'px';
-                            input.style.background = backgroundColor;
-                            input.style.color = textColor;
-                        }
-                        if (button) {
-                            button.style.background = primaryColor;
-                            button.style.borderRadius = borderRadius + 'px';
-                        }
-                        if (success) {
-                            success.style.background = successColor;
-                            success.style.borderRadius = borderRadius + 'px';
-                        }
+                        const buttonTextEl = document.getElementById('preview-button-text');
                         if (buttonTextEl) buttonTextEl.textContent = buttonText;
                     }
                     
-                    // Update preview on any input change
                     document.addEventListener('input', updatePreview);
                     document.addEventListener('change', updatePreview);
-                    
-                    // Initial preview update
                     updatePreview();
                 });
             </script>
@@ -298,9 +292,102 @@ class Booking_Settings {
         $start_time = isset($options['start_time']) ? $options['start_time'] : '09:00';
         $end_time = isset($options['end_time']) ? $options['end_time'] : '17:00';
         ?>
-        <input type="time" name="appointease_options[start_time]" value="<?php echo $start_time; ?>" />
+        <input type="time" name="appointease_options[start_time]" value="<?php echo esc_attr($start_time); ?>" />
         to
-        <input type="time" name="appointease_options[end_time]" value="<?php echo $end_time; ?>" />
+        <input type="time" name="appointease_options[end_time]" value="<?php echo esc_attr($end_time); ?>" />
+        <p class="description">Set your business operating hours.</p>
+        <?php
+    }
+    
+    public function working_days_field() {
+        $options = get_option('appointease_options', array());
+        $working_days = isset($options['working_days']) ? $options['working_days'] : ['1','2','3','4','5'];
+        if (!is_array($working_days)) {
+            $working_days = explode(',', $working_days);
+        }
+        
+        $days = array(
+            '0' => 'Sunday',
+            '1' => 'Monday',
+            '2' => 'Tuesday',
+            '3' => 'Wednesday',
+            '4' => 'Thursday',
+            '5' => 'Friday',
+            '6' => 'Saturday'
+        );
+        
+        echo '<div style="display: flex; gap: 15px; flex-wrap: wrap;">';
+        foreach ($days as $value => $label) {
+            $checked = in_array((string)$value, $working_days) ? 'checked' : '';
+            echo '<label style="display: flex; align-items: center; gap: 5px;">';
+            echo '<input type="checkbox" name="appointease_options[working_days][]" value="' . esc_attr($value) . '" ' . $checked . ' class="working-day-checkbox" />';
+            echo esc_html($label);
+            echo '</label>';
+        }
+        echo '</div>';
+        echo '<p class="description">Select the days your business is open for appointments. <strong>At least one day must be selected.</strong></p>';
+        echo '<p class="description" style="color: #d63638; display: none;" id="working-days-error"><strong>⚠ Warning:</strong> You must select at least one working day.</p>';
+        ?>
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const checkboxes = document.querySelectorAll('.working-day-checkbox');
+            const error = document.getElementById('working-days-error');
+            const form = document.querySelector('form');
+            
+            function validateWorkingDays() {
+                const checked = Array.from(checkboxes).filter(cb => cb.checked);
+                if (checked.length === 0) {
+                    error.style.display = 'block';
+                    return false;
+                }
+                error.style.display = 'none';
+                return true;
+            }
+            
+            checkboxes.forEach(cb => cb.addEventListener('change', validateWorkingDays));
+            
+            form.addEventListener('submit', function(e) {
+                if (!validateWorkingDays()) {
+                    e.preventDefault();
+                    error.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    
+                    // WordPress admin notice
+                    const notice = document.createElement('div');
+                    notice.className = 'notice notice-error is-dismissible';
+                    notice.innerHTML = '<p><strong>Error:</strong> Please select at least one working day before saving.</p>';
+                    document.querySelector('.wrap h1').after(notice);
+                    
+                    // Auto dismiss after 5 seconds
+                    setTimeout(() => notice.remove(), 5000);
+                }
+            });
+        });
+        </script>
+        <?php
+    }
+    
+    public function slot_duration_field() {
+        $options = get_option('appointease_options', array());
+        $slot_duration = isset($options['slot_duration']) ? intval($options['slot_duration']) : 60;
+        ?>
+        <select name="appointease_options[slot_duration]">
+            <option value="15" <?php selected($slot_duration, 15); ?>>15 minutes</option>
+            <option value="30" <?php selected($slot_duration, 30); ?>>30 minutes</option>
+            <option value="45" <?php selected($slot_duration, 45); ?>>45 minutes</option>
+            <option value="60" <?php selected($slot_duration, 60); ?>>60 minutes</option>
+            <option value="90" <?php selected($slot_duration, 90); ?>>90 minutes</option>
+            <option value="120" <?php selected($slot_duration, 120); ?>>120 minutes</option>
+        </select>
+        <p class="description">Duration of each appointment slot.</p>
+        <?php
+    }
+    
+    public function advance_booking_field() {
+        $options = get_option('appointease_options', array());
+        $advance_booking = isset($options['advance_booking']) ? intval($options['advance_booking']) : 30;
+        ?>
+        <input type="number" name="appointease_options[advance_booking]" value="<?php echo esc_attr($advance_booking); ?>" min="1" max="365" style="width: 80px;" /> days
+        <p class="description">How far in advance customers can book (1-365 days).</p>
         <?php
     }
     
@@ -770,6 +857,17 @@ class Booking_Settings {
         return isset($options['button_text']) ? $options['button_text'] : 'Book Appointment';
     }
     
+    public static function get_working_days() {
+        $options = get_option('appointease_options', array());
+        $days = isset($options['working_days']) ? $options['working_days'] : ['1','2','3','4','5'];
+        return is_array($days) ? $days : explode(',', $days);
+    }
+    
+    public static function get_slot_duration() {
+        $options = get_option('appointease_options', array());
+        return isset($options['slot_duration']) ? intval($options['slot_duration']) : 60;
+    }
+    
     public static function get_primary_color() {
         $options = get_option('appointease_options', array());
         return isset($options['primary_color']) ? $options['primary_color'] : '#1CBC9B';
@@ -808,6 +906,31 @@ class Booking_Settings {
     public static function get_border_color() {
         $options = get_option('appointease_options', array());
         return isset($options['border_color']) ? $options['border_color'] : '#e0e0e0';
+    }
+    
+    public function validate_settings($input) {
+        $output = $input;
+        
+        // Validate working days - at least one must be selected
+        if (isset($input['working_days'])) {
+            if (empty($input['working_days']) || !is_array($input['working_days'])) {
+                add_settings_error(
+                    'appointease_options',
+                    'working_days_empty',
+                    'At least one working day must be selected. Settings not saved.',
+                    'error'
+                );
+                // Keep old values
+                $old = get_option('appointease_options', array());
+                $output['working_days'] = isset($old['working_days']) ? $old['working_days'] : ['1','2','3','4','5'];
+            }
+        } else {
+            // No working days submitted, keep old values
+            $old = get_option('appointease_options', array());
+            $output['working_days'] = isset($old['working_days']) ? $old['working_days'] : ['1','2','3','4','5'];
+        }
+        
+        return $output;
     }
     
 

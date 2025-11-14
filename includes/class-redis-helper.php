@@ -21,34 +21,43 @@ class Appointease_Redis_Helper {
     }
 
     private function check_redis() {
-        if (function_exists('wp_cache_add_redis_hash_groups')) {
-            return true; // Redis Object Cache plugin active
-        }
-        
-        if (class_exists('Redis')) {
-            try {
-                $this->redis = new Redis();
-                // Use pconnect for connection pooling (massive CPU/memory savings)
-                $this->redis->pconnect('127.0.0.1', 6379, 2.5);
-                
-                if (!$this->redis->ping()) {
+        try {
+            if (function_exists('wp_cache_add_redis_hash_groups')) {
+                return true; // Redis Object Cache plugin active
+            }
+            
+            if (class_exists('Redis')) {
+                try {
+                    $this->redis = new Redis();
+                    // Use pconnect for connection pooling (massive CPU/memory savings)
+                    $this->redis->pconnect('127.0.0.1', 6379, 2.5);
+                    
+                    if (!$this->redis->ping()) {
+                        error_log('[Redis] Ping failed - server not responding');
+                        return false;
+                    }
+                    
+                    // Set health check key (5s TTL) - used by Heartbeat for fast availability checks
+                    $this->redis->setex('appointease:health:ping', 5, time());
+                    
+                    return true;
+                } catch (RedisException $e) {
+                    $sanitized_message = preg_replace('/host=[^\s]+/', 'host=***', $e->getMessage());
+                    $sanitized_message = preg_replace('/port=\d+/', 'port=***', $sanitized_message);
+                    $sanitized_message = preg_replace('/password=[^\s]+/', 'password=***', $sanitized_message);
+                    error_log('[Redis] Connection failed: ' . $sanitized_message);
+                    return false;
+                } catch (Exception $e) {
+                    error_log('[Redis] Unexpected error: ' . $e->getMessage());
                     return false;
                 }
-                
-                // Set health check key (5s TTL) - used by Heartbeat for fast availability checks
-                $this->redis->setex('appointease:health:ping', 5, time());
-                
-                return true;
-            } catch (Exception $e) {
-                $sanitized_message = preg_replace('/host=[^\s]+/', 'host=***', $e->getMessage());
-                $sanitized_message = preg_replace('/port=\d+/', 'port=***', $sanitized_message);
-                $sanitized_message = preg_replace('/password=[^\s]+/', 'password=***', $sanitized_message);
-                error_log('[Redis] Connection failed: ' . $sanitized_message);
-                return false;
             }
+            
+            return false;
+        } catch (Exception $e) {
+            error_log('[Redis] Check redis failed: ' . $e->getMessage());
+            return false;
         }
-        
-        return false;
     }
     
     /**
@@ -60,12 +69,20 @@ class Appointease_Redis_Helper {
         
         try {
             // Write health key to detect write failures
-            $this->redis->setex('appointease:health:ping', 5, time());
+            $write_result = $this->redis->setex('appointease:health:ping', 5, time());
+            if (!$write_result) {
+                error_log('[Redis] Health check write failed');
+                return false;
+            }
             
             // Read health key to verify
             $health = $this->redis->get('appointease:health:ping');
             return $health !== false;
+        } catch (RedisException $e) {
+            error_log('[Redis] Health check failed: ' . $e->getMessage());
+            return false;
         } catch (Exception $e) {
+            error_log('[Redis] Health check unexpected error: ' . $e->getMessage());
             return false;
         }
     }
@@ -85,24 +102,31 @@ class Appointease_Redis_Helper {
     public function lock_slot($key, $data, $ttl = 600) {
         if (!$this->enabled) return false;
         
-        // Ensure lock has ownership info
-        if (!isset($data['client_id'])) {
-            error_log('[Redis] Lock requires client_id for ownership');
-            return false;
-        }
-        
-        $lock_data = array_merge($data, [
-            'timestamp' => time(),
-            'expires' => time() + $ttl
-        ]);
-        
         try {
+            // Ensure lock has ownership info
+            if (!isset($data['client_id'])) {
+                error_log('[Redis] Lock requires client_id for ownership');
+                return false;
+            }
+            
+            $lock_data = array_merge($data, [
+                'timestamp' => time(),
+                'expires' => time() + $ttl
+            ]);
+            
             if ($this->redis) {
-                return $this->redis->setex($key, $ttl, json_encode($lock_data));
+                $result = $this->redis->setex($key, $ttl, json_encode($lock_data));
+                if (!$result) {
+                    error_log('[Redis] Lock setex failed for key: ' . $key);
+                }
+                return $result;
             }
             return wp_cache_set($key, $lock_data, 'appointease_locks', $ttl);
-        } catch (Exception $e) {
+        } catch (RedisException $e) {
             error_log('[Redis] Lock failed: ' . $e->getMessage());
+            return false;
+        } catch (Exception $e) {
+            error_log('[Redis] Lock unexpected error: ' . $e->getMessage());
             return false;
         }
     }

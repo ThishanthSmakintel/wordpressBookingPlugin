@@ -52,6 +52,8 @@ class Appointease_Heartbeat_Handler {
     public function handle_heartbeat($response, $data) {
         error_log('[Heartbeat] handle_heartbeat called with data: ' . print_r($data, true));
         try {
+            require_once plugin_dir_path(__FILE__) . 'class-security-helper.php';
+            
             $response['appointease_test'] = 'heartbeat_working';
             $redis_available = $this->redis->health_check();
             
@@ -101,13 +103,22 @@ class Appointease_Heartbeat_Handler {
                 error_log('[Heartbeat] Polling for date: ' . $date . ', employee: ' . $employee_id . ', client: ' . $client_id . ', time: ' . $selected_time . ', exclude: ' . $exclude_appointment_id);
                 Appointease_Logger::get_instance()->log('Poll', array('date' => $date, 'employee_id' => $employee_id, 'client_id' => $client_id, 'selected_time' => $selected_time, 'exclude_appointment_id' => $exclude_appointment_id));
                 
-                // Get booked slots from database
+                // Get booked slots from database with error handling
                 global $wpdb;
                 $booked_slots = $wpdb->get_col($wpdb->prepare(
                     "SELECT TIME_FORMAT(TIME(appointment_date), '%%H:%%i') FROM {$wpdb->prefix}appointments 
                      WHERE DATE(appointment_date) = %s AND employee_id = %d AND status IN ('confirmed', 'created')",
                     $date, $employee_id
                 ));
+                
+                if ($wpdb->last_error) {
+                    AppointEase_Security_Helper::log_error('Database error in heartbeat polling', [
+                        'error' => $wpdb->last_error,
+                        'date' => $date,
+                        'employee_id' => $employee_id
+                    ]);
+                    $booked_slots = [];
+                }
                 
                 // If user is rescheduling, mark their current appointment slot as "active selection" for other users
                 if (!empty($exclude_appointment_id)) {
@@ -328,11 +339,14 @@ class Appointease_Heartbeat_Handler {
             
             return $response;
         } catch (Exception $e) {
-            error_log('[Heartbeat] FATAL ERROR: ' . $e->getMessage());
-            error_log('[Heartbeat] Stack trace: ' . $e->getTraceAsString());
+            AppointEase_Security_Helper::log_error('Heartbeat handler error', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'data' => $data
+            ]);
             return array(
                 'appointease_test' => 'error',
-                'error' => $e->getMessage(),
+                'error' => 'Heartbeat processing failed',
                 'redis_status' => 'error'
             );
         }
@@ -343,13 +357,30 @@ class Appointease_Heartbeat_Handler {
             return array('error' => 'Email required');
         }
 
-        global $wpdb;
-        $table_name = $wpdb->prefix . 'appointments';
-        
-        $appointments = $wpdb->get_results($wpdb->prepare(
-            "SELECT id, name, email, service_id, staff_id, appointment_date, status, created_at, rescheduled_at, original_date FROM $table_name WHERE email = %s AND status != 'cancelled' ORDER BY appointment_date ASC LIMIT 100",
-            $data['user_email']
-        ));
+        try {
+            global $wpdb;
+            require_once plugin_dir_path(__FILE__) . 'class-security-helper.php';
+            $table_name = $wpdb->prefix . 'appointments';
+            
+            $appointments = $wpdb->get_results($wpdb->prepare(
+                "SELECT id, name, email, service_id, staff_id, appointment_date, status, created_at, rescheduled_at, original_date FROM $table_name WHERE email = %s AND status != 'cancelled' ORDER BY appointment_date ASC LIMIT 100",
+                $data['user_email']
+            ));
+            
+            if ($wpdb->last_error) {
+                AppointEase_Security_Helper::log_error('Database error in get_user_booking_data', [
+                    'error' => $wpdb->last_error,
+                    'email' => $data['user_email']
+                ]);
+                return array('error' => 'Database error occurred');
+            }
+        } catch (Exception $e) {
+            AppointEase_Security_Helper::log_error('Exception in get_user_booking_data', [
+                'message' => $e->getMessage(),
+                'email' => $data['user_email']
+            ]);
+            return array('error' => 'Failed to retrieve booking data');
+        }
 
         $formatted_appointments = array();
         foreach ($appointments as $apt) {

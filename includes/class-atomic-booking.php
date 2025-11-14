@@ -116,9 +116,17 @@ class Atomic_Booking {
                 'message' => 'Appointment booked successfully'
             ];
             
+        } catch (PDOException $e) {
+            $this->wpdb->query('ROLLBACK');
+            error_log('[AtomicBooking] Database error: ' . $e->getMessage());
+            return new WP_Error('database_error', 'Database transaction failed', ['status' => 500]);
+        } catch (AppointEase_Exception $e) {
+            $this->wpdb->query('ROLLBACK');
+            error_log('[AtomicBooking] AppointEase error: ' . $e->getMessage() . ' | Context: ' . json_encode($e->getContext()));
+            return new WP_Error('booking_error', $e->getMessage(), ['status' => 400]);
         } catch (Exception $e) {
             $this->wpdb->query('ROLLBACK');
-            error_log('[AtomicBooking] Transaction failed: ' . $e->getMessage());
+            error_log('[AtomicBooking] Unexpected error: ' . $e->getMessage() . ' | Trace: ' . $e->getTraceAsString());
             return new WP_Error('transaction_failed', 'Booking transaction failed', ['status' => 500]);
         }
     }
@@ -127,17 +135,34 @@ class Atomic_Booking {
      * Check slot availability with row-level locking (Pessimistic locking)
      */
     private function check_slot_with_lock($appointment_date, $employee_id) {
-        $table = $this->wpdb->prefix . 'appointments';
-        
-        // Use FOR UPDATE to lock the row during transaction
-        $conflict = $this->wpdb->get_row($this->wpdb->prepare(
-            "SELECT id, strong_id, name, email FROM {$table} 
-             WHERE appointment_date = %s AND employee_id = %d AND status IN ('confirmed', 'created')
-             FOR UPDATE",
-            $appointment_date, $employee_id
-        ));
-        
-        return $conflict;
+        try {
+            require_once plugin_dir_path(__FILE__) . 'class-api-security.php';
+            $table = Appointease_API_Security::get_table_name('appointments');
+            
+            // Use FOR UPDATE to lock the row during transaction
+            $conflict = $this->wpdb->get_row($this->wpdb->prepare(
+                "SELECT id, strong_id, name, email FROM `{$table}` 
+                 WHERE appointment_date = %s AND employee_id = %d AND status IN ('confirmed', 'created')
+                 FOR UPDATE",
+                $appointment_date, $employee_id
+            ));
+            
+            // Check for database errors
+            if ($this->wpdb->last_error) {
+                error_log('[AtomicBooking] Database error in check_slot_with_lock: ' . $this->wpdb->last_error);
+                throw new AppointEase_Exception('Database error during slot check', 500, null, [
+                    'appointment_date' => $appointment_date,
+                    'employee_id' => $employee_id,
+                    'error' => $this->wpdb->last_error
+                ]);
+            }
+            
+            return $conflict;
+            
+        } catch (Exception $e) {
+            error_log('[AtomicBooking] Exception in check_slot_with_lock: ' . $e->getMessage());
+            throw $e;
+        }
     }
     
     /**
@@ -183,7 +208,8 @@ class Atomic_Booking {
      */
     private function insert_appointment_atomic($data, $idempotency_key) {
         global $wpdb;
-        $table = $wpdb->prefix . 'appointments';
+        require_once plugin_dir_path(__FILE__) . 'class-api-security.php';
+        $table = Appointease_API_Security::get_table_name('appointments');
         
         // Simple insert with all fields
         $insert_data = [
@@ -226,10 +252,11 @@ class Atomic_Booking {
      * Check for duplicate submission using idempotency key
      */
     private function is_duplicate_submission($idempotency_key) {
-        $table = $this->wpdb->prefix . 'appointments';
+        require_once plugin_dir_path(__FILE__) . 'class-api-security.php';
+        $table = Appointease_API_Security::get_table_name('appointments');
         
         $existing = $this->wpdb->get_var($this->wpdb->prepare(
-            "SELECT id FROM {$table} WHERE idempotency_key = %s AND created_at > DATE_SUB(NOW(), INTERVAL 1 HOUR)",
+            "SELECT id FROM `{$table}` WHERE idempotency_key = %s AND created_at > DATE_SUB(NOW(), INTERVAL 1 HOUR)",
             $idempotency_key
         ));
         
@@ -265,10 +292,11 @@ class Atomic_Booking {
      * Rate limiting check per email
      */
     private function is_rate_limited($email) {
-        $table = $this->wpdb->prefix . 'appointments';
+        require_once plugin_dir_path(__FILE__) . 'class-api-security.php';
+        $table = Appointease_API_Security::get_table_name('appointments');
         
         $recent_count = $this->wpdb->get_var($this->wpdb->prepare(
-            "SELECT COUNT(*) FROM {$table} WHERE email = %s AND created_at > DATE_SUB(NOW(), INTERVAL 5 MINUTE)",
+            "SELECT COUNT(*) FROM `{$table}` WHERE email = %s AND created_at > DATE_SUB(NOW(), INTERVAL 5 MINUTE)",
             $email
         ));
         
@@ -287,9 +315,10 @@ class Atomic_Booking {
         $employee_id = $data['employee_id'];
         
         // Get all booked slots for the day
-        $table = $this->wpdb->prefix . 'appointments';
+        require_once plugin_dir_path(__FILE__) . 'class-api-security.php';
+        $table = Appointease_API_Security::get_table_name('appointments');
         $booked_times = $this->wpdb->get_col($this->wpdb->prepare(
-            "SELECT TIME_FORMAT(appointment_date, '%%H:%%i') FROM {$table} 
+            "SELECT TIME_FORMAT(appointment_date, '%%H:%%i') FROM `{$table}` 
              WHERE DATE(appointment_date) = %s AND employee_id = %d AND status IN ('confirmed', 'created')",
             $date, $employee_id
         ));

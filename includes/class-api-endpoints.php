@@ -2,11 +2,14 @@
 
 class Booking_API_Endpoints {
     private $redis;
+    private $config;
     
     public function __construct() {
         require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-redis-helper.php';
         require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-redis-pubsub.php';
+        require_once plugin_dir_path(dirname(__FILE__)) . 'includes/class-config.php';
         $this->redis = Appointease_Redis_Helper::get_instance();
+        $this->config = AppointEase_Config::get_instance();
         add_action('rest_api_init', array($this, 'register_routes'));
         add_action('rest_api_init', array($this, 'register_webhook_routes'));
     }
@@ -311,8 +314,6 @@ class Booking_API_Endpoints {
             return new WP_Error('invalid_employee', 'Invalid employee ID', array('status' => 400));
         }
         
-        // Load options at the beginning
-        $options = get_option('appointease_options', array());
         $unavailable_times = array();
         
         // Check if date is in the past
@@ -322,24 +323,15 @@ class Booking_API_Endpoints {
         }
         
         // Check if date is too far in advance
-        $advance_booking_days = isset($options['advance_booking']) ? intval($options['advance_booking']) : intval(get_option('appointease_advance_booking_days', 30));
+        $advance_booking_days = $this->config->get_advance_booking_days();
         $max_date = strtotime("+{$advance_booking_days} days");
         if (strtotime($date) > $max_date) {
             return rest_ensure_response(array('unavailable' => 'all', 'reason' => 'too_far_advance'));
         }
         
-        // Check working days - get from database with proper fallback
-        $working_days = get_option('appointease_working_days', ['1','2','3','4','5']);
-        if (isset($options['working_days'])) {
-            if (is_array($options['working_days']) && !empty($options['working_days'])) {
-                $working_days = $options['working_days'];
-            } elseif (is_string($options['working_days']) && !empty($options['working_days'])) {
-                // Handle comma-separated string
-                $working_days = explode(',', $options['working_days']);
-                $working_days = array_map('trim', $working_days);
-            }
-        }
-        $day_of_week = date('w', strtotime($date)); // 0 = Sunday, 1 = Monday, etc.
+        // Check working days
+        $working_days = $this->config->get_working_days();
+        $day_of_week = date('w', strtotime($date));
         
         if (!in_array((string)$day_of_week, $working_days)) {
             return rest_ensure_response(array('unavailable' => 'all', 'reason' => 'non_working_day'));
@@ -774,17 +766,37 @@ class Booking_API_Endpoints {
     }
     
     public function public_permission($request) {
-        // Rate limiting by IP
-        $ip = $_SERVER['REMOTE_ADDR'] ?? 'unknown';
+        // Rate limiting with X-Forwarded-For support
+        $ip = $this->get_client_ip();
         $key = 'appointease_rate_' . md5($ip);
         $count = get_transient($key) ?: 0;
         
-        if ($count > 100) { // 100 requests per minute
+        $limit = $this->config->get_rate_limit_requests();
+        $window = $this->config->get_rate_limit_window();
+        
+        if ($count > $limit) {
+            error_log("[AppointEase] Rate limit exceeded for IP: {$ip}");
             return new WP_Error('rate_limited', 'Too many requests. Please wait.', array('status' => 429));
         }
         
-        set_transient($key, $count + 1, 60);
+        set_transient($key, $count + 1, $window);
         return true;
+    }
+    
+    private function get_client_ip() {
+        $headers = array('HTTP_CF_CONNECTING_IP', 'HTTP_X_FORWARDED_FOR', 'HTTP_X_REAL_IP', 'REMOTE_ADDR');
+        foreach ($headers as $header) {
+            if (!empty($_SERVER[$header])) {
+                $ip = $_SERVER[$header];
+                if (strpos($ip, ',') !== false) {
+                    $ip = trim(explode(',', $ip)[0]);
+                }
+                if (filter_var($ip, FILTER_VALIDATE_IP)) {
+                    return $ip;
+                }
+            }
+        }
+        return 'unknown';
     }
     
     public function verify_nonce_permission($request) {
@@ -982,11 +994,9 @@ class Booking_API_Endpoints {
     }
     
     public function get_time_slots($request) {
-        $options = get_option('appointease_options', array());
-        
-        $start_time = isset($options['start_time']) ? $options['start_time'] : get_option('appointease_start_time', '09:00');
-        $end_time = isset($options['end_time']) ? $options['end_time'] : get_option('appointease_end_time', '17:00');
-        $slot_duration = isset($options['slot_duration']) ? intval($options['slot_duration']) : intval(get_option('appointease_slot_duration', 60));
+        $start_time = $this->config->get_start_time();
+        $end_time = $this->config->get_end_time();
+        $slot_duration = $this->config->get_slot_duration();
         
         $time_slots = $this->generate_time_slots($start_time, $end_time, $slot_duration);
             
@@ -997,16 +1007,12 @@ class Booking_API_Endpoints {
     }
     
     public function get_business_hours($request) {
-        $options = get_option('appointease_options', array());
-        
         return rest_ensure_response(array(
-            'working_days' => isset($options['working_days']) && !empty($options['working_days']) 
-                ? $options['working_days'] 
-                : get_option('appointease_working_days', array('1','2','3','4','5')),
-            'start_time' => isset($options['start_time']) ? $options['start_time'] : get_option('appointease_start_time', '09:00'),
-            'end_time' => isset($options['end_time']) ? $options['end_time'] : get_option('appointease_end_time', '17:00'),
-            'lunch_start' => isset($options['lunch_start']) ? $options['lunch_start'] : get_option('appointease_lunch_start', '12:00'),
-            'lunch_end' => isset($options['lunch_end']) ? $options['lunch_end'] : get_option('appointease_lunch_end', '14:00')
+            'working_days' => $this->config->get_working_days(),
+            'start_time' => $this->config->get_start_time(),
+            'end_time' => $this->config->get_end_time(),
+            'lunch_start' => $this->config->get('lunch_start', '12:00'),
+            'lunch_end' => $this->config->get('lunch_end', '14:00')
         ));
     }
     
@@ -1062,37 +1068,21 @@ class Booking_API_Endpoints {
     }
     
     public function get_settings($request) {
-        error_log('[AppointEase] get_settings called');
-        error_log('[AppointEase] Request method: ' . $request->get_method());
-        error_log('[AppointEase] Request route: ' . $request->get_route());
-        
-        $options = get_option('appointease_options', array());
-        error_log('[AppointEase] Options: ' . print_r($options, true));
-        
-        // Generate time slots based on settings
-        $start_time = isset($options['start_time']) ? $options['start_time'] : get_option('appointease_start_time', '09:00');
-        $end_time = isset($options['end_time']) ? $options['end_time'] : get_option('appointease_end_time', '17:00');
-        $slot_duration = isset($options['slot_duration']) ? intval($options['slot_duration']) : intval(get_option('appointease_slot_duration', 60));
-        
-        error_log('[AppointEase] Time settings: start=' . $start_time . ', end=' . $end_time . ', duration=' . $slot_duration);
+        $start_time = $this->config->get_start_time();
+        $end_time = $this->config->get_end_time();
+        $slot_duration = $this->config->get_slot_duration();
         
         $time_slots = $this->generate_time_slots($start_time, $end_time, $slot_duration);
-        error_log('[AppointEase] Generated slots: ' . print_r($time_slots, true));
         
-        $response = array(
+        return rest_ensure_response(array(
             'business_hours' => array(
                 'start' => $start_time,
                 'end' => $end_time
             ),
-            'working_days' => isset($options['working_days']) && !empty($options['working_days']) 
-                ? $options['working_days'] 
-                : get_option('appointease_working_days', array('1','2','3','4','5')),
+            'working_days' => $this->config->get_working_days(),
             'time_slots' => $time_slots,
             'slot_duration' => $slot_duration
-        );
-        
-        error_log('[AppointEase] Final response: ' . print_r($response, true));
-        return rest_ensure_response($response);
+        ));
     }
     
     private function generate_time_slots($start_time, $end_time, $duration_minutes) {
@@ -1280,9 +1270,6 @@ class Booking_API_Endpoints {
             return new WP_Error('invalid_date', 'Invalid date format', array('status' => 400));
         }
         
-        // Check working days and business rules (same as regular availability)
-        $options = get_option('appointease_options', array());
-        
         // Check if date is in the past
         $today = date('Y-m-d');
         if ($date < $today) {
@@ -1290,10 +1277,7 @@ class Booking_API_Endpoints {
         }
         
         // Check working days
-        $working_days = get_option('appointease_working_days', ['1','2','3','4','5']);
-        if (isset($options['working_days']) && is_array($options['working_days']) && !empty($options['working_days'])) {
-            $working_days = $options['working_days'];
-        }
+        $working_days = $this->config->get_working_days();
         $day_of_week = date('w', strtotime($date));
         
         if (!in_array((string)$day_of_week, $working_days)) {

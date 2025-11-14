@@ -290,14 +290,34 @@ class AppointEase_Admin {
     }
     
     public function dashboard_page() {
-        global $wpdb;
-        $appointments_count = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}appointments");
-        $services_count = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}appointease_services");
-        $staff_count = $wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}appointease_staff");
-        $appointments = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}appointments ORDER BY appointment_date DESC LIMIT 5");
-        
-        if ($wpdb->last_error) {
-            wp_die('Database error occurred: ' . esc_html($wpdb->last_error));
+        try {
+            global $wpdb;
+            require_once plugin_dir_path(__FILE__) . '../includes/class-api-security.php';
+            require_once plugin_dir_path(__FILE__) . '../includes/class-security-helper.php';
+            
+            $appointments_table = Appointease_API_Security::get_table_name('appointments');
+            $services_table = Appointease_API_Security::get_table_name('appointease_services');
+            $staff_table = Appointease_API_Security::get_table_name('appointease_staff');
+            
+            // Get counts with error checking
+            $appointments_count = $wpdb->get_var("SELECT COUNT(*) FROM `{$appointments_table}`");
+            AppointEase_Security_Helper::check_db_result($appointments_count, $wpdb, 'dashboard appointments count');
+            
+            $services_count = $wpdb->get_var("SELECT COUNT(*) FROM `{$services_table}`");
+            AppointEase_Security_Helper::check_db_result($services_count, $wpdb, 'dashboard services count');
+            
+            $staff_count = $wpdb->get_var("SELECT COUNT(*) FROM `{$staff_table}`");
+            AppointEase_Security_Helper::check_db_result($staff_count, $wpdb, 'dashboard staff count');
+            
+            $appointments = $wpdb->get_results("SELECT * FROM `{$appointments_table}` ORDER BY appointment_date DESC LIMIT 5");
+            AppointEase_Security_Helper::check_db_result($appointments, $wpdb, 'dashboard recent appointments');
+            
+        } catch (Exception $e) {
+            AppointEase_Security_Helper::log_error('Dashboard page error', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            wp_die('Dashboard error occurred. Please contact support.');
         }
         ?>
         <div class="wrap amelia-wrap">
@@ -434,8 +454,10 @@ class AppointEase_Admin {
     
     public function services_page() {
         global $wpdb;
+        require_once plugin_dir_path(__FILE__) . '../includes/class-api-security.php';
         $this->ensure_default_data();
-        $services = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}appointease_services ORDER BY id DESC");
+        $services_table = Appointease_API_Security::get_table_name('appointease_services');
+        $services = $wpdb->get_results("SELECT * FROM `{$services_table}` ORDER BY id DESC");
         
         if ($wpdb->last_error) {
             wp_die('Database error occurred: ' . esc_html($wpdb->last_error));
@@ -519,8 +541,10 @@ class AppointEase_Admin {
     
     public function staff_page() {
         global $wpdb;
+        require_once plugin_dir_path(__FILE__) . '../includes/class-api-security.php';
         $this->ensure_default_data();
-        $staff = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}appointease_staff ORDER BY id DESC");
+        $staff_table = Appointease_API_Security::get_table_name('appointease_staff');
+        $staff = $wpdb->get_results("SELECT * FROM `{$staff_table}` ORDER BY id DESC");
         
         if ($wpdb->last_error) {
             wp_die('Database error occurred: ' . esc_html($wpdb->last_error));
@@ -596,165 +620,286 @@ class AppointEase_Admin {
     }
     
     public function save_service() {
-        check_ajax_referer('appointease_nonce', '_wpnonce');
-        
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error('Unauthorized access');
-            return;
+        try {
+            check_ajax_referer('appointease_nonce', '_wpnonce');
+            
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error('Unauthorized access');
+                return;
+            }
+            
+            global $wpdb;
+            require_once plugin_dir_path(__FILE__) . '../includes/class-security-helper.php';
+            
+            $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
+            $name = isset($_POST['name']) ? sanitize_text_field($_POST['name']) : '';
+            $duration = isset($_POST['duration']) ? intval($_POST['duration']) : 0;
+            $price = isset($_POST['price']) ? floatval($_POST['price']) : 0;
+            $description = isset($_POST['description']) ? sanitize_textarea_field($_POST['description']) : '';
+            
+            // Validate input
+            if (empty($name) || $duration <= 0 || $price < 0) {
+                wp_send_json_error('Invalid input data');
+                return;
+            }
+            
+            require_once plugin_dir_path(__FILE__) . '../includes/class-api-security.php';
+            $services_table = Appointease_API_Security::get_table_name('appointease_services');
+            
+            if($id) {
+                $result = $wpdb->update(
+                    $services_table,
+                    array('name' => $name, 'duration' => $duration, 'price' => $price, 'description' => $description),
+                    array('id' => $id),
+                    array('%s', '%d', '%f', '%s'),
+                    array('%d')
+                );
+            } else {
+                $result = $wpdb->insert(
+                    $services_table,
+                    array('name' => $name, 'duration' => $duration, 'price' => $price, 'description' => $description),
+                    array('%s', '%d', '%f', '%s')
+                );
+            }
+            
+            // Enhanced error handling with specific error information
+            if ($result === false) {
+                $error_message = $wpdb->last_error ?: 'Unknown database error';
+                AppointEase_Security_Helper::log_error('Service save failed', [
+                    'error' => $error_message,
+                    'operation' => $id ? 'update' : 'insert',
+                    'service_id' => $id,
+                    'service_name' => $name
+                ]);
+                wp_send_json_error('Database operation failed: ' . $error_message);
+                return;
+            }
+            
+            wp_send_json_success();
+            
+        } catch (Exception $e) {
+            AppointEase_Security_Helper::log_error('Exception in save_service', [
+                'message' => $e->getMessage(),
+                'post_data' => $_POST
+            ]);
+            wp_send_json_error('Service save failed due to server error');
         }
-        
-        global $wpdb;
-        
-        $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
-        $name = isset($_POST['name']) ? sanitize_text_field($_POST['name']) : '';
-        $duration = isset($_POST['duration']) ? intval($_POST['duration']) : 0;
-        $price = isset($_POST['price']) ? floatval($_POST['price']) : 0;
-        $description = isset($_POST['description']) ? sanitize_textarea_field($_POST['description']) : '';
-        
-        // Validate input
-        if (empty($name) || $duration <= 0 || $price < 0) {
-            wp_send_json_error('Invalid input data');
-            return;
-        }
-        
-        if($id) {
-            $result = $wpdb->update(
-                $wpdb->prefix . 'appointease_services',
-                array('name' => $name, 'duration' => $duration, 'price' => $price, 'description' => $description),
-                array('id' => $id),
-                array('%s', '%d', '%f', '%s'),
-                array('%d')
-            );
-        } else {
-            $result = $wpdb->insert(
-                $wpdb->prefix . 'appointease_services',
-                array('name' => $name, 'duration' => $duration, 'price' => $price, 'description' => $description),
-                array('%s', '%d', '%f', '%s')
-            );
-        }
-        
-        if ($result === false) {
-            wp_send_json_error('Database error occurred');
-            return;
-        }
-        
-        wp_send_json_success();
     }
     
     public function save_staff() {
-        check_ajax_referer('appointease_nonce', '_wpnonce');
-        
-        if (!current_user_can('manage_options')) {
-            wp_send_json_error('Unauthorized access');
-            return;
+        try {
+            check_ajax_referer('appointease_nonce', '_wpnonce');
+            
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error('Unauthorized access');
+                return;
+            }
+            
+            global $wpdb;
+            require_once plugin_dir_path(__FILE__) . '../includes/class-security-helper.php';
+            
+            $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
+            $name = isset($_POST['name']) ? sanitize_text_field($_POST['name']) : '';
+            $email = isset($_POST['email']) ? sanitize_email($_POST['email']) : '';
+            $phone = isset($_POST['phone']) ? sanitize_text_field($_POST['phone']) : '';
+            
+            if (empty($name) || empty($email) || !is_email($email)) {
+                wp_send_json_error('Invalid input data');
+                return;
+            }
+            
+            require_once plugin_dir_path(__FILE__) . '../includes/class-api-security.php';
+            $staff_table = Appointease_API_Security::get_table_name('appointease_staff');
+            
+            if($id) {
+                $result = $wpdb->update(
+                    $staff_table,
+                    array('name' => $name, 'email' => $email, 'phone' => $phone),
+                    array('id' => $id),
+                    array('%s', '%s', '%s'),
+                    array('%d')
+                );
+            } else {
+                $result = $wpdb->insert(
+                    $staff_table,
+                    array('name' => $name, 'email' => $email, 'phone' => $phone),
+                    array('%s', '%s', '%s')
+                );
+            }
+            
+            if ($result === false) {
+                $error_message = $wpdb->last_error ?: 'Unknown database error';
+                AppointEase_Security_Helper::log_error('Staff save failed', [
+                    'error' => $error_message,
+                    'operation' => $id ? 'update' : 'insert',
+                    'staff_id' => $id
+                ]);
+                wp_send_json_error('Database operation failed: ' . $error_message);
+                return;
+            }
+            
+            wp_send_json_success();
+            
+        } catch (Exception $e) {
+            AppointEase_Security_Helper::log_error('Exception in save_staff', [
+                'message' => $e->getMessage()
+            ]);
+            wp_send_json_error('Staff save failed due to server error');
         }
-        
-        global $wpdb;
-        
-        $id = isset($_POST['id']) ? intval($_POST['id']) : 0;
-        $name = isset($_POST['name']) ? sanitize_text_field($_POST['name']) : '';
-        $email = isset($_POST['email']) ? sanitize_email($_POST['email']) : '';
-        $phone = isset($_POST['phone']) ? sanitize_text_field($_POST['phone']) : '';
-        
-        // Validate input
-        if (empty($name) || empty($email) || !is_email($email)) {
-            wp_send_json_error('Invalid input data');
-            return;
-        }
-        
-        if($id) {
-            $result = $wpdb->update(
-                $wpdb->prefix . 'appointease_staff',
-                array('name' => $name, 'email' => $email, 'phone' => $phone),
-                array('id' => $id),
-                array('%s', '%s', '%s'),
-                array('%d')
-            );
-        } else {
-            $result = $wpdb->insert(
-                $wpdb->prefix . 'appointease_staff',
-                array('name' => $name, 'email' => $email, 'phone' => $phone),
-                array('%s', '%s', '%s')
-            );
-        }
-        
-        if ($result === false) {
-            wp_send_json_error('Database error occurred');
-            return;
-        }
-        
-        wp_send_json_success();
     }
     
     public function get_service() {
-        check_ajax_referer('appointease_nonce', '_wpnonce');
-        global $wpdb;
-        $id = intval($_POST['id']);
-        $service = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}appointease_services WHERE id = %d", $id));
-        
-        if($service) {
-            wp_send_json_success($service);
-        } else {
-            wp_send_json_error('Service not found');
+        try {
+            check_ajax_referer('appointease_nonce', '_wpnonce');
+            global $wpdb;
+            $id = intval($_POST['id']);
+            
+            if ($id <= 0) {
+                wp_send_json_error('Invalid service ID');
+                return;
+            }
+            
+            require_once plugin_dir_path(__FILE__) . '../includes/class-api-security.php';
+            $services_table = Appointease_API_Security::get_table_name('appointease_services');
+            $service = $wpdb->get_row($wpdb->prepare("SELECT * FROM `{$services_table}` WHERE id = %d", $id));
+            
+            if ($wpdb->last_error) {
+                wp_send_json_error('Database error occurred');
+                return;
+            }
+            
+            if($service) {
+                wp_send_json_success($service);
+            } else {
+                wp_send_json_error('Service not found');
+            }
+        } catch (Exception $e) {
+            wp_send_json_error('Failed to retrieve service');
         }
     }
     
     public function get_staff() {
-        check_ajax_referer('appointease_nonce', '_wpnonce');
-        global $wpdb;
-        $id = intval($_POST['id']);
-        $staff = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}appointease_staff WHERE id = %d", $id));
-        
-        if($staff) {
-            wp_send_json_success($staff);
-        } else {
-            wp_send_json_error('Staff not found');
+        try {
+            check_ajax_referer('appointease_nonce', '_wpnonce');
+            global $wpdb;
+            $id = intval($_POST['id']);
+            
+            if ($id <= 0) {
+                wp_send_json_error('Invalid staff ID');
+                return;
+            }
+            
+            require_once plugin_dir_path(__FILE__) . '../includes/class-api-security.php';
+            $staff_table = Appointease_API_Security::get_table_name('appointease_staff');
+            $staff = $wpdb->get_row($wpdb->prepare("SELECT * FROM `{$staff_table}` WHERE id = %d", $id));
+            
+            if ($wpdb->last_error) {
+                wp_send_json_error('Database error occurred');
+                return;
+            }
+            
+            if($staff) {
+                wp_send_json_success($staff);
+            } else {
+                wp_send_json_error('Staff not found');
+            }
+        } catch (Exception $e) {
+            wp_send_json_error('Failed to retrieve staff');
         }
     }
     
     public function delete_service() {
-        check_ajax_referer('appointease_nonce', '_wpnonce');
-        global $wpdb;
-        $id = intval($_POST['id']);
-        
-        $result = $wpdb->delete(
-            $wpdb->prefix . 'appointease_services',
-            array('id' => $id),
-            array('%d')
-        );
-        
-        if($result) {
-            wp_send_json_success();
-        } else {
-            wp_send_json_error('Failed to delete service');
+        try {
+            check_ajax_referer('appointease_nonce', '_wpnonce');
+            
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error('Unauthorized access');
+                return;
+            }
+            
+            global $wpdb;
+            $id = intval($_POST['id']);
+            
+            if ($id <= 0) {
+                wp_send_json_error('Invalid service ID');
+                return;
+            }
+            
+            require_once plugin_dir_path(__FILE__) . '../includes/class-api-security.php';
+            $services_table = Appointease_API_Security::get_table_name('appointease_services');
+            $result = $wpdb->delete(
+                $services_table,
+                array('id' => $id),
+                array('%d')
+            );
+            
+            if ($wpdb->last_error) {
+                wp_send_json_error('Database error occurred');
+                return;
+            }
+            
+            if($result) {
+                wp_send_json_success();
+            } else {
+                wp_send_json_error('Failed to delete service');
+            }
+        } catch (Exception $e) {
+            wp_send_json_error('Delete operation failed');
         }
     }
     
     public function delete_staff() {
-        check_ajax_referer('appointease_nonce', '_wpnonce');
-        global $wpdb;
-        $id = intval($_POST['id']);
-        
-        $result = $wpdb->delete(
-            $wpdb->prefix . 'appointease_staff',
-            array('id' => $id),
-            array('%d')
-        );
-        
-        if($result) {
-            wp_send_json_success();
-        } else {
-            wp_send_json_error('Failed to delete staff');
+        try {
+            check_ajax_referer('appointease_nonce', '_wpnonce');
+            
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error('Unauthorized access');
+                return;
+            }
+            
+            global $wpdb;
+            $id = intval($_POST['id']);
+            
+            if ($id <= 0) {
+                wp_send_json_error('Invalid staff ID');
+                return;
+            }
+            
+            require_once plugin_dir_path(__FILE__) . '../includes/class-api-security.php';
+            $staff_table = Appointease_API_Security::get_table_name('appointease_staff');
+            $result = $wpdb->delete(
+                $staff_table,
+                array('id' => $id),
+                array('%d')
+            );
+            
+            if ($wpdb->last_error) {
+                wp_send_json_error('Database error occurred');
+                return;
+            }
+            
+            if($result) {
+                wp_send_json_success();
+            } else {
+                wp_send_json_error('Failed to delete staff');
+            }
+        } catch (Exception $e) {
+            wp_send_json_error('Delete operation failed');
         }
     }
     
     public function appointments_page() {
         global $wpdb;
+        require_once plugin_dir_path(__FILE__) . '../includes/class-api-security.php';
+        $appointments_table = Appointease_API_Security::get_table_name('appointments');
+        $services_table = Appointease_API_Security::get_table_name('appointease_services');
+        $staff_table = Appointease_API_Security::get_table_name('appointease_staff');
+        
         $appointments = $wpdb->get_results(
             "SELECT a.*, s.name as service_name, st.name as staff_name 
-             FROM {$wpdb->prefix}appointments a 
-             LEFT JOIN {$wpdb->prefix}appointease_services s ON a.service_id = s.id 
-             LEFT JOIN {$wpdb->prefix}appointease_staff st ON a.employee_id = st.id 
+             FROM `{$appointments_table}` a 
+             LEFT JOIN `{$services_table}` s ON a.service_id = s.id 
+             LEFT JOIN `{$staff_table}` st ON a.employee_id = st.id 
              ORDER BY a.appointment_date DESC"
         );
         ?>
@@ -860,29 +1005,50 @@ class AppointEase_Admin {
     }
     
     public function update_appointment_status() {
-        check_ajax_referer('appointease_nonce', '_wpnonce');
-        global $wpdb;
-        $id = intval($_POST['id']);
-        $status = sanitize_text_field($_POST['status']);
-        
-        // Validate status
-        if (!in_array($status, ['confirmed', 'cancelled', 'pending'])) {
-            wp_send_json_error('Invalid status');
-            return;
-        }
-        
-        $result = $wpdb->update(
-            $wpdb->prefix . 'appointments',
-            array('status' => $status),
-            array('id' => $id),
-            array('%s'),
-            array('%d')
-        );
-        
-        if($result !== false) {
-            wp_send_json_success();
-        } else {
-            wp_send_json_error('Failed to update status');
+        try {
+            check_ajax_referer('appointease_nonce', '_wpnonce');
+            
+            if (!current_user_can('manage_options')) {
+                wp_send_json_error('Unauthorized access');
+                return;
+            }
+            
+            global $wpdb;
+            $id = intval($_POST['id']);
+            $status = sanitize_text_field($_POST['status']);
+            
+            if ($id <= 0) {
+                wp_send_json_error('Invalid appointment ID');
+                return;
+            }
+            
+            if (!in_array($status, ['confirmed', 'cancelled', 'pending'])) {
+                wp_send_json_error('Invalid status');
+                return;
+            }
+            
+            require_once plugin_dir_path(__FILE__) . '../includes/class-api-security.php';
+            $appointments_table = Appointease_API_Security::get_table_name('appointments');
+            $result = $wpdb->update(
+                $appointments_table,
+                array('status' => $status),
+                array('id' => $id),
+                array('%s'),
+                array('%d')
+            );
+            
+            if ($wpdb->last_error) {
+                wp_send_json_error('Database error occurred');
+                return;
+            }
+            
+            if($result !== false) {
+                wp_send_json_success();
+            } else {
+                wp_send_json_error('Failed to update status');
+            }
+        } catch (Exception $e) {
+            wp_send_json_error('Update operation failed');
         }
     }
     
@@ -891,9 +1057,12 @@ class AppointEase_Admin {
         global $wpdb;
         $id = intval($_POST['id']);
         
+        require_once plugin_dir_path(__FILE__) . '../includes/class-api-security.php';
+        $appointments_table = Appointease_API_Security::get_table_name('appointments');
+        
         // Check if appointment exists first
         $exists = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}appointments WHERE id = %d", $id
+            "SELECT COUNT(*) FROM `{$appointments_table}` WHERE id = %d", $id
         ));
         
         if (!$exists) {
@@ -902,7 +1071,7 @@ class AppointEase_Admin {
         }
         
         $result = $wpdb->delete(
-            $wpdb->prefix . 'appointments',
+            $appointments_table,
             array('id' => $id),
             array('%d')
         );
@@ -915,29 +1084,44 @@ class AppointEase_Admin {
     }
     
     public function get_calendar_data() {
-        check_ajax_referer('appointease_nonce', '_wpnonce');
-        global $wpdb;
-        
-        $appointments = $wpdb->get_results(
-            "SELECT a.*, s.name as service_name, st.name as staff_name 
-             FROM {$wpdb->prefix}appointments a 
-             LEFT JOIN {$wpdb->prefix}appointease_services s ON a.service_id = s.id 
-             LEFT JOIN {$wpdb->prefix}appointease_staff st ON a.employee_id = st.id 
-             WHERE a.appointment_date >= CURDATE()"
-        );
-        
-        $events = array();
-        foreach($appointments as $appointment) {
-            $events[] = array(
-                'id' => $appointment->id,
-                'title' => $appointment->name . ' - ' . $appointment->service_name,
-                'start' => $appointment->appointment_date,
-                'end' => date('Y-m-d H:i:s', strtotime($appointment->appointment_date . ' +1 hour')),
-                'status' => $appointment->status
+        try {
+            check_ajax_referer('appointease_nonce', '_wpnonce');
+            global $wpdb;
+            require_once plugin_dir_path(__FILE__) . '../includes/class-api-security.php';
+            $appointments_table = Appointease_API_Security::get_table_name('appointments');
+            $services_table = Appointease_API_Security::get_table_name('appointease_services');
+            $staff_table = Appointease_API_Security::get_table_name('appointease_staff');
+            
+            $appointments = $wpdb->get_results(
+                "SELECT a.*, s.name as service_name, st.name as staff_name 
+                 FROM `{$appointments_table}` a 
+                 LEFT JOIN `{$services_table}` s ON a.service_id = s.id 
+                 LEFT JOIN `{$staff_table}` st ON a.employee_id = st.id 
+                 WHERE a.appointment_date >= CURDATE()"
             );
+            
+            if ($wpdb->last_error) {
+                wp_send_json_error('Database error occurred');
+                return;
+            }
+            
+            $events = array();
+            if ($appointments) {
+                foreach($appointments as $appointment) {
+                    $events[] = array(
+                        'id' => $appointment->id,
+                        'title' => $appointment->name . ' - ' . ($appointment->service_name ?: 'N/A'),
+                        'start' => $appointment->appointment_date,
+                        'end' => date('Y-m-d H:i:s', strtotime($appointment->appointment_date . ' +1 hour')),
+                        'status' => $appointment->status
+                    );
+                }
+            }
+            
+            wp_send_json_success($events);
+        } catch (Exception $e) {
+            wp_send_json_error('Failed to load calendar data');
         }
-        
-        wp_send_json_success($events);
     }
     
     public function save_category() {
@@ -1949,8 +2133,10 @@ class AppointEase_Admin {
             return;
         }
         
+        require_once plugin_dir_path(__FILE__) . '../includes/class-api-security.php';
+        $appointments_table = Appointease_API_Security::get_table_name('appointments');
         $result = $wpdb->insert(
-            $wpdb->prefix . 'appointments',
+            $appointments_table,
             array(
                 'name' => $name,
                 'email' => $email,
@@ -1987,9 +2173,12 @@ class AppointEase_Admin {
             return;
         }
         
+        require_once plugin_dir_path(__FILE__) . '../includes/class-api-security.php';
+        $appointments_table = Appointease_API_Security::get_table_name('appointments');
+        
         // Check if appointment exists
         $exists = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}appointments WHERE id = %d", $id
+            "SELECT COUNT(*) FROM `{$appointments_table}` WHERE id = %d", $id
         ));
         
         if (!$exists) {
@@ -1998,7 +2187,7 @@ class AppointEase_Admin {
         }
         
         $result = $wpdb->update(
-            $wpdb->prefix . 'appointments',
+            $appointments_table,
             array('appointment_date' => $new_datetime),
             array('id' => $id),
             array('%s'),
@@ -2025,8 +2214,10 @@ class AppointEase_Admin {
         $day = intval($_POST['day']);
         global $wpdb;
         
+        require_once plugin_dir_path(__FILE__) . '../includes/class-api-security.php';
+        $appointments_table = Appointease_API_Security::get_table_name('appointments');
         $count = $wpdb->get_var($wpdb->prepare(
-            "SELECT COUNT(*) FROM {$wpdb->prefix}appointments 
+            "SELECT COUNT(*) FROM `{$appointments_table}` 
              WHERE DAYOFWEEK(appointment_date) = %d 
              AND appointment_date >= NOW() 
              AND status IN ('confirmed', 'created')",
@@ -2042,8 +2233,10 @@ class AppointEase_Admin {
         $email = sanitize_email($_POST['email']);
         global $wpdb;
         
+        require_once plugin_dir_path(__FILE__) . '../includes/class-api-security.php';
+        $customers_table = Appointease_API_Security::get_table_name('appointease_customers');
         $customer = $wpdb->get_row($wpdb->prepare(
-            "SELECT name, phone FROM {$wpdb->prefix}appointease_customers WHERE email = %s",
+            "SELECT name, phone FROM `{$customers_table}` WHERE email = %s",
             $email
         ));
         
